@@ -1,0 +1,8 @@
+dependencies = [
+    "lightgbm>=4.0.0",
+    "xgboost>=2.0.0",
+    "catboost>=1.2.0",
+    "optuna>=3.5.0",
+    "shap>=0.44.0",
+    "pandas>=2.0.0",
+]
