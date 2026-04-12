@@ -5,6 +5,12 @@
 # cython: initializedcheck=False
 # cython: nonecheck=False
 
+
+# Create by Aryanto
+# at 20260412
+# email me : aryanto.dandan@gmail.com
+
+
 from libc.stdlib cimport malloc, free
 from libc.stdio cimport fprintf, stderr
 from cython.parallel cimport prange, parallel, threadid
