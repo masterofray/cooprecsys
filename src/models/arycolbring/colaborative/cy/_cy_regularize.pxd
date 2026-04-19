@@ -40,7 +40,7 @@ cdef inline void regularize(FastAryColBring model,
     model.user_scale = 1.0
 
 
-cdef inline void locked_regularize(FastAryColBring model,
+cdef inline void w(FastAryColBring model,
                                    double item_alpha,
                                    double user_alpha,
                                    omp_lock_t *lock,

@@ -60,7 +60,7 @@ cdef inline int int_max(int x, int y) nogil:
 
 # ── Comparators for qsort / bsearch ─────────────────────────────────────────
 
-cdef inline int int_compare(const void *a, const void *b) nogil:
+cdef inline int int_compare(const void *a, const void *b) noexcept nogil:
     cdef int va = (<int*>a)[0]
     cdef int vb = (<int*>b)[0]
     if va > vb:
@@ -70,7 +70,7 @@ cdef inline int int_compare(const void *a, const void *b) nogil:
     return 0
 
 
-cdef inline int flt_compare(const void *a, const void *b) nogil:
+cdef inline int flt_compare(const void *a, const void *b) noexcept nogil:
     cdef flt va = (<flt*>a)[0]
     cdef flt vb = (<flt*>b)[0]
     if va > vb:
@@ -80,7 +80,7 @@ cdef inline int flt_compare(const void *a, const void *b) nogil:
     return 0
 
 
-cdef inline int reverse_pair_compare(const void *a, const void *b) nogil:
+cdef inline int reverse_pair_compare(const void *a, const void *b) noexcept nogil:
     cdef flt diff = (<Pair*>a).val - (<Pair*>b).val
     if diff < 0:
         return 1
