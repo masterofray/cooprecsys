@@ -52,12 +52,12 @@ else:  # Linux
     omp_lib         = []
 
 include_dirs = [np.get_include()]
-cy_dir       = os.path.join("colaborative", "cy")
+cy_dir       = os.path.join("arycolbring", "cy")
 
 
 def cy_ext(name: str, sources=None) -> Extension:
     """
-    Create an Extension for a Cython module inside ``colaborative/cy/``.
+    Create an Extension for a Cython module inside ``arycolbring/cy/``.
 
     Parameters
     ----------
@@ -83,17 +83,17 @@ def cy_ext(name: str, sources=None) -> Extension:
 # when downstream modules are compiled.
 
 extensions = [
-    cy_ext("colaborative.cy._cy_types"),
-    cy_ext("colaborative.cy._cy_math"),
-    cy_ext("colaborative.cy._cy_representation"),
-    cy_ext("colaborative.cy._cy_update"),
-    cy_ext("colaborative.cy._cy_regularize"),
-    cy_ext("colaborative.cy._cy_fit_logistic"),
-    cy_ext("colaborative.cy._cy_fit_warp"),
-    cy_ext("colaborative.cy._cy_fit_bpr"),
-    cy_ext("colaborative.cy._cy_fit_warp_kos"),
-    cy_ext("colaborative.cy._cy_predict"),
-    cy_ext("colaborative.cy._cy_evaluate"),
+    cy_ext("arycolbring.cy._cy_types"),
+    cy_ext("arycolbring.cy._cy_math"),
+    cy_ext("arycolbring.cy._cy_representation"),
+    cy_ext("arycolbring.cy._cy_update"),
+    cy_ext("arycolbring.cy._cy_regularize"),
+    cy_ext("arycolbring.cy._cy_fit_logistic"),
+    cy_ext("arycolbring.cy._cy_fit_warp"),
+    cy_ext("arycolbring.cy._cy_fit_bpr"),
+    cy_ext("arycolbring.cy._cy_fit_warp_kos"),
+    cy_ext("arycolbring.cy._cy_predict"),
+    cy_ext("arycolbring.cy._cy_evaluate"),
 ]
 
 # ── Cython compiler directives ────────────────────────────────────────────────
