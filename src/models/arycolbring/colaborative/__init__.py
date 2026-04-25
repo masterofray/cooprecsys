@@ -1,15 +1,15 @@
-# coding=utf-8
+#!/usr/bin/env python3
+
 """
 arycolbring
 ===========
-Ultra-optimised user-to-item collaborative filtering.
+Hybrid FPGrowth Ultra-optimised user-to-item collaborative filtering.
 
 Public API
 ----------
 Model
 ~~~~~
 .. code-block:: python
-
     from arycolbring import AryColBring
 
     model = AryColBring(no_components=32, loss="warp", num_threads=4)
@@ -35,6 +35,17 @@ Evaluation
     from arycolbring import precision_at_k, recall_at_k, auc_score, reciprocal_rank
 """
 
+__author__     = "Aryanto"
+__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+__credits__    = ["aryanto"]
+__license__    = "GNU_Public"
+__version__    = "0.0.1"
+__maintainer__ = "Aryanto"
+__email__      = "aryanto.dandan@gmail.com"
+__status__     = "Development"
+__created__    = "2026-04-25"
+
+
 import logging
 import configparser
 import os
@@ -50,29 +61,26 @@ logging.basicConfig(
 )
 
 # ── public symbols ────────────────────────────────────────────────────────────
-from .model import AryColBring                                      # noqa: E402,F401
+from .model import AryColBring
 
-from .cross_validation import (                                     # noqa: E402,F401
+from .cross_validation import (
     random_train_test_split,
     user_based_train_test_split,
 )
 
-from .evaluation import (                                           # noqa: E402,F401
+from .evaluation import (
     precision_at_k,
     recall_at_k,
     auc_score,
     reciprocal_rank,
 )
 
-from .data_utils import (                                           # noqa: E402,F401
+from .data_utils import (
     load_interactions_from_df,
     load_interactions_from_csv,
     describe_interactions,
     validate_sparse_matrix,
 )
-
-__version__ = "0.1.0"
-__author__  = "aryanto"
 
 __all__ = [
     # Core model

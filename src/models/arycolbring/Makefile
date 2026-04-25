@@ -13,6 +13,7 @@ help:
 	@echo ""
 	@echo "  arycolbring — build & test targets"
 	@echo ""
+	@echo "  Author          Aryanto | Masterofray"
 	@echo "  make build      Compile Cython extensions in-place"
 	@echo "  make install    Build + pip install (editable)"
 	@echo "  make test       Run the full pytest suite"
@@ -73,10 +74,10 @@ clean:
 .PHONY: lint
 lint:
 	@echo "[lint] Checking Python syntax …"
-	$(PYTHON) -m py_compile arycolbring/__init__.py
-	$(PYTHON) -m py_compile arycolbring/model.py
-	$(PYTHON) -m py_compile arycolbring/cross_validation.py
-	$(PYTHON) -m py_compile arycolbring/evaluation.py
-	$(PYTHON) -m py_compile arycolbring/data_utils.py
+	$(PYTHON) -m py_compile colaborative/__init__.py
+	$(PYTHON) -m py_compile colaborative/model.py
+	$(PYTHON) -m py_compile colaborative/cross_validation.py
+	$(PYTHON) -m py_compile colaborative/evaluation.py
+	$(PYTHON) -m py_compile colaborative/data_utils.py
 	$(PYTHON) -m py_compile example.py
 	@echo "[lint] All Python files OK."
