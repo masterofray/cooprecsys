@@ -3,11 +3,17 @@
 '''
 Module Name : Logging General usage
 Description : Handles the logging area and configs.
-author      : Aryanto
 compiler    : python 3.10
-date        : 20260324
-Contact     : aryanto.dandan@gmail.com
 '''
+__author__     = "Aryanto"
+__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+__credits__    = ["aryanto"]
+__license__    = "GNU_Public"
+__version__    = "0.0.1"
+__maintainer__ = "Aryanto"
+__email__      = "aryanto.dandan@gmail.com"
+__status__     = "Development"
+__created__    = "2026-04-25"
 
 
 import os

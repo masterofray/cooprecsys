@@ -140,17 +140,17 @@ Not supported with `loss="warp-kos"`.
 │  (train COO, test COO)                                          │
 │        │                                                        │
 │        ▼  AryColBring.fit(train, epochs=N, num_threads=T)       │
-│  ┌─────────────────────────────────────────────────────────┐   │
-│  │              Per-epoch loop (tqdm)                       │   │
-│  │  • shuffle interaction indices (numpy)                   │   │
-│  │  • construct CSRMatrix wrappers (Cython cdef class)      │   │
-│  │  • dispatch to Cython kernel ──────────────────────────► │   │
-│  └─────────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │              Per-epoch loop (tqdm)                      │    │
+│  │  • shuffle interaction indices (numpy)                  │    │
+│  │  • construct CSRMatrix wrappers (Cython cdef class)     │    │
+│  │  • dispatch to Cython kernel ──────────────────────────►│    │
+│  └─────────────────────────────────────────────────────────┘    │
 │                                                                 │
 │        ▼  AryColBring.predict / predict_rank                    │
 │  Scores / ranks returned as numpy arrays                        │
 │        │                                                        │
-│        ▼  precision_at_k / recall_at_k / auc_score / mrr       │
+│        ▼  precision_at_k / recall_at_k / auc_score / mrr        │
 │  Evaluation metrics (float arrays per user)                     │
 └─────────────────────────────────────────────────────────────────┘
 
@@ -158,19 +158,19 @@ Not supported with `loss="warp-kos"`.
 │                        CYTHON LAYER  (nogil + OpenMP)           │
 │                                                                 │
 │  _cy_types.pyx  ─── CSRMatrix, FastAryColBring cdef classes     │
-│  _cy_math.pxd   ─── inline PRNG, sigmoid, in_positives, sorts  │
+│  _cy_math.pxd   ─── inline PRNG, sigmoid, in_positives, sorts   │
 │  _cy_representation.pxd ─ compute_representation,               │
 │                            compute_prediction_from_repr         │
-│  _cy_update.pxd ─── update_biases, update_features,            │
+│  _cy_update.pxd ─── update_biases, update_features,             │
 │                      update (logistic), warp_update             │
-│  _cy_regularize.pxd ─ regularize (lazy L2 flush),              │
+│  _cy_regularize.pxd ─ regularize (lazy L2 flush),               │
 │                        locked_regularize (OMP lock)             │
 │                                                                 │
-│  ┌──────────────┐  ┌────────────────┐  ┌─────────────────┐    │
-│  │fit_logistic  │  │ fit_warp        │  │ fit_bpr         │    │
-│  │fit_warp_kos  │  │ predict_arycolbring│ predict_ranks  │    │
-│  │calculate_auc_from_rank                                  │    │
-│  └──────────────┘  └────────────────┘  └─────────────────┘    │
+│  ┌──────────────┐  ┌────────────────┐  ┌─────────────────┐      │
+│  │fit_logistic  │  │ fit_warp       │  │ fit_bpr         │      │
+│  │fit_warp_kos  │  │ predict_arycolbring│ predict_ranks  │      │
+│  │calculate_auc_from_rank                                │      │
+│  └──────────────┘  └────────────────┘  └─────────────────┘      │
 │                                                                 │
 │  Each function:                                                 │
 │   • converts Python args to C scalars / typed memviews          │
@@ -178,7 +178,7 @@ Not supported with `loss="warp-kos"`.
 │   • malloc() per-thread buffers                                 │
 │   • iterates via prange(N, schedule='dynamic')                  │
 │   • free() buffers after prange                                 │
-│   • flushes lazy L2 regularisation with OMP lock               │
+│   • flushes lazy L2 regularisation with OMP lock                │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
