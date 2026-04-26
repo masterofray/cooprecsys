@@ -18,7 +18,6 @@ __status__     = "Development"
 __created__    = "2026-04-25"
 
 from __future__ import annotations
-
 import gc
 import logging
 import configparser
