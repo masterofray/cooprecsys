@@ -1,259 +1,324 @@
-'''
-Create by Aryanto
-at 20260323
-email me : aryanto.dandan@gmail.com
-'''
+#!/usr/bin/env python3
 
-from load import load_data
-import pandas as pd
+__author__     = "Aryanto"
+__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+__credits__    = ["aryanto"]
+__license__    = "GNU_Public"
+__version__    = "0.0.1"
+__maintainer__ = "Aryanto"
+__email__      = "aryanto.dandan@gmail.com"
+__status__     = "Development"
+__created__    = "2026-04-28"
+
 import numpy as np
-import duckdb as dc
-import polars as pl
-import argparse
-
-class FeatureEngineer:
-    def __init__(self, data: pd.DataFrame):
-        if not isinstance(data, pd.DataFrame):
-            raise TypeError(f"Input must be a pandas DataFrame, got {type(data)}")
-
-        # --- Robustness: Normalize Headers ---
-        # Strips whitespace and lowers casing to handle " User_ID " or "product_id"
-        self.Data = data.copy()
-        self.Data.columns = [col.strip().lower() for col in self.Data.columns]
-        required_cols     = ['user_id', 'product_id', 'order_number', 'reordered']
-        missing           = [col for col in required_cols if col not in self.Data.columns]
-        if missing:
-            raise KeyError(f"Critical columns missing: {missing}")
-
-        self.user_stats    = None
-        self.product_stats = None
-        self.df_feat       = None
-        print(f"--- FeatureEngineer Initialized: {len(self.Data)} rows | {len(self.Data.columns)} cols ---")
-
-    def create_user_features(self):
-        print("Tracing: Calculating user features...")
-        agg_map = {
-            'order_number'           : 'max',
-            'days_since_prior_order' : 'mean',
-            'add_to_cart_order'      : 'mean',
-            'reordered'              : 'sum',
-        }
-        # Robustness: Only aggregate columns that actually exist
-        available_aggs = {k: v for k, v in agg_map.items() if k in self.Data.columns}
-
-        try:
-            self.user_stats = self.Data.groupby('user_id').agg(available_aggs)
-            rename_map = {'order_number'          : 'user_total_orders',
-                          'days_since_prior_order': 'user_avg_days_between',
-                          'add_to_cart_order'     : 'user_avg_cart_pos',
-                          'reordered'             : 'user_total_reorders'}
-            self.user_stats.rename(columns=rename_map, inplace=True)
-            if self.user_stats.empty:
-                raise ValueError("Grouping resulted in empty user stats.")
-        except Exception as e:
-            print(f"Error in user features: {e}")
-            raise
-
-    def create_product_features(self):
-        print("Tracing: Calculating product features...")
-        try:
-            # Multi-level index handling is safer with reset_index immediately
-            stats = self.Data.groupby('product_id').agg({
-                'reordered': ['sum', 'mean'],
-                'order_id': 'count' if 'order_id' in self.Data.columns else 'size',
-                'add_to_cart_order': 'mean'
-            })
-
-            # Flattening multi-index columns robustly
-            stats.columns = ['prod_total_reorders', 'prod_reorder_rate', 'prod_order_count', 'prod_avg_cart_pos']
-            self.product_stats = stats.reset_index()
-
-            # Analytics: Log data quality issues
-            nan_count = self.product_stats['prod_reorder_rate'].isnull().sum()
-            if nan_count > 0:
-                print(f"Analytics Warning: {nan_count} products have NaN reorder rates (likely single-order products).")
-
-        except Exception as e:
-            print(f"Error in product features: {e}")
-            raise
-
-    def merge_features_pandas(self):
-        self.df_feat = self.Data.merge(self.user_stats, on='user_id', how='left')
-        self.df_feat = self.df_feat.merge(self.product_stats, on='product_id', how='left')
-
-    def merge_features_duckdb(self):
-        con = dc.connect(database=':memory:')
-        self_Data = self.Data
-        self_user_stats = self.user_stats.reset_index()
-        self_product_stats = self.product_stats.reset_index()
-
-        # We use a SQL JOIN which is often more memory-efficient
-        Dquery = """
-        SELECT
-            d.*,
-            u.* EXCLUDE (user_id),
-            p.* EXCLUDE (product_id)
-        FROM self_Data as d
-        LEFT JOIN self_user_stats as u ON d.user_id = u.user_id
-        LEFT JOIN self_product_stats as p ON d.product_id = p.product_id
-        """
-        self.df_feat = con.execute(Dquery).df()
-
-    def merge_features_polars(self):
-        ldf = pl.from_pandas(self.Data)
-        u_stats = pl.from_pandas(self.user_stats)
-        p_stats = pl.from_pandas(self.product_stats)
-
-        # Polars allows 'validate' to prevent row explosion automatically
-        try:
-            self.df_feat = (
-                ldf.join(u_stats, on="user_id", how="left", validate="m:1")
-                   .join(p_stats, on="product_id", how="left", validate="m:1")
-            ).to_pandas()
-        except Exception as e:
-            print(f"Merge failed validation: {e}")
-
-    def merge_features(self):
-        if self.user_stats is None or self.product_stats is None:
-            raise ValueError("Feature calculation steps must be run before merging.")
-
-        # Analytics: Track shape before merge
-        original_count = len(self.Data)
-        if original_count <= 50_000:
-            self.merge_features_pandas()
-        elif 50_000 < original_count <= 700_000:
-            self.merge_features_polars()
-        else:
-            self.merge_features_duckdb()
-
-        # Robustness: Check for Cartesian product issues (row explosion)
-        if len(self.df_feat) > original_count:
-            print(f"CRITICAL WARNING: Row count increased from {original_count} to {len(self.df_feat)}. Check for duplicate IDs.")
-
-    def fit_transform(self):
-        try:
-            self.create_user_features()
-            self.create_product_features()
-            self.merge_features()
-
-            # Analytics: Dynamic feature selection (only keep what we actually have)
-            potential_features = [
-                'order_number', 'order_dow', 'order_hour_of_day',
-                'days_since_prior_order', 'add_to_cart_order',
-                'user_total_orders', 'user_avg_days_between', 'user_avg_cart_pos',
-                'user_total_reorders', 'prod_total_reorders', 'prod_reorder_rate',
-                'prod_order_count', 'prod_avg_cart_pos'
-            ]
-            self.feature_cols = [c for c in potential_features if c in self.df_feat.columns]
-
-            # Robustness: Fast NaN filling using a median map
-            numeric_feats = self.df_feat[self.feature_cols].select_dtypes(include=[np.number]).columns
-
-            # This avoids the SettingWithCopyWarning and is faster than a loop
-            medians = self.df_feat[numeric_feats].median()
-            self.df_feat.fillna(medians, inplace=True)
-
-            print(f"--- fit_transform Completed: {len(numeric_feats)} features generated ---")
-            return self.df_feat, numeric_feats, self.feature_cols
-
-        except Exception as e:
-            print(f"CRITICAL ERROR in pipeline: {e}")
-            return None, None
-
-
-import argparse
 import pandas as pd
-import duckdb
-import os
+from pathlib import Path
+import cloudpickle as cpk
+from dataclasses import dataclass, field
+from typing import Dict, List, Callable, Optional, Any
+from sklearn.base import BaseEstimator, TransformerMixin
 
-def load_production_data(file_path):
-    """
-    Detects file extension and returns a pandas DataFrame.
-    """
-    ext = os.path.splitext(file_path)[-1].lower()
-    
-    if ext == '.csv':
-        return pd.read_csv(file_path)
-    elif ext == '.parquet':
-        return pd.read_parquet(file_path)
-    elif ext == '.db':
-        # Assumes the table name in DuckDB is 'data' or similar
-        # Adjust the query as needed for your specific DB schema
-        conn = duckdb.connect(file_path)
-        df = conn.execute("SELECT * FROM train_table").df()
-        conn.close()
+try:
+    from ..db import DuckDBManager, duckdb_connection, logger
+except Exception:
+    import duckdb
+    DuckDBManager = None
+    duckdb_connection = None
+
+@dataclass
+class AutoFeatureEngineer(
+        BaseEstimator, 
+        TransformerMixin):
+    entity          : str
+    mode            : str = 'auto'
+    leakage_safe    : bool = True
+    n_jobs          : int = 1
+    datetime_cols   : List[str] = field(default_factory=list)
+    logger_name     : str = 'autofeat'
+    backend         : str = 'duckdb'
+    db_path         : str = ':memory:'
+    temp_dir        : str = './autofeat_tmp'
+    chunk_size      : int = 1000000
+    exclude_cols    : List[str] = field(default_factory=list)
+    custom_features : Dict[str, Callable] = field(default_factory=dict)
+    agg_map_        : Dict[str, List[str]] = field(default_factory=dict)
+    feature_columns_: List[str] = field(default_factory=list)
+    fitted_         : bool = False
+
+    def __post_init__(self):
+        self.logger = logger
+        self.logger.info('Initializing AutoFeat')
+        try:
+            Path(self.temp_dir).mkdir(parents=True, exist_ok=True)
+            self.logger.debug(f'Temp directory ready: {self.temp_dir}')
+        except Exception as arc:
+            self.logger.exception(f'Failed creating temp dir: {arc}')
+            raise ValueError()
+
+    def _infer_types(self, df):
+        num = df.select_dtypes(include=np.number).columns.tolist()
+        cat = [c for c in df.columns if c not in num]
+        num = [c for c in num if c != self.entity and c not in self.exclude_cols]
+        cat = [c for c in cat if c != self.entity and c not in self.exclude_cols]
+        return num, cat
+
+    def _build_agg_map(self, df):
+        num, cat = self._infer_types(df)
+        agg = {}
+        for c in num:
+            nunq = df[c].dropna().nunique()
+            if nunq <= 2:
+                agg[c] = ['sum','mean']
+            else:
+                agg[c] = ['mean','std','min','max','median']
+        for c in cat:
+            agg[c] = ['nunique']
+        return agg
+
+    def _duckdb_register(self, 
+                         df : pd.DataFrame, 
+                         name : str ='source_df',
+                        ):
+        self.logger.info(f'Registering dataframe rows={len(df):,} into {name}')
+        if DuckDBManager is not None:
+            self.db = DuckDBManager(self.db_path, read_only=False, threads=self.n_jobs or None)
+            self.con = self.db.conn
+            self.db.register_dataframe(name, df)
+        else:
+            self.con = duckdb.connect(self.db_path)
+            self.con.register(name, df)
+        return name
+
+    def _duckdb_group_features(self, df):
+        self.logger.info('Starting DuckDB aggregation engine')
+        tbl = self._duckdb_register(df)
+        exprs = list()
+        for col, aggs in self.agg_map_.items():
+            for agg in aggs:
+                exprs.append(f"{agg.upper()}({col}) AS {self.entity}__{col}__{agg}")
+        sql = f"SELECT {self.entity}, {', '.join(exprs)} FROM {tbl} GROUP BY {self.entity}"
+        return self.con.execute(sql).df()
+
+    def _prepare_datetime(self, df):
+        for c in self.datetime_cols:
+            if c in df.columns:
+                df[c] = pd.to_datetime(df[c], errors='coerce')
+                df[c + '_year'] = df[c].dt.year
+                df[c + '_month'] = df[c].dt.month
+                df[c + '_day'] = df[c].dt.day
+                df[c + '_dow'] = df[c].dt.dayofweek
         return df
-    else:
-        raise ValueError(f"Unsupported file format: {ext}")
 
-def main():
-    # 1. Setup Argument Parser
-    parser = argparse.ArgumentParser(description="Feature Engineering Script")
-    
-    # Adding the --data argument
-    parser.add_argument(
-        "--data", 
-        type=str, 
-        required=True, 
-        help="Path to the input data file (.csv, .parquet, or .db)"
+    def fit(self, df, y=None):
+        self.logger.info('Fit started')
+        if self.entity not in df.columns:
+            raise KeyError(f'{self.entity} not found')
+        
+        df = self._prepare_datetime(df.copy())
+        self.agg_map_ = self._build_agg_map(df)
+        self.fitted_ = True
+        
+        self.logger.info('AutoFeat fitted successfully')
+        return self
+
+    def transform(self, df):
+        self.logger.info('Transform started')
+        if not self.fitted_:
+            raise RuntimeError('Call fit first')
+        df = self._prepare_datetime(df.copy())
+        if not self.agg_map_:
+            raise RuntimeError('Call fit first')
+        if self.backend == 'duckdb':
+            feat = self._duckdb_group_features(df)
+        else:
+            feat = df.groupby(self.entity, observed=True).agg(self.agg_map_)
+        
+        feat.columns = [f'{self.entity}__{a}__{b}' for a,b in feat.columns]
+        feat = feat.reset_index()
+        
+        for name, fn in self.custom_features.items():
+            vals = df.groupby(self.entity).apply(fn)
+            feat = feat.merge(vals.rename(name).reset_index(), on=self.entity, how='left')
+        self.feature_columns_ = [c for c in feat.columns if c != self.entity]
+        
+        self.logger.info(f'Generated {len(self.feature_columns_)} features')
+        feat[self.feature_columns_] = feat[self.feature_columns_].replace([np.inf,-np.inf], np.nan)
+        feat[self.feature_columns_] = feat[self.feature_columns_].fillna(feat[self.feature_columns_].median(numeric_only=True))
+        return feat
+
+    def to_parquet(self, df, path):
+        df.to_parquet(path, index=False)
+        self.logger.info(f'Saved parquet: {path}')
+
+    def sql(self, query):
+        self.logger.debug(f'Executing SQL: {query[:300]}')
+
+    def sql_core(self, query):
+        if hasattr(self, 'db') and self.db is not None:
+            return self.db.query(query)
+        return self.con.execute(query).df()
+
+    def list_tables(self):
+        if hasattr(self, 'db') and self.db is not None:
+            return self.db.ListedTable()
+        return self.con.execute("SELECT table_name FROM duckdb_tables()").df()
+
+    def schema(self, table_name):
+        if hasattr(self, 'db') and self.db is not None:
+            return self.db.get_schema(table_name)
+        return self.con.execute(f"DESCRIBE {table_name}").df()
+
+    def profile(self, df):
+        self.logger.info(f'Profiling dataframe rows={len(df):,} cols={len(df.columns)}')
+        rep = pd.DataFrame({
+            'column': df.columns,
+            'dtype': df.dtypes.astype(str).values,
+            'null_pct': (df.isnull().mean()*100).values,
+            'nunique': [df[c].nunique() for c in df.columns]
+        })
+        return rep
+
+    def get_feature_names_out(self):
+        return self.feature_columns_
+
+    def detect_drift(self, train_df, new_df):
+        report = {}
+        for c in self.feature_columns_:
+            if c in train_df.columns and c in new_df.columns:
+                report[c] = abs(train_df[c].mean() - new_df[c].mean())
+        return pd.Series(report).sort_values(ascending=False)
+
+    def fit_transform(self, df, y=None):
+        return self.fit(df).transform(df)
+
+    def register_custom_feature(self, name, func):
+        self.custom_features[name] = func
+        return self
+
+    def save(self, path):
+        with open(path,'wb') as f:
+            cpk.dump(self,f)
+
+    @staticmethod
+    def load(path):
+        with open(path,'rb') as f:
+            return cpk.load(f)
+
+if __name__ == '__main__':
+    # Example:
+    # fe = AutoFeatureEngineer(entity='user_id')
+    # fe.register_custom_feature('repeat_ratio', lambda g: g.duplicated().mean())
+    # X = fe.fit_transform(df)
+
+    '''
+    from autofeat import AutoFeatureEngineer
+
+    fe = AutoFeatureEngineer(
+        entity="user_id",
+        backend="duckdb",
+        db_path="feat.duckdb"
     )
-    
-    args = parser.parse_args()
 
-    # 2. Load the data into FTrain
+    X = fe.fit_transform(df)
+    '''
+
+    logger.info("=" * 70)
+    logger.info("AUTOFEAT V3 - LOCAL TEST START")
+    logger.info("=" * 70)
+
     try:
-        FTrain = load_production_data(args.data)
-        print(f"Successfully loaded data from {args.data} with shape {FTrain.shape}")
+        # ==========================================================
+        # 1. Create Dummy Dataset
+        # ==========================================================
+        np.random.seed(2)
+
+        n_rows = 10_000
+
+        df = pd.DataFrame({
+            "user_id": np.random.randint(1, 1001, n_rows),
+            "product_id": np.random.randint(100, 500, n_rows),
+            "amount": np.random.uniform(5, 500, n_rows).round(2),
+            "qty": np.random.randint(1, 8, n_rows),
+            "discount": np.random.choice([0, 5, 10, 15], n_rows),
+            "is_reordered": np.random.choice([0, 1], n_rows),
+            "trx_date": pd.date_range(
+                start="2025-01-01",
+                periods=n_rows,
+                freq="H"
+            )
+        })
+
+        logger.info(f"Dummy dataset created: {df.shape}")
+        logger.debug(df.head())
+
+        # ==========================================================
+        # 2. Initialize AutoFeat
+        # ==========================================================
+        fe = AutoFeatureEngineer(
+            entity="user_id",
+            backend="duckdb",
+            db_path=":memory:",
+            datetime_cols=["trx_date"],
+            n_jobs=4
+        )
+
+        logger.info("AutoFeat object initialized.")
+
+        # ==========================================================
+        # 3. Register Custom Feature
+        # ==========================================================
+        fe.register_custom_feature(
+            "repeat_product_ratio",
+            lambda g: g["product_id"].duplicated().mean()
+        )
+
+        logger.info("Custom feature registered.")
+
+        # ==========================================================
+        # 4. Fit Transform
+        # ==========================================================
+        feat = fe.fit_transform(df)
+
+        logger.info(f"Feature engineering success. Shape: {feat.shape}")
+        logger.info("Top 5 rows:")
+        logger.info(feat.head())
+
+        # ==========================================================
+        # 5. Feature Names
+        # ==========================================================
+        logger.info(f"Total generated features: {len(fe.get_feature_names_out())}")
+
+        # ==========================================================
+        # 6. DuckDB SQL Test
+        # ==========================================================
+        sql_result = fe.sql_core("""
+            SELECT COUNT(*) AS total_rows,
+                   COUNT(DISTINCT user_id) AS total_users
+            FROM source_df
+        """)
+
+        logger.info("SQL test result:")
+        logger.info(sql_result)
+
+        # ==========================================================
+        # 7. Profile Test
+        # ==========================================================
+        profile = fe.profile(df)
+
+        logger.info("Dataset profile:")
+        logger.info(profile.head(10))
+
+        # ==========================================================
+        # 8. Save Output
+        # ==========================================================
+        fe.to_parquet(feat, "autofeat_output.parquet")
+
+        logger.info("Parquet export success.")
+
+        logger.info("=" * 70)
+        logger.info("AUTOFEAT V3 TEST FINISHED SUCCESSFULLY")
+        logger.info("=" * 70)
+
     except Exception as e:
-        print(f"Error loading data: {e}")
-        return
-
-    # 3. Your existing Logic
-    # FEs = FeatureEngineer(data = FTrain)
-    # DataFeatureTrain, feature_cols, others = FEs.fit_transform()
-    print("Feature engineering complete.")
-
-if __name__ == '__main__':
-    main()
-
-if __name__ == '__main__':
-    def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description='Feature Engineering Pipeline for Machine Learning',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  python feat_engine.py --data /path/to/data.csv
-  python feat_engine.py --data /path/to/data.parquet
-  python feat_engine.py --data /path/to/database.db
-        """
-    )
-    
-    parser.add_argument(
-        '--data',
-        type=str,
-        required=True,
-        help='Path to data file (supported formats: .csv, .parquet, .db for DuckDB)'
-    )
-    
-    return parser.parse_args()
-
-
-if __name__ == '__main__':
-    args = parse_arguments()
-    try:
-        # Load data based on the provided path
-        FTrain = load_data(args.data)
-        
-        # Initialize and run feature engineering
-        FEs = FeatureEngineer(data=FTrain)
-        DataFeatureTrain, feature_cols, others = FEs.fit_transform()
-        
-        print("\nFeature Engineering Completed Successfully!")
-        print(f"Transformed data shape: {DataFeatureTrain.shape}")
-        print(f"Feature columns: {feature_cols}")
-        print(f"Other columns: {others}")
-        
-    except Exception as e:
-        print(f"Error: {e}")
-        exit(1)
+        logger.exception("AUTOFEAT TEST FAILED")
+        raise

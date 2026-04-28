@@ -15,8 +15,12 @@ import gc
 import logging
 import configparser
 import os
+import pandas as pd
+from pathlib import Path
 from contextlib import contextmanager
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, List, Dict, Union
+
+from . import logger
 
 class DuckDBManager:
     """
@@ -31,7 +35,6 @@ class DuckDBManager:
         with DuckDBManager('mydb.duckdb') as db:
             df = db.query("SELECT * FROM users")
     """
-
     def __init__(self,
                  db_path: Union[str, Path],
                  read_only: bool = True,
@@ -105,7 +108,7 @@ class DuckDBManager:
         """Register pandas DataFrame as temporary table (table_view)."""
         self.conn.register(name, df)
 
-    def ListedTable(self):
+    def ListedTable(self, verbose : bool = False) -> pd.DataFrame:
         tables = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
         data = list()
         for table in tables['table_name']:
@@ -114,7 +117,9 @@ class DuckDBManager:
         info_df = pd.DataFrame(data)
         info_df = info_df.sort_values(by='row_count', ascending=False)
         info_df['row_count'] = info_df['row_count'].apply(lambda x: f"{x:,}")
-        display(info_df)
+        if verbose:
+            logger.info('Here is the DataFrame of table listed.')
+            logger.info(info_df)
         return info_df
 
     def execute(self, query: str, params: Optional[Union[List, Dict]] = None):
@@ -172,3 +177,50 @@ def duckdb_connection(db_path: Union[str, Path] = './dbprocess.duckdb',
         yield db
     finally:
         db.close()
+
+if __name__ == '__main__':
+    data_produk = {
+        'product_id'  : [101, 102, 103, 104],
+        'product_name': ['Beras 5kg', 'Minyak Goreng 2L', 'Gula Pasir 1kg', 'Susu Kental Manis'],
+        'category'    : ['Sembako', 'Sembako', 'Sembako', 'Minuman'],
+        'price'       : [65000, 34000, 15000, 12000]}
+    df_products = pd.DataFrame(data_produk)
+    changetype = {col: str for col in df_products.select_dtypes(include=['object', 'string']).columns}
+    df_products = df_products.astype(changetype)
+    
+    # Pastikan tidak ada numpy.str_ yang tersisa
+    df_products = df_products.convert_dtypes()
+    
+    logger.info("Initializing DuckDB Manager...")
+
+    with duckdb_connection(':memory:') as db:
+        
+        # Register the pandas DataFrame
+        logger.info("Registering local DataFrame as 'koperasi_products'...")
+        db.register_dataframe('koperasi_products', df_products)
+        #db.conn.execute("CREATE TABLE koperasi_products AS SELECT * FROM df_products")
+        
+        # Create a persistent table from the registered view
+        db.execute("CREATE TABLE inventory AS SELECT * FROM koperasi_products")
+        
+        # Check if table exists
+        if db.table_exists('inventory'):
+            logger.info("Success: Table 'inventory' created.")
+
+        # Get Schema
+        logger.info("\nTable Schema for 'inventory':")
+        logger.info(db.get_schema('inventory')[['column_name', 'column_type']])
+
+        # Query back data with a filter
+        expensive_items = db.query(
+            "SELECT product_name, price FROM inventory WHERE price > ?", 
+            params=[20000]
+        )
+        
+        logger.info("\nProducts priced over 20,000:")
+        logger.info(expensive_items)
+
+        # Show table stats
+        db.ListedTable()
+
+    logger.warning("\nDatabase connection closed.")
