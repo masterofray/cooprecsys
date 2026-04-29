@@ -70,7 +70,7 @@ class AutoFeatureEngineer(
             if nunq <= 2:
                 agg[c] = ['sum','mean']
             else:
-                agg[c] = ['mean','std','min','max','median']
+                agg[c] = ['mean','stddev','min','max','median']
         for c in cat:
             agg[c] = ['nunique']
         return agg
@@ -93,13 +93,21 @@ class AutoFeatureEngineer(
         self.logger.info('Starting DuckDB aggregation engine')
         tbl = self._duckdb_register(df)
         exprs = list()
+
         for col, aggs in self.agg_map_.items():
             for agg in aggs:
-                exprs.append(f"{agg.upper()}({col}) AS {self.entity}__{col}__{agg}")
+                if agg == 'nunique':
+                    sql_func = f"COUNT(DISTINCT {col})"
+                elif agg == 'stddev':
+                    sql_func = f"STDDEV({col})"
+                else:
+                    sql_func = f"{agg.upper()}({col})"
+                exprs.append(f"{sql_func} AS {self.entity}__{col}__{agg}")
         sql = f"SELECT {self.entity}, {', '.join(exprs)} FROM {tbl} GROUP BY {self.entity}"
+        logger.debug(f'Group Feature query : \n{sql}')
         return self.con.execute(sql).df()
 
-    def _prepare_datetime(self, df):
+    def _prepare_datetime(self, df : pd.DataFrame) -> pd.DataFrame:
         for c in self.datetime_cols:
             if c in df.columns:
                 df[c] = pd.to_datetime(df[c], errors='coerce')
@@ -109,42 +117,55 @@ class AutoFeatureEngineer(
                 df[c + '_dow'] = df[c].dt.dayofweek
         return df
 
-    def fit(self, df, y=None):
+    def fit(self, 
+            data:pd.DataFrame,
+        ) -> pd.DataFrame:
         self.logger.info('Fit started')
-        if self.entity not in df.columns:
+        if self.entity not in data.columns:
             raise KeyError(f'{self.entity} not found')
         
-        df = self._prepare_datetime(df.copy())
+        df = self._prepare_datetime(data.copy())
         self.agg_map_ = self._build_agg_map(df)
         self.fitted_ = True
         
         self.logger.info('AutoFeat fitted successfully')
         return self
 
-    def transform(self, df):
+    def transform(self, 
+                  data : pd.DataFrame,
+        ) -> pd.DataFrame:
         self.logger.info('Transform started')
         if not self.fitted_:
             raise RuntimeError('Call fit first')
-        df = self._prepare_datetime(df.copy())
+        df = self._prepare_datetime(data.copy())
         
         if not self.agg_map_:
             raise RuntimeError('Call fit first')
+            
         if self.backend == 'duckdb':
+            # DuckDB sudah menghasilkan kolom datar (flat columns)
             feat = self._duckdb_group_features(df)
         else:
+            # Pandas menghasilkan MultiIndex columns
             feat = df.groupby(self.entity, observed=True).agg(self.agg_map_)
-        
-        feat.columns = [f'{self.entity}__{a}__{b}' for a,b in feat.columns]
-        feat = feat.reset_index()
-        
+            # Kita hanya ubah nama kolom jika menggunakan backend Pandas
+            feat.columns = [f'{self.entity}__{a}__{b}' for a, b in feat.columns]
+            feat = feat.reset_index()
+
         for name, fn in self.custom_features.items():
             vals = df.groupby(self.entity).apply(fn)
             feat = feat.merge(vals.rename(name).reset_index(), on=self.entity, how='left')
         self.feature_columns_ = [c for c in feat.columns if c != self.entity]
-        
         self.logger.info(f'Generated {len(self.feature_columns_)} features')
-        feat[self.feature_columns_] = feat[self.feature_columns_].replace([np.inf,-np.inf], np.nan)
-        feat[self.feature_columns_] = feat[self.feature_columns_].fillna(feat[self.feature_columns_].median(numeric_only=True))
+
+        # Cleaning inf dan nan
+        feat[self.feature_columns_] = feat[self.feature_columns_].replace([np.inf, -np.inf], np.nan)
+        
+        # Isi nan dengan median
+        if not feat[self.feature_columns_].empty:
+            feat[self.feature_columns_] = feat[self.feature_columns_].fillna(
+                feat[self.feature_columns_].median(numeric_only=True)
+            )
         return feat
 
     def to_parquet(self, df, path):
@@ -188,8 +209,8 @@ class AutoFeatureEngineer(
                 report[c] = abs(train_df[c].mean() - new_df[c].mean())
         return pd.Series(report).sort_values(ascending=False)
 
-    def fit_transform(self, df, y=None):
-        return self.fit(df).transform(df)
+    def fit_transform(self, Data : pd.DataFrame) -> pd.DataFrame:
+        return self.fit(Data).transform(Data)
 
     def register_custom_feature(self, name, func):
         self.custom_features[name] = func
@@ -209,6 +230,7 @@ if __name__ == '__main__':
     logger.info("AUTOFEAT - LOCAL TEST START")
     logger.info("=" * 70)
     try:
+        import os
         # ==========================================================
         # 1. Create Dummy Dataset
         # ==========================================================
@@ -223,7 +245,7 @@ if __name__ == '__main__':
             "is_reordered": np.random.choice([0, 1], n_rows),
             "trx_date"    : pd.date_range(start="2025-01-01",
                                           periods=n_rows,
-                                          freq="H",)
+                                          freq="h",)
             })
         logger.info(f"Dummy dataset created: {df.shape}")
         logger.debug(df.head())

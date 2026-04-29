@@ -10,16 +10,15 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-25"
 
-import duckdb
 import gc
+import os
+import duckdb
 import logging
 import configparser
-import os
 import pandas as pd
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional, Tuple, List, Dict, Union
-
 from . import logger
 
 class DuckDBManager:
@@ -56,59 +55,67 @@ class DuckDBManager:
         # Create connection
         self._create_connection(threads, memory_limit)
 
-    def _create_connection(self, threads: Optional[int] = None,
-                          memory_limit: Optional[str] = None):
+    def _create_connection(self, 
+        threads      : Optional[int] = None,
+        memory_limit : Optional[str] = None):
         """Create DuckDB connection with optional settings."""
-        self.conn = duckdb.connect(database=self.db_path, read_only=self.read_only)
-
-        # Configure settings
+        self.conn = duckdb.connect(database  = self.db_path, 
+                                   read_only = self.read_only)
         if threads:
             self.conn.execute(f"SET threads = {threads}")
         if memory_limit:
             self.conn.execute(f"SET memory_limit = '{memory_limit}'")
 
     def query(self,
-              query: str,
-              params: Optional[Union[List, Dict, tuple]] = None,
-              fetch_size: Optional[int] = None) -> pd.DataFrame:
+              query      : str,
+              params     : Optional[Union[List, Dict, tuple]] = None,
+              fetch_size : Optional[int] = None,
+        ) -> pd.DataFrame:
         """
         Execute query and return DataFrame.
-
         Args:
-            query: SQL query string
-            params: Query parameters
-            fetch_size: Number of rows to fetch (None for all)
-
-        Returns:
-            pandas DataFrame
+            query      : SQL query string
+            params     : Query parameters
+            fetch_size : Number of rows to fetch (None for all)
         """
         if self.conn is None:
             raise ValueError("Connection is closed. Please reconnect.")
-
         try:
             if params is not None:
                 result = self.conn.execute(query, params)
             else:
                 result = self.conn.execute(query)
-
             if fetch_size:
                 return result.fetch_df_chunk(fetch_size)
             return result.fetchdf()
-
         except Exception as e:
             raise Exception(f"Query failed: {e}\nQuery: {query}")
 
-    def query_arrow(self, query: str, params: Optional[Union[List, Dict]] = None):
+    def query_arrow(self, 
+                    query: str, 
+                    params: Optional[Union[List, Dict]] = None,
+                   ):
         """Execute query and return Arrow table (faster for large datasets)."""
         if params is not None:
             return self.conn.execute(query, params).fetch_arrow_table()
         return self.conn.execute(query).fetch_arrow_table()
 
-    def register_dataframe(self, name: str, df: pd.DataFrame):
+    def register_dataframe(self, 
+                           name: str, 
+                           df: pd.DataFrame):
         """Register pandas DataFrame as temporary table (table_view)."""
-        self.conn.register(name, df)
+        try:
+            self.conn.register(name, df)
+        except Exception as arch:
+            logger.warning('Register Dataframe already error, lets try other method.')
+            changetype = {col: str for col in df.select_dtypes(include=['object', 'string']).columns}
+            df = df.astype(changetype)
+            df = df.convert_dtypes()
+            self.conn.register(name, df)
+            logger.warning('Register Dataframe is success.')
 
-    def ListedTable(self, verbose : bool = False) -> pd.DataFrame:
+    def ListedTable(self,
+                    verbose : bool = False) -> pd.DataFrame:
         tables = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
         data = list()
         for table in tables['table_name']:
@@ -122,19 +129,21 @@ class DuckDBManager:
             logger.info(info_df)
         return info_df
 
-    def execute(self, query: str, params: Optional[Union[List, Dict]] = None):
+    def execute(self, 
+                query: str, 
+                params: Optional[Union[List, Dict]] = None):
         """Execute query without returning results."""
         if params is not None:
             self.conn.execute(query, params)
         else:
             self.conn.execute(query)
 
-    def table_exists(self, table_name: str) -> bool:
+    def table_exists(self, 
+                     table_name: str) -> bool:
         """Check if table exists in database."""
         result = self.query(
             "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-            [table_name]
-        )
+            [table_name])
         return result.iloc[0, 0] > 0
 
     def get_tables(self) -> List[str]:
@@ -162,12 +171,11 @@ class DuckDBManager:
 
 
 @contextmanager
-def duckdb_connection(db_path: Union[str, Path] = './dbprocess.duckdb',
-                      read_only: bool = False,
+def duckdb_connection(db_path   : Union[str, Path] = './dbprocess.duckdb',
+                      read_only : bool = False,
                       **kwargs) -> DuckDBManager:
     """
     Context manager for DuckDB connection.
-
     Example:
         with duckdb_connection('mydb.duckdb') as db:
             df = db.query("SELECT * FROM users")
@@ -185,16 +193,9 @@ if __name__ == '__main__':
         'category'    : ['Sembako', 'Sembako', 'Sembako', 'Minuman'],
         'price'       : [65000, 34000, 15000, 12000]}
     df_products = pd.DataFrame(data_produk)
-    changetype = {col: str for col in df_products.select_dtypes(include=['object', 'string']).columns}
-    df_products = df_products.astype(changetype)
-    
-    # Pastikan tidak ada numpy.str_ yang tersisa
-    df_products = df_products.convert_dtypes()
-    
     logger.info("Initializing DuckDB Manager...")
 
     with duckdb_connection(':memory:') as db:
-        
         # Register the pandas DataFrame
         logger.info("Registering local DataFrame as 'koperasi_products'...")
         db.register_dataframe('koperasi_products', df_products)
@@ -214,13 +215,10 @@ if __name__ == '__main__':
         # Query back data with a filter
         expensive_items = db.query(
             "SELECT product_name, price FROM inventory WHERE price > ?", 
-            params=[20000]
-        )
-        
+            params=[20000])
         logger.info("\nProducts priced over 20,000:")
         logger.info(expensive_items)
 
         # Show table stats
         db.ListedTable()
-
     logger.warning("\nDatabase connection closed.")
