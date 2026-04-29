@@ -11,3 +11,9 @@ __status__     = "Development"
 __created__    = "2026-04-28"
 
 from .feat_engine import AutoFeatureEngineer
+from .load import load_data
+
+__all__ = [
+    "AutoFeatureEngineer",
+    "load_data",
+    ]

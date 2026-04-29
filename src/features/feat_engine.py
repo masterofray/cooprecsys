@@ -64,7 +64,7 @@ class AutoFeatureEngineer(
 
     def _build_agg_map(self, df):
         num, cat = self._infer_types(df)
-        agg = {}
+        agg = dict()
         for c in num:
             nunq = df[c].dropna().nunique()
             if nunq <= 2:
@@ -126,6 +126,7 @@ class AutoFeatureEngineer(
         if not self.fitted_:
             raise RuntimeError('Call fit first')
         df = self._prepare_datetime(df.copy())
+        
         if not self.agg_map_:
             raise RuntimeError('Call fit first')
         if self.backend == 'duckdb':
@@ -174,15 +175,14 @@ class AutoFeatureEngineer(
             'column': df.columns,
             'dtype': df.dtypes.astype(str).values,
             'null_pct': (df.isnull().mean()*100).values,
-            'nunique': [df[c].nunique() for c in df.columns]
-        })
+            'nunique': [df[c].nunique() for c in df.columns]})
         return rep
 
     def get_feature_names_out(self):
         return self.feature_columns_
 
     def detect_drift(self, train_df, new_df):
-        report = {}
+        report = dict()
         for c in self.feature_columns_:
             if c in train_df.columns and c in new_df.columns:
                 report[c] = abs(train_df[c].mean() - new_df[c].mean())
@@ -205,49 +205,26 @@ class AutoFeatureEngineer(
             return cpk.load(f)
 
 if __name__ == '__main__':
-    # Example:
-    # fe = AutoFeatureEngineer(entity='user_id')
-    # fe.register_custom_feature('repeat_ratio', lambda g: g.duplicated().mean())
-    # X = fe.fit_transform(df)
-
-    '''
-    from autofeat import AutoFeatureEngineer
-
-    fe = AutoFeatureEngineer(
-        entity="user_id",
-        backend="duckdb",
-        db_path="feat.duckdb"
-    )
-
-    X = fe.fit_transform(df)
-    '''
-
     logger.info("=" * 70)
-    logger.info("AUTOFEAT V3 - LOCAL TEST START")
+    logger.info("AUTOFEAT - LOCAL TEST START")
     logger.info("=" * 70)
-
     try:
         # ==========================================================
         # 1. Create Dummy Dataset
         # ==========================================================
         np.random.seed(2)
-
         n_rows = 10_000
-
         df = pd.DataFrame({
-            "user_id": np.random.randint(1, 1001, n_rows),
-            "product_id": np.random.randint(100, 500, n_rows),
-            "amount": np.random.uniform(5, 500, n_rows).round(2),
-            "qty": np.random.randint(1, 8, n_rows),
-            "discount": np.random.choice([0, 5, 10, 15], n_rows),
+            "user_id"     : np.random.randint(1, 1001, n_rows),
+            "product_id"  : np.random.randint(100, 500, n_rows),
+            "amount"      : np.random.uniform(5, 500, n_rows).round(2),
+            "qty"         : np.random.randint(1, 8, n_rows),
+            "discount"    : np.random.choice([0, 5, 10, 15], n_rows),
             "is_reordered": np.random.choice([0, 1], n_rows),
-            "trx_date": pd.date_range(
-                start="2025-01-01",
-                periods=n_rows,
-                freq="H"
-            )
-        })
-
+            "trx_date"    : pd.date_range(start="2025-01-01",
+                                          periods=n_rows,
+                                          freq="H",)
+            })
         logger.info(f"Dummy dataset created: {df.shape}")
         logger.debug(df.head())
 
@@ -255,13 +232,11 @@ if __name__ == '__main__':
         # 2. Initialize AutoFeat
         # ==========================================================
         fe = AutoFeatureEngineer(
-            entity="user_id",
-            backend="duckdb",
-            db_path=":memory:",
-            datetime_cols=["trx_date"],
-            n_jobs=4
-        )
-
+            entity        = "user_id",
+            backend       = "duckdb",
+            db_path       = ":memory:",
+            datetime_cols = ["trx_date"],
+            n_jobs        = 4,)
         logger.info("AutoFeat object initialized.")
 
         # ==========================================================
@@ -269,16 +244,13 @@ if __name__ == '__main__':
         # ==========================================================
         fe.register_custom_feature(
             "repeat_product_ratio",
-            lambda g: g["product_id"].duplicated().mean()
-        )
-
+            lambda g: g["product_id"].duplicated().mean())
         logger.info("Custom feature registered.")
 
         # ==========================================================
         # 4. Fit Transform
         # ==========================================================
         feat = fe.fit_transform(df)
-
         logger.info(f"Feature engineering success. Shape: {feat.shape}")
         logger.info("Top 5 rows:")
         logger.info(feat.head())
@@ -296,7 +268,6 @@ if __name__ == '__main__':
                    COUNT(DISTINCT user_id) AS total_users
             FROM source_df
         """)
-
         logger.info("SQL test result:")
         logger.info(sql_result)
 
@@ -304,21 +275,19 @@ if __name__ == '__main__':
         # 7. Profile Test
         # ==========================================================
         profile = fe.profile(df)
-
         logger.info("Dataset profile:")
         logger.info(profile.head(10))
 
         # ==========================================================
         # 8. Save Output
         # ==========================================================
-        fe.to_parquet(feat, "autofeat_output.parquet")
-
+        fe.to_parquet(feat, "./autofeat_output.parquet")
         logger.info("Parquet export success.")
-
         logger.info("=" * 70)
-        logger.info("AUTOFEAT V3 TEST FINISHED SUCCESSFULLY")
+        logger.info("AUTOFEAT TEST FINISHED SUCCESSFULLY")
         logger.info("=" * 70)
+        os.remove('./autofeat_output.parquet')
 
     except Exception as e:
         logger.exception("AUTOFEAT TEST FAILED")
-        raise
+        raise ValueError()
