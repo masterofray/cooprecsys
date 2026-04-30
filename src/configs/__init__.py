@@ -20,5 +20,6 @@ sys.path.append(str(LocDir))
 _cfg = ConfigParser()
 _cfg.read(LocDir / "configuration.ini")
 
+from .lgbm_config import LTRConfig
 from .logged import setup_logging
 logger = setup_logging()

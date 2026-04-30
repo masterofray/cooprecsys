@@ -10,10 +10,12 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-28"
 
-from .feat_engine import AutoFeatureEngineer
-from .load import load_data
+from .feat_engine    import AutoFeatureEngineer
+from .lgbm_processor import DataProcessor
+from .load           import load_data
 
 __all__ = [
     "AutoFeatureEngineer",
+    "DataProcessor",
     "load_data",
     ]
