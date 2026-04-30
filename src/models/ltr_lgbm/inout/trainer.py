@@ -26,7 +26,6 @@ Classes
 LTRTrainer — manages the train → evaluate → save lifecycle.
 """
 
-from __future__ import annotations
 
 import logging
 import os

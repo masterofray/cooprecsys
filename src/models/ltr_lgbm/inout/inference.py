@@ -25,8 +25,6 @@ Classes
 LTRInference — loads a trained booster and scores / ranks query groups.
 """
 
-from __future__ import annotations
-
 import logging
 import os
 from typing import List, Optional
