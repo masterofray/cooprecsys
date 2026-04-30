@@ -1,4 +1,5 @@
-# coding=utf-8
+#!/usr/bin/env python3
+
 """
 arycolbring.evaluation
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -17,6 +18,16 @@ recall_at_k      : fraction of true positives recovered in top-k
 auc_score        : area under the ROC curve (per user, then averaged)
 reciprocal_rank  : 1 / rank of the highest-ranked true positive per user
 """
+
+__author__     = "Aryanto"
+__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+__credits__    = ["aryanto"]
+__license__    = "GNU_Public"
+__version__    = "0.0.1"
+__maintainer__ = "Aryanto"
+__email__      = "aryanto.dandan@gmail.com"
+__status__     = "Development"
+__created__    = "2026-04-25"
 
 from __future__ import annotations
 

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# tests/__init__.py
+# Test suite for arycolbring.
+# Run with:  pytest tests/ -v
+
 __author__     = "Aryanto"
 __copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
 __credits__    = ["aryanto"]
@@ -9,5 +13,3 @@ __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-25"
-
-pass

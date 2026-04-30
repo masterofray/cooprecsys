@@ -1,4 +1,5 @@
-# coding=utf-8
+#!/usr/bin/env python3
+
 """
 arycolbring.model
 ~~~~~~~~~~~~~~~~~
@@ -15,11 +16,21 @@ All heavy computation is delegated to the compiled Cython kernels in
     interface
 """
 
-from __future__ import annotations
+__author__     = "Aryanto"
+__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+__credits__    = ["aryanto"]
+__license__    = "GNU_Public"
+__version__    = "0.0.1"
+__maintainer__ = "Aryanto"
+__email__      = "aryanto.dandan@gmail.com"
+__status__     = "Development"
+__created__    = "2026-04-25"
 
+
+from __future__ import annotations
 import gc
 import logging
-import configparser
+from configparser import ConfigParser
 import os
 from contextlib import contextmanager
 from typing import Any, Dict, Optional, Union
@@ -38,8 +49,7 @@ from .cy import (
     fit_bpr,
     fit_warp_kos,
     predict_arycolbring,
-    predict_ranks,
-)
+    predict_ranks)
 
 # ── logging ──────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
@@ -47,7 +57,7 @@ logging.basicConfig(level=logging.DEBUG,
                     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 
 # ── config ───────────────────────────────────────────────────────────────────
-_cfg = configparser.ConfigParser()
+_cfg = ConfigParser()
 _cfg.read(os.path.join(os.path.dirname(__file__), "config.ini"))
 
 TQDM_COLOUR  = _cfg.get("tqdm",  "colour",  fallback="#05ad46")
