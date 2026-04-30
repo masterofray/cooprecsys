@@ -26,7 +26,7 @@ def setup_logging():
     # 1. Resolve Paths
     base_dir = Path(__file__).resolve().parents[0]
     date_str = datetime.now().strftime('%Y%m%d')
-    log_dir = str(base_dir.parents[0]/'IO'/'LOG'/date_str)
+    log_dir = str(base_dir.parents[1]/'artifacts'/'logs'/date_str)
     os.makedirs(log_dir, exist_ok=True)
 
     # 2. Load Config

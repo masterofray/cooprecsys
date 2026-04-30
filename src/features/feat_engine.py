@@ -24,6 +24,7 @@ except Exception:
     import duckdb
     DuckDBManager = None
     duckdb_connection = None
+pd.set_option('display.max_columns', None)
 
 @dataclass
 class AutoFeatureEngineer(
