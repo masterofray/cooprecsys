@@ -89,9 +89,10 @@ class MLflowMonitor:
         logger.debug("MLflow run ended - run_id=%s", self.run_id)
 
 
-    # ------------------------------------------------------------------
-    # Logging helpers
-    # ------------------------------------------------------------------
+    # _____________________________________________________
+    # Build Logging MLFlow helpers function
+    # _____________________________________________________
+    
     def log_params(self, params: Dict[str, Any]) -> None:
         """Log a flat parameter dict to the active run.
         Lists (e.g. ``ndcg_eval_at``) are serialised as comma-separated
@@ -161,6 +162,11 @@ class MLflowMonitor:
             "query_id_col":  self._config.feature.query_id})
         logger.debug("Feature config tags set in MLflow.")
 
+
+    # _____________________________________________________
+    # Running the process by call the MLflowMonitor()
+    # _____________________________________________________
+
     def __call__(self,
             booster:         lgb.Booster,
             params:          Dict[str, Any],
@@ -186,7 +192,7 @@ class MLflowMonitor:
         self.log_model(booster)
         if tuner_summary:
             self.log_tuner_summary(tuner_summary)
-        logger.info("MLflowMonitor() — complete.")
+        logger.info("Done!\nMLflowMonitor() -- complete.")
 
 if __name__ == '__main__':
     pass

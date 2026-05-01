@@ -179,8 +179,8 @@ def run_pipeline(
         X_test       = processor.X_test,
         metrics      = trainer.metrics,
     )
-    viz.generate_all()
-    viz.generate_html_report(tuner_summary=tuner_summary)
+    viz()
+    viz.genreport(tuner_summary=tuner_summary)
 
     # ── 6. MLflow logging ─────────────────────────────────────────────
     _stage_banner("6 / 7  MLflow Logging")
