@@ -18,9 +18,9 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 BASE_DIR     = Path(__file__).resolve()
-TEMPLATE_DIR = BASE_DIR.parent[0] / "templates"
-STATIC_DIR   = BASE_DIR.parent[0] / "static"
-sys.path.append(str(BASE_DIR.parent[3]))
+TEMPLATE_DIR = BASE_DIR.parents[0] / "templates"
+STATIC_DIR   = BASE_DIR.parents[0] / "static"
+sys.path.append(str(BASE_DIR.parents[3]))
 from configs import logger
 
 
@@ -46,6 +46,7 @@ def _static_prefix(directory: Optional[str | Path] = None) -> Dict[str, str]:
         rel_static = Path(os.path.relpath(STATIC_DIR, output_dir))
     return {"static_css": (rel_static / "css").as_posix(),
             "static_js" : (rel_static / "js").as_posix()}
+
 
 # _____________________________________________________
 # Build main Function

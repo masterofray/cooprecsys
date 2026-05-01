@@ -13,70 +13,46 @@ __created__    = "2026-04-30"
 
 """
 trainer.py
-==========
+____________________________________________
 Stateful LightGBM ``lambdarank`` trainer.
-
 Wraps ``lgb.train`` with proper callback configuration, runtime tracking,
 evaluation metric extraction, and model persistence.  All output (booster,
 evals_result, runtime) is stored on ``self`` for downstream consumers
 (:class:`Visualizer`, :class:`MLflowMonitor`).
-
-Classes
--------
-LTRTrainer — manages the train → evaluate → save lifecycle.
 """
 
 
-import logging
 import os
+import sys
 import time
-from typing import Any, Dict
-
-import lightgbm as lgb
 import numpy as np
 from tqdm import tqdm
+import lightgbm as lgb
+from pathlib import Path
+from typing import Any, Dict
 
-from ltr_framework.config import LTRConfig
-
-logger = logging.getLogger(__name__)
+LocDir = Path(__file__).resolve().parents[3]
+sys.path.append(str(LocDir))
+from configs import LTRConfig, logger
 
 
 class LTRTrainer:
     """Train a LightGBM LambdaRank booster and expose evaluation artefacts.
-
-    Parameters
-    ----------
-    config:
-        :class:`~ltr_framework.config.LTRConfig` master config.
-
-    Attributes (populated after :meth:`train`)
-    ------------------------------------------
-    model : lgb.Booster
-        The trained booster.
-    evals_result : dict
-        Training and validation metric history by round.
-    metrics : Dict[str, float]
-        Flat summary metrics (NDCG@5, NDCG@10, pred mean/std, runtime).
-    runtime_minutes : float
-        Wall-clock training time in minutes.
-    best_iteration : int
-        Booster's best iteration (early stopping).
+    config          : `LTRConfig` master config.
+    model           : lgb.Booster, The trained booster.
+    evals_result    : dict, Training and validation metric history by round.
+    metrics         : Dict[str, float], Flat summary metrics (NDCG@5, NDCG@10, pred mean/std, runtime).
+    runtime_minutes : float, Wall-clock training time in minutes.
+    best_iteration  : int, Booster's best iteration (early stopping).
     """
-
     def __init__(self, config: LTRConfig) -> None:
         self._config = config
-
         self.model:           lgb.Booster | None = None
-        self.evals_result:    Dict[str, Any]     = {}
-        self.metrics:         Dict[str, float]   = {}
+        self.evals_result:    Dict[str, Any]     = dict()
+        self.metrics:         Dict[str, float]   = dict()
         self.runtime_minutes: float              = 0.0
         self.best_iteration:  int                = 0
-
         logger.debug("LTRTrainer initialised.")
-
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
 
     @property
     def config(self) -> LTRConfig:
@@ -86,40 +62,31 @@ class LTRTrainer:
     def _params(self) -> Dict[str, Any]:
         return self._config.training.params
 
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
-
     def _build_lgb_datasets(
-        self,
-        X_train: np.ndarray,
-        y_train: np.ndarray,
-        group_train: np.ndarray,
-        X_test: np.ndarray,
-        y_test: np.ndarray,
-        group_test: np.ndarray,
+            self,
+            X_train    : np.ndarray,
+            y_train    : np.ndarray,
+            group_train: np.ndarray,
+            X_test     : np.ndarray,
+            y_test     : np.ndarray,
+            group_test : np.ndarray,
     ) -> tuple[lgb.Dataset, lgb.Dataset]:
         """Wrap NumPy arrays in :class:`lgb.Dataset` objects."""
         train_lgb = lgb.Dataset(
             X_train,
             label       = y_train,
             group       = group_train,
-            free_raw_data = False,
-        )
+            free_raw_data = False)
         test_lgb = lgb.Dataset(
             X_test,
             label         = y_test,
             group         = group_test,
             reference     = train_lgb,
-            free_raw_data = False,
-        )
+            free_raw_data = False)
         logger.debug(
             "LightGBM datasets built — train: %d rows | test: %d rows",
-            len(y_train), len(y_test),
-        )
+            len(y_train), len(y_test))
         return train_lgb, test_lgb
-
-    # ------------------------------------------------------------------
 
     def _extract_metrics_from_evals(self) -> None:
         """Parse ``self.evals_result`` and populate ``self.metrics``."""
@@ -129,10 +96,10 @@ class LTRTrainer:
                 self.metrics[key] = float(values[-1])
                 logger.debug("Metric captured — %s: %.6f", key, self.metrics[key])
 
+
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-
     def train(
         self,
         X_train: np.ndarray,
@@ -143,19 +110,8 @@ class LTRTrainer:
         group_test: np.ndarray,
     ) -> None:
         """Train the LambdaRank booster.
-
-        Populates ``self.model``, ``self.evals_result``, ``self.metrics``,
-        ``self.runtime_minutes``, and ``self.best_iteration``.
-
-        Parameters
-        ----------
-        X_train, y_train, group_train:
-            Training split arrays.
-        X_test, y_test, group_test:
-            Validation split arrays.
         """
         tcfg = self._config.training
-
         logger.info("LTRTrainer.train() — starting.")
         logger.info(
             "Params: num_boost_round=%d | early_stopping=%d | lr=%.4f | "
@@ -164,13 +120,10 @@ class LTRTrainer:
             tcfg.early_stopping_rounds,
             self._params.get("learning_rate", "—"),
             self._params.get("num_leaves",    "—"),
-            self._params.get("max_depth",     "—"),
-        )
-
+            self._params.get("max_depth",     "—"))
         train_lgb, test_lgb = self._build_lgb_datasets(
             X_train, y_train, group_train,
-            X_test,  y_test,  group_test,
-        )
+            X_test,  y_test,  group_test)
 
         # Progress bar via tqdm callback
         pbar = tqdm(
@@ -221,7 +174,6 @@ class LTRTrainer:
         self._extract_metrics_from_evals()
         self._compute_prediction_stats(X_test)
 
-    # ------------------------------------------------------------------
 
     def _compute_prediction_stats(self, X_test: np.ndarray) -> None:
         """Add prediction distribution stats to ``self.metrics``."""
@@ -240,7 +192,6 @@ class LTRTrainer:
             self.metrics["pred_min"],  self.metrics["pred_max"],
         )
 
-    # ------------------------------------------------------------------
 
     def save_model(self) -> None:
         """Persist the booster to ``config.model.model_path``.
@@ -255,7 +206,6 @@ class LTRTrainer:
         self.model.save_model(path)
         logger.info("Model saved to: %s", path)
 
-    # ------------------------------------------------------------------
 
     def load_model(self) -> None:
         """Load a persisted booster from ``config.model.model_path``.
@@ -267,3 +217,7 @@ class LTRTrainer:
             raise FileNotFoundError(f"Model file not found: {path}")
         self.model = lgb.Booster(model_file=path)
         logger.info("Model loaded from: %s", path)
+
+
+if __name__ == '__main__':
+    pass

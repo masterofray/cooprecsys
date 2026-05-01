@@ -40,8 +40,8 @@ from datetime import datetime
 from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from ..configs import LTRConfig, _cfg
-from ..db import DuckDBManager, duckdb_connection, logger
+from ..configs import LTRConfig, _cfg, logger
+from ..db import DuckDBManager, duckdb_connection
 
 dates = f'{datetime.now():%Y%m%d}'
 

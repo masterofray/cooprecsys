@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 __author__     = "Aryanto"
 __copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
@@ -19,9 +20,9 @@ This module wires all components together into a coherent execution
 sequence with full logging, MLflow tracking, and configurable Bayesian
 tuning.  It exposes both a programmatic API (``run_pipeline``) and a
 ``__main__`` entry-point for CLI use.
+_____________________________
 
 Pipeline stages
----------------
 1. Config loading & validation
 2. Output directory setup
 3. Data preparation   (DataProcessor)
@@ -30,52 +31,29 @@ Pipeline stages
 6. Visualisation      (Visualizer)
 7. MLflow logging     (MLflowMonitor)
 8. Inference demo     (LTRInference — on test set)
-
-Functions
----------
-run_pipeline — execute the full pipeline; returns trained LTRTrainer.
 """
 
-from __future__ import annotations
 
-import argparse
-import logging
 import os
 import sys
 import time
-from typing import Any, Dict, List, Optional
-
+import argparse
 import pandas as pd
-from tqdm import tqdm
+from tqdm                       import tqdm
+from typing                     import Any, Dict, List, Optional
+from .ftcore.enhanced_byoptimz  import BayesianTuner
+from .inout.trainer             import LTRTrainer
+from .inout.inference           import LTRInference
+from .ftcore.vizseason          import Visualizer
+from .ftcore.mlflow_proc        import MLflowMonitor
+from ...configs                 import LTRConfig, logger
+from ...features                import DataProcessor
 
-from ltr_framework.config import LTRConfig
-from ltr_framework.custom_bayes_optimization import BayesianTuner
-from ltr_framework.data_processor import DataProcessor
-from ltr_framework.inference import LTRInference
-from ltr_framework.mlflow_monitor import MLflowMonitor
-from ltr_framework.trainer import LTRTrainer
-from ltr_framework.visualization import Visualizer
-
-# ---------------------------------------------------------------------------
-# Module-level logger
-# ---------------------------------------------------------------------------
-
-logging.basicConfig(
-    level   = logging.INFO,
-    format  = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt = "%Y-%m-%d %H:%M:%S",
-    handlers = [
-        logging.StreamHandler(sys.stdout),
-    ],
-)
-
-logger = logging.getLogger("ltr_framework.main")
 
 
 # ---------------------------------------------------------------------------
 # Pipeline stages (private)
 # ---------------------------------------------------------------------------
-
 def _stage_banner(stage: str) -> None:
     """Emit a clearly visible stage separator to the log."""
     border = "─" * 60

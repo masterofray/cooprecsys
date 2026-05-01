@@ -15,13 +15,14 @@ from .inout.trainer            import LTRTrainer
 from .inout.inference          import LTRInference
 from .ftcore.vizseason         import Visualizer
 from .ftcore.mlflow_proc       import MLflowMonitor
+from .report.renderpot         import render_report
 from .ltr_call                 import run_pipeline
-from ...configs                import LTRConfig, logger
 
 __all__ = ["BayesianTuner",
            "LTRTrainer",
            "LTRInference",
            "Visualizer",
            "MLflowMonitor",
+           "render_report",
            "run_pipeline"]
 
