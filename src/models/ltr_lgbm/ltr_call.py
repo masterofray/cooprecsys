@@ -8,14 +8,13 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-04-30"
+__created__    = "2026-05-01"
 
 
 """
 ltr_call.py
-=======
+_____________________________
 Top-level pipeline orchestrator for the LTR framework.
-
 This module wires all components together into a coherent execution
 sequence with full logging, MLflow tracking, and configurable Bayesian
 tuning.  It exposes both a programmatic API (``run_pipeline``) and a
@@ -196,14 +195,12 @@ def run_pipeline(
     ]
 
     with MLflowMonitor(config, run_name=run_name) as monitor:
-        monitor.log_all(
-            booster         = trainer.model,
-            params          = config.training.params,
-            metrics         = trainer.metrics,
-            runtime_minutes = trainer.runtime_minutes,
-            artifact_paths  = artifact_paths,
-            tuner_summary   = tuner_summary,
-        )
+        monitor(booster         = trainer.model,
+                params          = config.training.params,
+                metrics         = trainer.metrics,
+                runtime_minutes = trainer.runtime_minutes,
+                artifact_paths  = artifact_paths,
+                tuner_summary   = tuner_summary)
 
     # ── 7. Inference demo ─────────────────────────────────────────────
     _stage_banner("7 / 7  Inference Demo (Top-K on Test Set)")

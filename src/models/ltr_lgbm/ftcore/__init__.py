@@ -9,11 +9,3 @@ __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-30"
-
-import sys
-from pathlib import Path
-
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-
-from configs import LTRConfig, _cfg, logger

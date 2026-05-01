@@ -8,31 +8,23 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-04-30"
+__created__    = "2026-05-01"
 
 
 """
-visualization.py
-================
+vizseason.py
+____________________________
 Publication-quality visualisations and a self-contained HTML monitoring
-report for the LTR pipeline.
-
-All plot artifacts (PNG) are saved under ``config.path.output_dir``.
-The HTML report bundles every chart as a base64 data-URI so it requires
-no external assets and can be shared as a single file.
-
-Classes
--------
-Visualizer — generates and saves all visual artefacts.
-
+report for the LTR pipeline. All plot artifacts (PNG) are saved under 
+``config.path.output_dir``. The HTML report bundles every chart as a 
+base64 data-URI so it requires no external assets and can be shared 
+as a single file.
+____________________________
 Design notes
-------------
-* All state stored on ``self``; no public ``return`` from plot methods.
-* Figures are closed after saving to prevent memory leaks in long runs.
-* HTML report is rendered via an f-string template (zero Jinja2 dependency).
+    * All state stored on ``self``; no public ``return`` from plot methods.
+    * Figures are closed after saving to prevent memory leaks in long runs.
+    * HTML report is rendered via an f-string template (zero Jinja2 dependency).
 """
-
-from __future__ import annotations
 
 import base64
 import io
@@ -47,11 +39,14 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-matplotlib.use("Agg")   # non-interactive backend — safe for servers/workers
+matplotlib.use("Agg")
 
-from ltr_framework.config import LTRConfig
+import sys
+from pathlib import Path
+LocDir = Path(__file__).resolve().parents[3]
+sys.path.append(str(LocDir))
 
-logger = logging.getLogger(__name__)
+from configs import LTRConfig, logger
 
 # ---------------------------------------------------------------------------
 # Seaborn global theme

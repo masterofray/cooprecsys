@@ -42,9 +42,13 @@ from optuna.samplers import (BaseSampler,
                              CmaEsSampler, 
                              RandomSampler, 
                              TPESampler)
-from . import LTRConfig, _cfg, logger
 
+import sys
+from pathlib import Path
+LocDir = Path(__file__).resolve().parents[3]
+sys.path.append(str(LocDir))
 
+from configs import LTRConfig, _cfg, logger
 try:
     log_level = _cfg.get('logging', 'OptunaLevel', 
                 fallback = 'WARNING').upper()
