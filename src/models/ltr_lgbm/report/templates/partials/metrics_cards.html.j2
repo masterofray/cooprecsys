@@ -1,0 +1,8 @@
+<div class="cards">
+{% for k,v in metrics.items() %}
+    <div class="card">
+        <div class="card-label">{{ k }}</div>
+        <div class="card-value">{{ "%.6f"|format(v) }}</div>
+    </div>
+{% endfor %}
+</div>
