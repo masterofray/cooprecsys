@@ -1,0 +1,55 @@
+{% extends "base.html.j2" %}
+
+{% block content %}
+
+<section class="section" id="metrics">
+    <div class="section-head">
+        <h2>Evaluation Metrics</h2>
+    </div>
+
+    {% include "partials/metrics_cards.html.j2" %}
+</section>
+
+<section class="section" id="tuning">
+    <div class="section-head">
+        <h2>Bayesian Tuning</h2>
+    </div>
+
+    {% include "partials/tuning_section.html.j2" %}
+</section>
+
+<section class="section" id="config">
+    <div class="section-head">
+        <h2>Training Configuration</h2>
+    </div>
+
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Value</th>
+                </tr>
+            </thead>
+
+            <tbody>
+            {% for k,v in training_params.items() %}
+                <tr>
+                    <td>{{ k }}</td>
+                    <td><code>{{ v }}</code></td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<section class="section" id="charts">
+    <div class="section-head">
+        <h2>Visual Diagnostics</h2>
+    </div>
+
+    {% include "partials/charts_grid.html.j2" %}
+</section>
+
+{% endblock %}

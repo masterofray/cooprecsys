@@ -10,5 +10,7 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-02"
 
+from .ltrlgbm_example import maintest as lgbmtest
+
 if __name__ == '__main__':
-    print('Doing Test data!!!')
+    lgbmtest()

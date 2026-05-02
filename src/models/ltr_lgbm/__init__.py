@@ -10,45 +10,16 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-30"
 
+from .ftcore   import BayesianTuner, MLflowMonitor, Visualizer
+from .inout    import LTRTrainer, LTRInference
+from .report   import render_report
+from .ltr_call import run_pipeline as lgbm_fit_transform
 
-"""
-ltr_framework
-=============
-Production-grade Learning-to-Rank pipeline built on LightGBM.
+__all__ = ["BayesianTuner",
+           "LTRTrainer",
+           "LTRInference",
+           "Visualizer",
+           "MLflowMonitor",
+           "render_report",
+           "lgbm_fit_transform"]
 
-Public surface
---------------
-    LTRConfig           — master dataclass config (compose from sub-configs)
-    DataProcessor       — DuckDB-backed, parallel-safe data preparation
-    BayesianTuner       — Optuna Bayesian hyper-parameter optimiser
-    LTRTrainer          — LightGBM lambdarank trainer
-    LTRInference        — Top-K inference engine
-    Visualizer          — Feature-importance / distribution plots + HTML report
-    MLflowMonitor       — Experiment tracking & artifact logging
-    run_pipeline        — One-call convenience entry-point
-"""
-
-from .config import (
-    FeatureConfig,
-    ModelConfig,
-    TrainingConfig,
-    TuningConfig,
-    InferenceConfig,
-    PathConfig,
-    LTRConfig,)
-
-from ftcore.enhanced_byoptimz import BayesianTuner
-from inout.trainer import LTRTrainer
-from inout.inference import LTRInference
-from ftcore.vizseason import Visualizer
-from ftcore.mlflow_proc import MLflowMonitor
-from .ltr_call import run_pipeline
-
-__all__ = [
-    "BayesianTuner",
-    "LTRTrainer",
-    "LTRInference",
-    "Visualizer",
-    "MLflowMonitor",
-    "run_pipeline",
-]

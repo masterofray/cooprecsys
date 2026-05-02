@@ -19,11 +19,14 @@ Supported:
 - DuckDB (.db / .duckdb)
 """
 
+
 import os
 import gc
-import pandas as pd
-from pathlib import Path
-from ..db import DuckDBManager, duckdb_connection, logger
+import pandas  as pd
+from pathlib   import Path
+from ..configs import logger
+from ..db      import DuckDBManager, duckdb_connection
+
 
 # ==========================================================
 # Validators

@@ -8,50 +8,44 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-04-30"
+__created__    = "2026-05-01"
 
 
 """
-visualization.py
-================
+vizseason.py
+____________________________
 Publication-quality visualisations and a self-contained HTML monitoring
-report for the LTR pipeline.
-
-All plot artifacts (PNG) are saved under ``config.path.output_dir``.
-The HTML report bundles every chart as a base64 data-URI so it requires
-no external assets and can be shared as a single file.
-
-Classes
--------
-Visualizer — generates and saves all visual artefacts.
-
+report for the LTR pipeline. All plot artifacts (PNG) are saved under 
+``config.path.output_dir``. The HTML report bundles every chart as a 
+base64 data-URI so it requires no external assets and can be shared 
+as a single file.
+____________________________
 Design notes
-------------
-* All state stored on ``self``; no public ``return`` from plot methods.
-* Figures are closed after saving to prevent memory leaks in long runs.
-* HTML report is rendered via an f-string template (zero Jinja2 dependency).
+    * All state stored on ``self``; no public ``return`` from plot methods.
+    * Figures are closed after saving to prevent memory leaks in long runs.
+    * HTML report is rendered via an f-string template (zero Jinja2 dependency).
 """
 
-from __future__ import annotations
-
-import base64
 import io
-import logging
 import os
-from typing import Any, Dict, List, Optional
-
-import lightgbm as lgb
+import sys
+import base64
 import matplotlib
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import lightgbm as lgb
+from pathlib import Path
+from datetime import datetime
+import matplotlib.pyplot as plt
+from typing import Any, Dict, List, Optional
 
-matplotlib.use("Agg")   # non-interactive backend — safe for servers/workers
+matplotlib.use("Agg")
+LocDir = Path(__file__).resolve().parents[3]
+sys.path.append(str(LocDir))
 
-from ltr_framework.config import LTRConfig
-
-logger = logging.getLogger(__name__)
+from configs import LTRConfig, logger
+from models.ltr_lgbm.report import render_report
 
 # ---------------------------------------------------------------------------
 # Seaborn global theme
@@ -62,26 +56,71 @@ sns.set_theme(
     palette = "muted",
     rc      = {"figure.dpi": 120, "axes.titlesize": 14, "axes.labelsize": 12},
 )
+vintages = [
+        "#003366",  # Oxford Blue (Primary)
+        "#ca3838",  # Oxide Red (Comparison)
+        "#0a890a",  # Dark Green (Success Metrics)
+        "#704214",  # Sepia (Neutral)
+    ]
+MLPstyle = {
+    # Background - The specific parchment hex you requested
+    "figure.facecolor"  : "#789bef",
+    "axes.facecolor"    : "#789baf",
+    "savefig.facecolor" : "#789bef",
+
+    # Grid - Subtle contrast using a darker version of the background
+    "axes.grid"         : True,
+    "grid.color"        : "#1759b2",
+    "grid.linestyle"    : "-",
+    "grid.linewidth"    : 1.0,
+
+    # Typography - Deep Charcoal/Blue instead of pure black for a softer feel
+    "text.color"        : "#6c0808",
+    "axes.labelcolor"   : "#8d0808",
+    "xtick.color"       : "#948e8e",
+    "ytick.color"       : "#948e8e",
+    "axes.titlesize"    : 17,
+    "axes.titleweight"  : "bold",
+    "axes.titlepad"     : 14,
+    "font.size"         : 10,
+
+    # Spines - Classic 'L-frame' for publication
+    "axes.spines.top"   : False,
+    "axes.spines.right" : False,
+    "axes.spines.left"  : True,
+    "axes.spines.bottom": True,
+    "axes.edgecolor"    : "#6c0808",
+    "axes.linewidth"    : 1.2,
+
+    # Data Point Styling
+    "axes.prop_cycle"   : plt.cycler(color = vintages),
+    "lines.linewidth"   : 2.2,
+    "lines.markersize"  : 8,
+    "patch.edgecolor"   : "#6c0841",
+    }
+plt.rcParams.update(MLPstyle)
+
 
 
 # ---------------------------------------------------------------------------
 # Helper utilities
 # ---------------------------------------------------------------------------
-
 def _fig_to_base64(fig: plt.Figure) -> str:
     """Encode a Matplotlib figure to a base64 PNG string (data-URI ready)."""
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight", dpi=150)
+    fig.savefig(buf, format = "png", 
+                bbox_inches = "tight", 
+                dpi = 200)
     buf.seek(0)
     encoded = base64.b64encode(buf.read()).decode("utf-8")
     plt.close(fig)
     return encoded
 
-
-def _save_fig(fig: plt.Figure, path: str) -> None:
-    """Save *fig* to *path* and close it."""
-    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    fig.savefig(path, bbox_inches="tight", dpi=150)
+def _save_fig(fig: plt.Figure, path: str = './output.png') -> None:
+    os.makedirs(os.path.dirname(path) or ".", exist_ok = True)
+    fig.savefig(path, 
+                bbox_inches = "tight", 
+                dpi = 300)
     plt.close(fig)
     logger.debug("Figure saved: %s", path)
 
@@ -89,51 +128,29 @@ def _save_fig(fig: plt.Figure, path: str) -> None:
 # ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
-
 class Visualizer:
     """Generate all visual artefacts for the LTR pipeline.
-
-    Parameters
-    ----------
-    config:
-        :class:`~ltr_framework.config.LTRConfig` master config.
-    model:
-        Trained :class:`lgb.Booster`.
-    evals_result:
-        Training metric history dict (from :class:`LTRTrainer`).
-    X_test:
-        Test feature matrix (for prediction distribution plots).
-    metrics:
-        Flat summary metrics dict (from :class:`LTRTrainer`).
-
-    Attributes (populated after each plot method)
-    --------------------------------------------
-    _b64_images : Dict[str, str]
-        Map from chart name → base64 PNG (used by :meth:`generate_html_report`).
+    config       : type `LTRConfig` master config.
+    model        : Trained :class:`lgb.Booster`.
+    evals_result : Training metric history dict (from :class:`LTRTrainer`).
+    X_test       : Test feature matrix (for prediction distribution plots).
+    metrics      : Flat summary metrics dict (from :class:`LTRTrainer`).
     """
-
-    def __init__(
-        self,
-        config:       LTRConfig,
-        model:        lgb.Booster,
-        evals_result: Dict[str, Any],
-        X_test:       np.ndarray,
-        metrics:      Dict[str, float],
-    ) -> None:
+    def __init__(self,
+            config:       LTRConfig,
+            model:        lgb.Booster,
+            evals_result: Dict[str, Any],
+            X_test:       np.ndarray,
+            metrics:      Dict[str, float],
+        ) -> None:
         self._config       = config
         self._model        = model
         self._evals_result = evals_result
         self._X_test       = X_test
         self._metrics      = metrics
-
-        self._b64_images:  Dict[str, str]  = {}
-        self._saved_paths: Dict[str, str]  = {}
-
+        self._b64_images:  Dict[str, str]  = dict()
+        self._saved_paths: Dict[str, str]  = dict()
         logger.debug("Visualizer initialised.")
-
-    # ------------------------------------------------------------------
-    # Properties
-    # ------------------------------------------------------------------
 
     @property
     def output_dir(self) -> str:
@@ -143,81 +160,57 @@ class Visualizer:
     def feature_names(self) -> List[str]:
         return self._config.feature.features
 
-    # ------------------------------------------------------------------
-    # Internal save helper
-    # ------------------------------------------------------------------
-
-    def _record(self, name: str, fig: plt.Figure) -> None:
+    def _record(self, 
+                name: str, 
+                fig: plt.Figure,
+        ) -> None:
         """Save figure to PNG, encode to base64, store in state dicts."""
         path = os.path.join(self.output_dir, f"{name}.png")
         _save_fig(fig, path)
         self._saved_paths[name] = path
-
-        # Re-read PNG → base64 for the HTML report
         with open(path, "rb") as f:
             self._b64_images[name] = base64.b64encode(f.read()).decode("utf-8")
-
         logger.info("Chart saved: %s", path)
+
 
     # ------------------------------------------------------------------
     # Plot methods
     # ------------------------------------------------------------------
-
     def plot_feature_importance(
         self,
-        importance_type: str = "gain",
-        top_n: int = 30,
+        importance_type : str = "gain",
+        top_n           : int = 30,
     ) -> None:
         """Bar chart of LightGBM feature importances.
-
-        Parameters
-        ----------
-        importance_type:
-            ``"gain"`` (default) or ``"split"``.
-        top_n:
-            Maximum number of features to display.
+        importance_type : "gain" (default) or "split".
+        top_n           : Maximum number of features to display.
         """
-        logger.info(
-            "Plotting feature importance (type=%s, top_n=%d).",
-            importance_type, top_n,
-        )
-
-        imp     = self._model.feature_importance(importance_type=importance_type)
-        names   = self._model.feature_name()
-
-        df = (
-            pd.DataFrame({"Feature": names, "Importance": imp})
-            .sort_values("Importance", ascending=False)
-            .head(top_n)
-        )
-
-        fig, ax = plt.subplots(figsize=(11, max(5, top_n * 0.35)))
+        logger.debug("Plotting feature importance (type=%s, top_n=%d).",
+                     importance_type, top_n)
+        imp      = self._model.feature_importance(importance_type=importance_type)
+        names    = self._model.feature_name()
+        dataplot = (pd.DataFrame({"Feature": names, "Importance": imp})
+                   .sort_values("Importance", ascending=False)
+                   .head(top_n))
+        fig, ax  = plt.subplots(figsize=(11, max(5, top_n * 0.35)))
         sns.barplot(
-            data    = df,
+            data    = dataplot,
             x       = "Importance",
             y       = "Feature",
+            hue     = "Feature",
             palette = "Blues_r",
-            ax      = ax,
-        )
-        ax.set_title(
-            f"Feature Importance — {importance_type.capitalize()} (Top {top_n})"
-        )
+            legend  = False,
+            ax      = ax)
+        ax.set_title(f"Feature Importance — {importance_type.capitalize()} (Top {top_n})")
         ax.set_xlabel(f"Importance ({importance_type})")
         ax.set_ylabel("")
-
         self._record("feature_importance", fig)
-
-    # ------------------------------------------------------------------
 
     def plot_prediction_distribution(self) -> None:
         """Histogram + KDE of test-set relevance scores."""
-        logger.info("Plotting prediction distribution.")
-
-        preds = self._model.predict(
-            self._X_test,
-            num_iteration = self._model.best_iteration or 0,
-        )
-
+        logger.debug("Plotting prediction distribution.")
+        preds = self._model.predict(self._X_test,
+                num_iteration = self._model.best_iteration or 0,)
         fig, ax = plt.subplots(figsize=(9, 5))
         sns.histplot(preds, bins=60, kde=True, color="#4C72B0", ax=ax)
         ax.set_title("Relevance Score Distribution (Test Set)")
@@ -229,8 +222,7 @@ class Visualizer:
             f"mean={np.mean(preds):.4f}\n"
             f"std={np.std(preds):.4f}\n"
             f"min={np.min(preds):.4f}\n"
-            f"max={np.max(preds):.4f}"
-        )
+            f"max={np.max(preds):.4f}")
         ax.text(
             0.97, 0.97, stats_text,
             transform   = ax.transAxes,
@@ -238,19 +230,13 @@ class Visualizer:
             ha          = "right",
             fontsize    = 10,
             family      = "monospace",
-            bbox        = dict(boxstyle="round", fc="white", ec="gray", alpha=0.8),
-        )
-
+            bbox        = dict(boxstyle="round", fc="white", ec="gray", alpha=0.8))
         self._record("prediction_distribution", fig)
-
-    # ------------------------------------------------------------------
 
     def plot_learning_curves(self) -> None:
         """Line chart of train/test NDCG over boosting rounds."""
-        logger.info("Plotting learning curves.")
-
+        logger.debug("Plotting learning curves.")
         fig, axes = plt.subplots(1, 1, figsize=(10, 5))
-
         for split_name, metric_dict in self._evals_result.items():
             for metric_name, values in metric_dict.items():
                 label = f"{split_name} — {metric_name}"
@@ -259,9 +245,7 @@ class Visualizer:
                     values,
                     label     = label,
                     linestyle = linestyle,
-                    linewidth = 1.8,
-                )
-
+                    linewidth = 1.8)
         best_iter = self._model.best_iteration
         if best_iter:
             axes.axvline(
@@ -269,70 +253,48 @@ class Visualizer:
                 color     = "red",
                 linestyle = ":",
                 linewidth = 1.5,
-                label     = f"Best iteration ({best_iter})",
-            )
-
+                label     = f"Best iteration ({best_iter})")
         axes.set_title("Learning Curves (NDCG per Round)")
         axes.set_xlabel("Boosting Round")
         axes.set_ylabel("NDCG")
         axes.legend(loc="lower right", fontsize=9)
-
         self._record("learning_curves", fig)
-
-    # ------------------------------------------------------------------
 
     def plot_metrics_summary(self) -> None:
         """Horizontal bar chart summarising key evaluation metrics."""
-        logger.info("Plotting metrics summary.")
-
+        logger.debug("Plotting metrics summary.")
         # Filter to NDCG and prediction stats only
-        filtered = {
-            k: v for k, v in self._metrics.items()
-            if "ndcg" in k.lower() or "pred" in k.lower()
-        }
+        filtered = {k: v for k, v in self._metrics.items()
+                    if "ndcg" in k.lower() or "pred" in k.lower()}
         if not filtered:
             logger.warning("No metrics found for summary chart.")
-            return
-
-        df = pd.DataFrame(
-            list(filtered.items()),
-            columns=["Metric", "Value"],
-        ).sort_values("Value", ascending=True)
-
-        fig, ax = plt.subplots(figsize=(9, max(3, len(df) * 0.55)))
+            return None
+        tempdata = pd.DataFrame(list(filtered.items()),
+                    columns=["Metric", "Value"],
+                    ).sort_values("Value", ascending=True)
+        fig, ax = plt.subplots(figsize=(9, max(3, len(tempdata) * 0.55)))
         bars = ax.barh(
-            df["Metric"], df["Value"],
+            tempdata["Metric"], tempdata["Value"],
             color   = "#55A868",
             edgecolor = "white",
-            height  = 0.6,
-        )
+            height  = 0.6)
         ax.bar_label(bars, fmt="%.4f", padding=4, fontsize=9)
         ax.set_title("Evaluation Metrics Summary")
         ax.set_xlabel("Value")
-        ax.set_xlim(0, max(df["Value"]) * 1.18)
-
+        ax.set_xlim(0, max(tempdata["Value"]) * 1.18)
         self._record("metrics_summary", fig)
-
-    # ------------------------------------------------------------------
 
     def plot_feature_correlation(self, sample_n: int = 5_000) -> None:
         """Heatmap of pairwise feature correlations on a random sample.
-
-        Parameters
-        ----------
-        sample_n:
-            Maximum rows to sample before computing the correlation matrix
-            (guards against OOM on huge test sets).
+        sample_n: Maximum rows to sample before computing the correlation matrix
+                  (guards against OOM on huge test sets).
         """
-        logger.info("Plotting feature correlation heatmap.")
-
-        n = min(sample_n, self._X_test.shape[0])
-        idx = np.random.choice(self._X_test.shape[0], size=n, replace=False)
-        sample = pd.DataFrame(self._X_test[idx], columns=self.feature_names)
-
-        corr = sample.corr()
-
-        size = max(8, len(self.feature_names) * 0.55)
+        logger.debug("Plotting feature correlation heatmap.")
+        n       = min(sample_n, self._X_test.shape[0])
+        idx     = np.random.choice(self._X_test.shape[0], size=n, replace=False)
+        sample  = pd.DataFrame(self._X_test[idx], columns=self.feature_names)
+        corr    = sample.corr()
+        size    = max(8, len(self.feature_names) * 0.55)
         fig, ax = plt.subplots(figsize=(size, size))
         sns.heatmap(
             corr,
@@ -346,322 +308,182 @@ class Visualizer:
             annot_kws   = {"fontsize": 7},
         )
         ax.set_title("Feature Correlation Matrix")
-
         self._record("feature_correlation", fig)
 
-    # ------------------------------------------------------------------
-
-    def generate_all(self) -> None:
-        """Generate every standard chart in sequence."""
+    def __call__(self) -> None:
         logger.info("Generating all visualisations.")
-
         self.plot_feature_importance()
         self.plot_prediction_distribution()
         self.plot_learning_curves()
         self.plot_metrics_summary()
         self.plot_feature_correlation()
-
         logger.info("All visualisations complete.")
+
+
 
     # ------------------------------------------------------------------
     # HTML report
     # ------------------------------------------------------------------
-
-    def generate_html_report(
-        self,
-        tuner_summary: Optional[Dict[str, Any]] = None,
-    ) -> None:
-        """Render a self-contained HTML monitoring report.
-
+    def genreport(
+            self,
+            tuner_summary: Optional[Dict[str, Any]] = None,
+        ) -> None:
+        """
+        Render a self-contained HTML monitoring report.
         The report bundles every chart as a base64 data-URI so it can
         be shared as a single file with no external dependencies.
-
+        ________________________________
         Parameters
-        ----------
-        tuner_summary:
-            Optional dict returned by :meth:`BayesianTuner.summary`
-            (adds a tuning section to the report).
+        tuner_summary: Optional dict returned by :meth:`BayesianTuner.summary`
+                       (adds a tuning section to the report).
+        ________________________________
+        Behavior
+        - If charts already exist in self._b64_images, use them.
+        - If some / all charts are missing, fallback gracefully with filtered defaults.
+        - Never fail report generation only because charts are absent.
         """
-        logger.info("Generating HTML report.")
+        logger.info("Starting genreport().")
 
-        path = self._config.path.html_report_path
-        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        # =====================================================
+        # Prepare output path
+        # =====================================================
+        try:
+            output_path = Path(self._config.path.html_report_path).resolve()
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            logger.debug("Output path prepared: %s",output_path)
+        except Exception as arc:
+            logger.exception("Failed preparing output path.")
+            raise RuntimeError("Cannot prepare HTML output path.") from arc
 
-        # ------------------------------------------------------------------
-        # Helper sub-renderers
-        # ------------------------------------------------------------------
+        # =====================================================
+        # Chart Defaults
+        # =====================================================
+        chart_specs = [
+            ("feature_importance", "Feature Importance", False),
+            ("learning_curves", "Learning Curves", False),
+            ("prediction_distribution",
+             "Prediction Score Distribution",
+             False),
+            ("metrics_summary", "Metrics Summary", False),
+            ("feature_correlation",
+             "Feature Correlation Heatmap",
+             True),
+            ]
 
-        def _img_tag(name: str) -> str:
-            b64 = self._b64_images.get(name, "")
-            if not b64:
-                return f"<p><em>Chart '{name}' not available.</em></p>"
-            return (
-                f'<img src="data:image/png;base64,{b64}" '
-                f'alt="{name}" style="max-width:100%;border-radius:6px;'
-                f'box-shadow:0 2px 8px rgba(0,0,0,.15);">'
-            )
+        # =====================================================
+        # Build charts safely
+        # =====================================================
+        charts = list()
+        try:
+            logger.debug("Attempting to load charts from self._b64_images.")
+            images = getattr(self, "_b64_images", None)
+            if not isinstance(images, dict):
+                raise TypeError("_b64_images missing or not dict.")
+            for key, title, full in chart_specs:
+                try:
+                    img = images[key]
+                    if img:
+                        charts.append(
+                            {"title": title,
+                             "image": img,
+                             "full" : full})
+                        logger.debug("Chart loaded: %s",key)
+                    else:
+                        logger.debug("Chart empty, skipped: %s",key)
+                except KeyError:
+                    logger.error("Chart key missing, skipped: %s",key)
+        except Exception as exc:
+            logger.error("Chart loading fallback activated: %s",str(exc))
+            charts = list()
+            for key, title, full in chart_specs:
+                charts.append({"title": title,
+                               "image": None,
+                               "full" : full})
+        logger.debug("Final chart count prepared: %d",len(charts))
 
-        def _metric_cards(metrics: Dict[str, float]) -> str:
-            cards = ""
-            for k, v in sorted(metrics.items()):
-                cards += (
-                    f'<div class="card">'
-                    f'  <div class="card-label">{k}</div>'
-                    f'  <div class="card-value">{v:.6f}</div>'
-                    f'</div>'
-                )
-            return cards
+        # =====================================================
+        # Build Context
+        # =====================================================
+        try:
+            context = {
+            "page_title":
+                "LightGBM LTR Monitoring Report",
+            
+            "title":
+                "LightGBM LTR Monitoring Dashboard",
+            
+            "subtitle":
+                "Production Model Evaluation & Diagnostics",
+            
+            "experiment_name": getattr(
+                self._config.model,
+                "experiment_name",
+                "unknown_experiment"),
+            
+            "model_path": getattr(
+                self._config.model,
+                "model_path",
+                "unknown_model"),
+            
+            "best_iteration": getattr(
+                self._model,
+                "best_iteration",
+                None),
+            
+            "generated_at": datetime.now().strftime(
+                "%Y-%m-%d %H:%M:%S"),
+            
+            "metrics": dict(sorted(getattr(self,
+                       "_metrics",{}).items()
+                       )),
+            
+            "training_params": {
+                **getattr(self._config.training,
+                    "params",{}),
+                "num_boost_round": getattr(
+                    self._config.training,
+                    "num_boost_round",
+                    None),
+                "early_stopping_rounds": getattr(
+                    self._config.training,
+                    "early_stopping_rounds",
+                    None)},
+            
+            "tuner_summary": tuner_summary,
+            "charts": charts,
+            }
+            logger.debug("Context built for template report`s requirement successfully.")
+        except Exception as arc:
+            logger.exception("Failed building report context.")
+            raise RuntimeError("Unable to build report context.") from arc
 
-        def _tuning_section(ts: Optional[Dict[str, Any]]) -> str:
-            if not ts:
-                return "<p><em>Bayesian tuning was not run in this session.</em></p>"
-            rows = "".join(
-                f"<tr><td>{k}</td><td><code>{v}</code></td></tr>"
-                for k, v in ts.get("best_params", {}).items()
-            )
-            return f"""
-            <table>
-              <tr><th>Metric</th><th>Value</th></tr>
-              <tr><td>Trials completed</td><td>{ts.get('n_trials', '—')}</td></tr>
-              <tr><td>Trials pruned</td><td>{ts.get('n_pruned', '—')}</td></tr>
-              <tr>
-                <td>Best NDCG</td>
-                <td><strong>{ts.get('best_value', 0.0):.6f}</strong></td>
-              </tr>
-            </table>
-            <h3>Best Hyper-parameters</h3>
-            <table><tr><th>Parameter</th><th>Value</th></tr>{rows}</table>
-            """
 
-        # ------------------------------------------------------------------
-        # Full HTML
-        # ------------------------------------------------------------------
+        # =====================================================
+        # Render HTML
+        # =====================================================
+        try:
+            logger.debug("Rendering report HTML.")
+            html = render_report(context     = context,
+                                 output_path = output_path)
+            if not html or not html.strip():
+                raise ValueError("Rendered HTML is empty.")
+            logger.debug("HTML rendered successfully ""(%d chars).",len(html))
+        except Exception as arc:
+            logger.exception("Failed rendering HTML.")
+            raise RuntimeError("Report rendering failed.") from arc
 
-        html = f"""<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>LightGBM LTR — Monitoring Report</title>
-  <style>
-    *, *::before, *::after {{ box-sizing: border-box; margin: 0; padding: 0; }}
-    body {{
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      background: #f4f6fb;
-      color: #2d3748;
-      line-height: 1.6;
-    }}
-    header {{
-      background: linear-gradient(135deg, #1a202c 0%, #2d3a5e 100%);
-      color: #fff;
-      padding: 2.4rem 3rem;
-      display: flex;
-      align-items: center;
-      gap: 1.5rem;
-    }}
-    header .logo {{
-      font-size: 2.6rem;
-    }}
-    header h1 {{ font-size: 1.8rem; font-weight: 700; }}
-    header p  {{ opacity: .75; font-size: .95rem; margin-top: .25rem; }}
-    .container {{
-      max-width: 1280px;
-      margin: 0 auto;
-      padding: 2rem 2.5rem;
-    }}
-    section {{
-      background: #fff;
-      border-radius: 10px;
-      box-shadow: 0 1px 4px rgba(0,0,0,.07);
-      padding: 2rem;
-      margin-bottom: 2rem;
-    }}
-    section h2 {{
-      font-size: 1.25rem;
-      font-weight: 700;
-      border-bottom: 3px solid #4C72B0;
-      padding-bottom: .5rem;
-      margin-bottom: 1.5rem;
-      color: #1a202c;
-    }}
-    section h3 {{
-      font-size: 1rem;
-      font-weight: 600;
-      margin: 1.25rem 0 .75rem;
-      color: #2d3a5e;
-    }}
-    .cards {{
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-    }}
-    .card {{
-      background: #f7f9fc;
-      border: 1px solid #e2e8f0;
-      border-radius: 8px;
-      padding: 1rem 1.4rem;
-      min-width: 180px;
-      flex: 1;
-    }}
-    .card-label {{
-      font-size: .78rem;
-      color: #718096;
-      text-transform: uppercase;
-      letter-spacing: .06em;
-      margin-bottom: .35rem;
-    }}
-    .card-value {{
-      font-size: 1.45rem;
-      font-weight: 700;
-      color: #4C72B0;
-      font-variant-numeric: tabular-nums;
-    }}
-    .charts-grid {{
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
-      gap: 1.5rem;
-    }}
-    .chart-wrap {{
-      background: #f9fafb;
-      border: 1px solid #e8ecf2;
-      border-radius: 8px;
-      padding: 1rem;
-      overflow: hidden;
-    }}
-    .chart-wrap h3 {{
-      margin-top: 0;
-      margin-bottom: .6rem;
-      font-size: .9rem;
-    }}
-    table {{
-      border-collapse: collapse;
-      width: 100%;
-      font-size: .88rem;
-      margin-top: .5rem;
-    }}
-    th, td {{
-      text-align: left;
-      padding: .55rem .8rem;
-      border-bottom: 1px solid #e2e8f0;
-    }}
-    th {{
-      background: #edf2f7;
-      font-weight: 600;
-      font-size: .8rem;
-      text-transform: uppercase;
-      letter-spacing: .05em;
-    }}
-    code {{
-      background: #edf2f7;
-      padding: .15rem .4rem;
-      border-radius: 4px;
-      font-size: .85em;
-    }}
-    footer {{
-      text-align: center;
-      padding: 1.5rem;
-      color: #a0aec0;
-      font-size: .82rem;
-    }}
-    @media (max-width: 680px) {{
-      header {{ flex-direction: column; align-items: flex-start; }}
-      .charts-grid {{ grid-template-columns: 1fr; }}
-    }}
-  </style>
-</head>
-<body>
-  <header>
-    <div class="logo">📊</div>
-    <div>
-      <h1>LightGBM LTR &mdash; Monitoring Report</h1>
-      <p>Experiment: <strong>{self._config.model.experiment_name}</strong>
-         &nbsp;|&nbsp; Model: {self._config.model.model_path}</p>
-    </div>
-  </header>
+        # =====================================================
+        # Save HTML
+        # =====================================================
+        try:
+            with open(output_path, "w", encoding = "utf-8") as f:
+                f.write(html)
+            logger.info("Monitoring report saved: %s", output_path)
+        except Exception as arc:
+            logger.exception("Failed saving HTML report.")
+            raise RuntimeError("Unable to save report.") from arc
+        logger.info("Done!\n`genreport()` completed successfully.")
 
-  <div class="container">
 
-    <!-- ── Evaluation Metrics ── -->
-    <section>
-      <h2>📈 Evaluation Metrics</h2>
-      <div class="cards">
-        {_metric_cards(self._metrics)}
-      </div>
-    </section>
-
-    <!-- ── Bayesian Tuning ── -->
-    <section>
-      <h2>🔬 Bayesian Hyper-parameter Tuning</h2>
-      {_tuning_section(tuner_summary)}
-    </section>
-
-    <!-- ── Training Config ── -->
-    <section>
-      <h2>⚙️ Training Configuration</h2>
-      <table>
-        <tr><th>Parameter</th><th>Value</th></tr>
-        {''.join(
-            f"<tr><td>{k}</td><td><code>{v}</code></td></tr>"
-            for k, v in sorted(self._config.training.params.items())
-        )}
-        <tr>
-          <td>num_boost_round</td>
-          <td><code>{self._config.training.num_boost_round}</code></td>
-        </tr>
-        <tr>
-          <td>early_stopping_rounds</td>
-          <td><code>{self._config.training.early_stopping_rounds}</code></td>
-        </tr>
-        <tr>
-          <td>best_iteration</td>
-          <td><code>{self._model.best_iteration}</code></td>
-        </tr>
-      </table>
-    </section>
-
-    <!-- ── Charts ── -->
-    <section>
-      <h2>🎨 Visualisations</h2>
-      <div class="charts-grid">
-
-        <div class="chart-wrap">
-          <h3>Feature Importance (Gain)</h3>
-          {_img_tag("feature_importance")}
-        </div>
-
-        <div class="chart-wrap">
-          <h3>Learning Curves</h3>
-          {_img_tag("learning_curves")}
-        </div>
-
-        <div class="chart-wrap">
-          <h3>Prediction Score Distribution</h3>
-          {_img_tag("prediction_distribution")}
-        </div>
-
-        <div class="chart-wrap">
-          <h3>Metrics Summary</h3>
-          {_img_tag("metrics_summary")}
-        </div>
-
-        <div class="chart-wrap" style="grid-column: 1 / -1;">
-          <h3>Feature Correlation Heatmap</h3>
-          {_img_tag("feature_correlation")}
-        </div>
-
-      </div>
-    </section>
-
-  </div>
-
-  <footer>
-    Generated by <strong>ltr_framework</strong> v1.0.0 &mdash;
-    Contact: aryanto.dandan@gmail.com
-  </footer>
-</body>
-</html>"""
-
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(html)
-
-        logger.info("HTML report written to: %s", path)
+if __name__ == '__main__':
+    pass

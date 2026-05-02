@@ -6,6 +6,10 @@ __pycache__/
 # C extensions
 *.so
 ./src/IO/
+artifacts/*.*
+artifacts/models
+artifacts/reports
+artifacts/logs
 
 # Distribution / packaging
 .Python

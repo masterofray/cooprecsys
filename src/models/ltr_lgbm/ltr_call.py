@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 
 __author__     = "Aryanto"
 __copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
@@ -8,21 +9,20 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-04-30"
+__created__    = "2026-05-01"
 
 
 """
 ltr_call.py
-=======
+_____________________________
 Top-level pipeline orchestrator for the LTR framework.
-
 This module wires all components together into a coherent execution
 sequence with full logging, MLflow tracking, and configurable Bayesian
 tuning.  It exposes both a programmatic API (``run_pipeline``) and a
 ``__main__`` entry-point for CLI use.
+_____________________________
 
 Pipeline stages
----------------
 1. Config loading & validation
 2. Output directory setup
 3. Data preparation   (DataProcessor)
@@ -31,52 +31,29 @@ Pipeline stages
 6. Visualisation      (Visualizer)
 7. MLflow logging     (MLflowMonitor)
 8. Inference demo     (LTRInference — on test set)
-
-Functions
----------
-run_pipeline — execute the full pipeline; returns trained LTRTrainer.
 """
 
-from __future__ import annotations
 
-import argparse
-import logging
 import os
 import sys
 import time
-from typing import Any, Dict, List, Optional
-
+import argparse
 import pandas as pd
-from tqdm import tqdm
+import matplotlib.pyplot as plt
+from tqdm        import tqdm
+from typing      import Any, Dict, List, Optional
+from .ftcore     import (BayesianTuner, MLflowMonitor, 
+                         Visualizer, MLPstyle)
+from .inout      import LTRTrainer, LTRInference
+from src.configs  import LTRConfig, logger
+from src.features import DataProcessor
 
-from ltr_framework.config import LTRConfig
-from ltr_framework.custom_bayes_optimization import BayesianTuner
-from ltr_framework.data_processor import DataProcessor
-from ltr_framework.inference import LTRInference
-from ltr_framework.mlflow_monitor import MLflowMonitor
-from ltr_framework.trainer import LTRTrainer
-from ltr_framework.visualization import Visualizer
-
-# ---------------------------------------------------------------------------
-# Module-level logger
-# ---------------------------------------------------------------------------
-
-logging.basicConfig(
-    level   = logging.INFO,
-    format  = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-    datefmt = "%Y-%m-%d %H:%M:%S",
-    handlers = [
-        logging.StreamHandler(sys.stdout),
-    ],
-)
-
-logger = logging.getLogger("ltr_framework.main")
+plt.rcParams.update(MLPstyle)
 
 
 # ---------------------------------------------------------------------------
 # Pipeline stages (private)
 # ---------------------------------------------------------------------------
-
 def _stage_banner(stage: str) -> None:
     """Emit a clearly visible stage separator to the log."""
     border = "─" * 60
@@ -88,37 +65,22 @@ def _stage_banner(stage: str) -> None:
 # ---------------------------------------------------------------------------
 # Public entry-point
 # ---------------------------------------------------------------------------
-
 def run_pipeline(
-    config:      LTRConfig,
-    train_df:    pd.DataFrame,
-    test_df:     pd.DataFrame,
-    run_tuning:  bool = True,
-    run_name:    str  = "ltr_run",
-) -> LTRTrainer:
+        config:      LTRConfig,
+        train_df:    pd.DataFrame,
+        test_df:     pd.DataFrame,
+        run_tuning:  bool = True,
+        run_name:    str  = "ltr_run",
+    ) -> LTRTrainer:
     """Execute the full LTR pipeline end-to-end.
-
-    Parameters
-    ----------
-    config:
-        Fully-initialised :class:`~ltr_framework.config.LTRConfig`.
-    train_df:
-        Raw training DataFrame.
-    test_df:
-        Raw validation / test DataFrame.
-    run_tuning:
-        Whether to run Bayesian hyper-parameter optimisation before
-        training.  Set ``False`` to use the config defaults.
-    run_name:
-        Human-readable MLflow run name.
-
-    Returns
-    -------
-    LTRTrainer
-        The trainer object (booster accessible via ``trainer.model``).
+    config     : Fully-initialised `LTRConfig`.
+    train_df   : Raw training DataFrame.
+    test_df    : Raw validation / test DataFrame.
+    run_tuning : Whether to run Bayesian hyper-parameter optimisation before
+                 training.  Set ``False`` to use the config defaults.
+    run_name   : Human-readable MLflow run name.
     """
     pipeline_start = time.perf_counter()
-
     logger.info("=" * 60)
     logger.info("  LightGBM LTR Framework — Pipeline Start")
     logger.info("  Experiment : %s", config.model.experiment_name)
@@ -129,7 +91,7 @@ def run_pipeline(
     _stage_banner("1 / 7  Config Validation")
     config.validate()
     config.path.ensure_output_dir()
-    logger.info("Config validated. Output dir: %s", config.path.output_dir)
+    logger.debug("Config validated. Output dir: %s", config.path.output_dir)
 
     # ── 2. Data preparation ───────────────────────────────────────────
     _stage_banner("2 / 7  Data Preparation")
@@ -138,21 +100,19 @@ def run_pipeline(
 
     # ── 3. Bayesian tuning (optional) ─────────────────────────────────
     tuner_summary: Optional[Dict[str, Any]] = None
-
     if run_tuning:
         _stage_banner("3 / 7  Bayesian Hyper-parameter Tuning")
         tuner = BayesianTuner(
             config      = config,
             X_train     = processor.X_train,
             y_train     = processor.y_train,
-            group_train = processor.group_train,
-        )
+            group_train = processor.group_train)
         tuner.tune()
         tuner_summary = tuner.summary()
-        logger.info("Tuning summary: %s", tuner_summary)
+        logger.debug("Tuning summary: %s", tuner_summary)
     else:
         _stage_banner("3 / 7  Bayesian Tuning — SKIPPED")
-        logger.info("Using default / config-supplied params.")
+        logger.debug("Using default / config-supplied params.")
 
     # ── 4. Training ───────────────────────────────────────────────────
     _stage_banner("4 / 7  Model Training")
@@ -163,13 +123,11 @@ def run_pipeline(
         group_train = processor.group_train,
         X_test      = processor.X_test,
         y_test      = processor.y_test,
-        group_test  = processor.group_test,
-    )
+        group_test  = processor.group_test)
     trainer.save_model()
     logger.info(
         "Training complete — best_iteration=%d | runtime=%.2f min",
-        trainer.best_iteration, trainer.runtime_minutes,
-    )
+        trainer.best_iteration, trainer.runtime_minutes)
 
     # ── 5. Visualisation ──────────────────────────────────────────────
     _stage_banner("5 / 7  Visualisation")
@@ -178,32 +136,26 @@ def run_pipeline(
         model        = trainer.model,
         evals_result = trainer.evals_result,
         X_test       = processor.X_test,
-        metrics      = trainer.metrics,
-    )
-    viz.generate_all()
-    viz.generate_html_report(tuner_summary=tuner_summary)
+        metrics      = trainer.metrics)
+    viz()
+    viz.genreport(tuner_summary=tuner_summary)
 
     # ── 6. MLflow logging ─────────────────────────────────────────────
     _stage_banner("6 / 7  MLflow Logging")
-
     artifact_paths: List[str] = [
         os.path.join(config.path.output_dir, "feature_importance.png"),
         os.path.join(config.path.output_dir, "prediction_distribution.png"),
         os.path.join(config.path.output_dir, "learning_curves.png"),
         os.path.join(config.path.output_dir, "metrics_summary.png"),
         os.path.join(config.path.output_dir, "feature_correlation.png"),
-        config.path.html_report_path,
-    ]
-
+        config.path.html_report_path]
     with MLflowMonitor(config, run_name=run_name) as monitor:
-        monitor.log_all(
-            booster         = trainer.model,
-            params          = config.training.params,
-            metrics         = trainer.metrics,
-            runtime_minutes = trainer.runtime_minutes,
-            artifact_paths  = artifact_paths,
-            tuner_summary   = tuner_summary,
-        )
+        monitor(booster         = trainer.model,
+                params          = config.training.params,
+                metrics         = trainer.metrics,
+                runtime_minutes = trainer.runtime_minutes,
+                artifact_paths  = artifact_paths,
+                tuner_summary   = tuner_summary)
 
     # ── 7. Inference demo ─────────────────────────────────────────────
     _stage_banner("7 / 7  Inference Demo (Top-K on Test Set)")
@@ -227,54 +179,33 @@ def run_pipeline(
 # ---------------------------------------------------------------------------
 # CLI entry-point
 # ---------------------------------------------------------------------------
-
 def _build_cli_parser() -> argparse.ArgumentParser:
-    """Build the argument parser for the ``__main__`` entry-point."""
-    p = argparse.ArgumentParser(
+    cli = argparse.ArgumentParser(
         prog        = "python -m ltr_framework.main",
         description = "Run the LightGBM LTR pipeline from the command line.",
-        formatter_class = argparse.ArgumentDefaultsHelpFormatter,
-    )
-    p.add_argument(
+        formatter_class = argparse.ArgumentDefaultsHelpFormatter)
+    cli.add_argument(
         "--train",  required=True,
-        help="Path to the training Parquet / CSV file.",
-    )
-    p.add_argument(
+        help="Path to the training Parquet / CSV file.")
+    cli.add_argument(
         "--test",   required=True,
-        help="Path to the test / validation Parquet / CSV file.",
-    )
-    p.add_argument(
+        help="Path to the test / validation Parquet / CSV file.")
+    cli.add_argument(
         "--config", default="config.ini",
-        help="Path to the config.ini file.",
-    )
-    p.add_argument(
-        "--features", nargs="+", default=None,
-        help=(
-            "Explicit list of feature column names.  "
-            "If omitted, all columns except --label and --query-id are used."
-        ),
-    )
-    p.add_argument(
-        "--label",    default="reordered",
-        help="Label column name.",
-    )
-    p.add_argument(
-        "--query-id", default="user_id",
-        help="Query / group ID column name.",
-    )
-    p.add_argument(
-        "--no-tuning", action="store_true",
-        help="Skip Bayesian hyper-parameter tuning.",
-    )
-    p.add_argument(
-        "--run-name", default="ltr_run",
-        help="MLflow run name.",
-    )
-    return p
+        help="Path to the config.ini file.")
+    cli.add_argument(
+        "--features", nargs = "+", default = None,
+        help=("Explicit list of feature column names.  "
+              "If omitted, all columns except --label and --query-id are used."))
+
+    cli.add_argument("--label",     default = "reordered",  help = "Label column name.")
+    cli.add_argument("--query-id",  default = "user_id",    help = "Query / group ID column name.")
+    cli.add_argument("--no-tuning", action  = "store_true", help = "Skip Bayesian hyper-parameter tuning.")
+    cli.add_argument("--run-name",  default = "ltr_run",    help = "MLflow run name.")
+    return cli
 
 
 def _load_dataframe(path: str) -> pd.DataFrame:
-    """Load a DataFrame from a Parquet or CSV path."""
     ext = os.path.splitext(path)[-1].lower()
     if ext == ".csv":
         logger.info("Loading CSV: %s", path)
@@ -282,34 +213,23 @@ def _load_dataframe(path: str) -> pd.DataFrame:
     if ext in (".parquet", ".pq"):
         logger.info("Loading Parquet: %s", path)
         return pd.read_parquet(path)
-    raise ValueError(
-        f"Unsupported file extension '{ext}'. Use .csv or .parquet."
-    )
+    raise ValueError(f"Unsupported file extension '{ext}'. Use .csv or .parquet.")
 
 
 if __name__ == "__main__":
     args = _build_cli_parser().parse_args()
-
     train_df_ = _load_dataframe(args.train)
     test_df_  = _load_dataframe(args.test)
-
     excluded = {args.label, args.query_id}
     feature_cols: List[str] = (
         args.features
         if args.features
-        else [c for c in train_df_.columns if c not in excluded]
-    )
-
-    cfg = LTRConfig.from_ini(args.config, features=feature_cols)
-
-    # Override label / query_id from CLI if supplied
+        else [c for c in train_df_.columns if c not in excluded])
+    cfg = LTRConfig.from_ini(args.config, features = feature_cols)
     cfg.feature.label    = args.label
     cfg.feature.query_id = args.query_id.replace("-", "_")
-
-    run_pipeline(
-        config     = cfg,
-        train_df   = train_df_,
-        test_df    = test_df_,
-        run_tuning = not args.no_tuning,
-        run_name   = args.run_name,
-    )
+    run_pipeline(config     = cfg,
+                 train_df   = train_df_,
+                 test_df    = test_df_,
+                 run_tuning = not args.no_tuning,
+                 run_name   = args.run_name)

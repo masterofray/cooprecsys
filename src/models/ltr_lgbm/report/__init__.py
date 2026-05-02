@@ -8,7 +8,8 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-05-02"
+__created__    = "2026-05-01"
 
-if __name__ == '__main__':
-    print('Doing Test data!!!')
+from .renderpot import render_report
+
+__all__ = ["render_report"]

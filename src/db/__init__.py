@@ -10,8 +10,6 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-25"
 
-
-from ..configs import logger
 from .callduckdb import DuckDBManager, duckdb_connection
 
 __version__ = "0.0.1.dev0"

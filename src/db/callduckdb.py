@@ -19,7 +19,7 @@ import pandas as pd
 from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional, Tuple, List, Dict, Union
-from . import logger
+from ..configs import logger
 
 class DuckDBManager:
     """
