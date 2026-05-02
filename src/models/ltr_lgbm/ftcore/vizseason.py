@@ -39,13 +39,13 @@ from pathlib import Path
 from datetime import datetime
 import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Optional
-from ..report import renderpot
 
 matplotlib.use("Agg")
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
 
 from configs import LTRConfig, logger
+from models.ltr_lgbm.report import render_report
 
 # ---------------------------------------------------------------------------
 # Seaborn global theme
@@ -197,7 +197,9 @@ class Visualizer:
             data    = dataplot,
             x       = "Importance",
             y       = "Feature",
+            hue     = "Feature",
             palette = "Blues_r",
+            legend  = False,
             ax      = ax)
         ax.set_title(f"Feature Importance — {importance_type.capitalize()} (Top {top_n})")
         ax.set_xlabel(f"Importance ({importance_type})")

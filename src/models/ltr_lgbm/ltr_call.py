@@ -45,8 +45,8 @@ from typing      import Any, Dict, List, Optional
 from .ftcore     import (BayesianTuner, MLflowMonitor, 
                          Visualizer, MLPstyle)
 from .inout      import LTRTrainer, LTRInference
-from ...configs  import LTRConfig, logger
-from ...features import DataProcessor
+from src.configs  import LTRConfig, logger
+from src.features import DataProcessor
 
 plt.rcParams.update(MLPstyle)
 

@@ -28,6 +28,7 @@ ____________
     * ``tqdm``-wrapped trial loop for real-time progress feedback.
 """
 
+import re
 import mlflow
 import optuna
 import numpy as np
@@ -134,18 +135,23 @@ class _LambdaRankObjective:
             "bagging_freq":     trial.suggest_int("bagging_freq",       1,    10),
             "lambda_l1":        trial.suggest_float("lambda_l1",        1e-4, 10.0, log=True),
             "lambda_l2":        trial.suggest_float("lambda_l2",        1e-4, 10.0, log=True),
-            "min_child_samples":trial.suggest_int("min_child_samples",  5,    100)}
+            "min_child_samples":trial.suggest_int("min_child_samples",  5,    100),
+            "min_data_in_leaf": trial.suggest_int("min_data_in_leaf", 1, 100),
+            "feature_pre_filter": False,
+            "verbose": -1}
         try:
             cv_result = lgb.cv(
                 trial_params,
                 self._train_lgb,
-                num_boost_round      = self._num_boost,
-                nfold                = self._n_folds,
-                stratified           = False,
-                callbacks            = [lgb.early_stopping(self._early_stop, verbose=False)],
-                return_cvbooster     = False,
-                eval_train_metric    = False,
-                verbose_eval         = False)
+                num_boost_round   = self._num_boost,
+                nfold             = self._n_folds,
+                stratified        = False,
+                callbacks         = [lgb.early_stopping(stopping_rounds = self._early_stop,
+                                     verbose = False),
+                                     # period=0 or None silences the output],
+                                     lgb.log_evaluation(period = 0)],
+                return_cvbooster  = False,
+                eval_train_metric = False)
         except Exception as arc:
             logger.warning("Trial %d raised: %s", trial.number, arc)
             raise optuna.exceptions.TrialPruned()
@@ -160,9 +166,10 @@ class _LambdaRankObjective:
             trial.number, key, score, {k: v for k, v in trial.params.items()})
 
         if self._RunMLflow:
+            safe_key = re.sub(r'[^a-zA-Z0-9._-]', '_', key.replace("-mean", ""))
             with mlflow.start_run(nested=True, run_name=f"trial_{trial.number}"):
                 mlflow.log_params(trial.params)
-                mlflow.log_metric(key.replace("-mean", "").replace(" ", "_"), score)
+                mlflow.log_metric(safe_key, score)
         return score
 
 

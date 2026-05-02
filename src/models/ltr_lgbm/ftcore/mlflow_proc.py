@@ -27,6 +27,8 @@ import mlflow.lightgbm
 import lightgbm as lgb
 from pathlib import Path
 from typing import Any, Dict, Optional
+from mlflow.types.schema import Schema, ColSpec
+from mlflow.models.signature import ModelSignature
 
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
@@ -134,7 +136,12 @@ class MLflowMonitor:
         """Log the LightGBM booster as an MLflow model artefact.
         booster: Trained :class:`lgb.Booster` instance.
         """
-        mlflow.lightgbm.log_model(booster, artifact_path="lightgbm_model")
+        feature_names = booster.feature_name()
+        input_schema  = Schema([ColSpec("double", name) for name in feature_names])
+        sign          = ModelSignature(inputs = input_schema)
+        mlflow.lightgbm.log_model(lgb_model = booster, 
+                                  name      = "lightgbm_model", 
+                                  signature = sign)
         logger.info("LightGBM booster logged to MLflow.")
 
     def log_tuner_summary(self, summary: Dict[str, Any]) -> None:

@@ -14,7 +14,7 @@ __created__    = "2026-04-28"
 
 """
 lgbm_config.py
-=========
+________________________________________
 Typed dataclass configuration hierarchy for the LTR framework.
 
 All runtime parameters live here so every module has a single source
@@ -22,7 +22,7 @@ of truth.  Instances can be built programmatically or deserialised from
 the project ``config.ini`` via :meth:`LTRConfig.from_ini`.
 
 Classes
--------
+________________________________________
 FeatureConfig   — column-name metadata (features, label, query_id)
 ModelConfig     — file paths & MLflow experiment identity
 TrainingConfig  — LightGBM training knobs & default hyper-parameters
@@ -42,8 +42,7 @@ from typing import Any, Dict, List, Optional
 from .logged import setup_logging
 
 CwdDir = Path(__file__).resolve().parents[0]
-LocDir = Path(__file__).resolve().parents[2]
-PosDir = LocDir / 'artifacts'
+PosDir = CwdDir.parents[1] / 'artifacts'
 logger = setup_logging()
 dates = f'{datetime.now():%Y%m%d}'
 
@@ -81,7 +80,6 @@ class FeatureConfig:
             raise ValueError(
             f"query_id column '{self.query_id}' must not appear in features.")
 
-# ---------------------------------------------------------------------------
 
 @dataclass
 class ModelConfig:
@@ -100,7 +98,6 @@ class ModelConfig:
     large_data_threshold:  int = 50_000
     seed:                  int = 42
 
-# ---------------------------------------------------------------------------
 
 @dataclass
 class TrainingConfig:
@@ -138,7 +135,6 @@ class TrainingConfig:
         self.params.update(overrides)
         logger.debug("TrainingConfig.params updated: %s", overrides)
 
-# ---------------------------------------------------------------------------
 
 @dataclass
 class TuningConfig:
@@ -163,7 +159,6 @@ class TuningConfig:
     sampler:    str           = "tpe"
     pruner:     str           = "median"
 
-# ---------------------------------------------------------------------------
 
 @dataclass
 class InferenceConfig:
@@ -176,7 +171,6 @@ class InferenceConfig:
     top_k:     int = 20
     score_col: str = "relevance_score"
 
-# ---------------------------------------------------------------------------
 
 @dataclass
 class PathConfig:
@@ -196,10 +190,10 @@ class PathConfig:
         os.makedirs(self.output_dir, exist_ok=True)
         logger.debug("Output directory ensured: %s", self.output_dir)
 
+
 # ---------------------------------------------------------------------------
 # Master composite config
 # ---------------------------------------------------------------------------
-
 @dataclass
 class LTRConfig:
     """Master composite configuration for the entire LTR pipeline.
