@@ -94,21 +94,20 @@ class LTRTrainer:
             for metric_name, values in metric_dict.items():
                 key = f"{split_name}_{metric_name.replace('@', 'at').replace(' ', '_')}"
                 self.metrics[key] = float(values[-1])
-                logger.debug("Metric captured — %s: %.6f", key, self.metrics[key])
+                logger.debug("Metric captured -- %s: %.6f", key, self.metrics[key])
 
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
-    def train(
-        self,
-        X_train: np.ndarray,
-        y_train: np.ndarray,
-        group_train: np.ndarray,
-        X_test: np.ndarray,
-        y_test: np.ndarray,
-        group_test: np.ndarray,
-    ) -> None:
+    def train(self,
+              X_train     : np.ndarray,
+              y_train     : np.ndarray,
+              group_train : np.ndarray,
+              X_test      : np.ndarray,
+              y_test      : np.ndarray,
+              group_test  : np.ndarray,
+        ) -> None:
         """Train the LambdaRank booster.
         """
         tcfg = self._config.training
@@ -126,51 +125,36 @@ class LTRTrainer:
             X_test,  y_test,  group_test)
 
         # Progress bar via tqdm callback
-        pbar = tqdm(
-            total       = tcfg.num_boost_round,
-            desc        = "Training rounds",
-            unit        = "round",
-            dynamic_ncols = True,
-        )
+        pbar = tqdm(total       = tcfg.num_boost_round,
+                    desc        = "Training rounds",
+                    unit        = "round",
+                    dynamic_ncols = True)
         _pbar_state: Dict[str, Any] = {"last_iter": 0}
 
-        def _tqdm_callback(env: lgb.callback.CallbackEnv) -> None:  # type: ignore[attr-defined]
+        def _tqdm_callback(env: lgb.callback.CallbackEnv) -> None:
             delta = env.iteration - _pbar_state["last_iter"]
             pbar.update(delta)
             _pbar_state["last_iter"] = env.iteration
 
-        callbacks = [
-            lgb.early_stopping(
+        callbacks = [lgb.early_stopping(
                 stopping_rounds = tcfg.early_stopping_rounds,
-                verbose         = False,
-            ),
+                verbose         = False),
             lgb.log_evaluation(period=tcfg.log_evaluation),
             lgb.record_evaluation(self.evals_result),
-            _tqdm_callback,
-        ]
-
+            _tqdm_callback]
         start_time = time.perf_counter()
-
-        self.model = lgb.train(
-            self._params,
-            train_lgb,
-            valid_sets   = [train_lgb, test_lgb],
-            valid_names  = ["train", "test"],
-            num_boost_round = tcfg.num_boost_round,
-            callbacks    = callbacks,
-        )
-
+        self.model = lgb.train(self._params,
+                               train_lgb,
+                               valid_sets   = [train_lgb, test_lgb],
+                               valid_names  = ["train", "test"],
+                               num_boost_round = tcfg.num_boost_round,
+                               callbacks    = callbacks)
         elapsed = time.perf_counter() - start_time
-        self.runtime_minutes = elapsed / 60.0
+        self.runtime_minutes = round(elapsed / 60.0, 2)
         self.best_iteration  = self.model.best_iteration
-
         pbar.close()
-
-        logger.info(
-            "Training complete — best_iteration=%d | runtime=%.2f min",
-            self.best_iteration, self.runtime_minutes,
-        )
-
+        logger.info("Training complete — best_iteration=%d | runtime=%.2f min",
+                    self.best_iteration, self.runtime_minutes)
         self._extract_metrics_from_evals()
         self._compute_prediction_stats(X_test)
 
@@ -189,18 +173,12 @@ class LTRTrainer:
         logger.debug(
             "Prediction stats — mean=%.4f | std=%.4f | min=%.4f | max=%.4f",
             self.metrics["pred_mean"], self.metrics["pred_std"],
-            self.metrics["pred_min"],  self.metrics["pred_max"],
-        )
+            self.metrics["pred_min"],  self.metrics["pred_max"])
 
 
     def save_model(self) -> None:
-        """Persist the booster to ``config.model.model_path``.
-
-        Creates parent directories automatically.
-        """
         if self.model is None:
             raise RuntimeError("Model has not been trained yet.")
-
         path = self._config.model.model_path
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         self.model.save_model(path)
@@ -208,10 +186,6 @@ class LTRTrainer:
 
 
     def load_model(self) -> None:
-        """Load a persisted booster from ``config.model.model_path``.
-
-        Populates ``self.model``.
-        """
         path = self._config.model.model_path
         if not os.path.exists(path):
             raise FileNotFoundError(f"Model file not found: {path}")

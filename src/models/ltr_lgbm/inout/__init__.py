@@ -11,3 +11,6 @@ __status__     = "Development"
 __created__    = "2026-04-30"
 
 from .inference import LTRInference
+from .trainer   import LTRTrainer
+
+__all__ = ['LTRInference', 'LTRTrainer']
