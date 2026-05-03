@@ -53,12 +53,9 @@ dates = f'{datetime.now():%Y%m%d}'
 @dataclass
 class FeatureConfig:
     """Column-level metadata shared across all pipeline stages.
-    features:
-        Ordered list of feature column names used for model training.
-    label:
-        Binary / graded relevance label column name.
-    query_id:
-        Column that identifies a query group (e.g. ``user_id``).
+    features : Ordered list of feature column names used for model training.
+    label    : Binary / graded relevance label column name.
+    query_id : Column that identifies a query group (e.g. ``user_id``).
     """
     features: List[str]
     label:    str = "reordered"
@@ -84,33 +81,25 @@ class FeatureConfig:
 @dataclass
 class ModelConfig:
     """Identity and persistence configuration for the trained model.
-    model_path:
-        Filesystem path where the booster is saved / loaded (``*.txt``).
-    experiment_name:
-        MLflow experiment label.
-    large_data_threshold:
-        Row count above which DuckDB parallel processing is activated.
-    seed:
-        Global random seed for reproducibility.
+    model_path           : Filesystem path where the booster is saved / loaded (``*.txt``).
+    experiment_name      : MLflow experiment label.
+    large_data_threshold : Row count above which DuckDB parallel processing is activated.
+    seed                 : Global random seed for reproducibility.
     """
     model_path:            str = "outputs/lightgbm_ltr_model.txt"
     experiment_name:       str = "LightGBM_LTR"
     large_data_threshold:  int = 50_000
-    seed:                  int = 42
+    seed:                  int = 2
 
 
 @dataclass
 class TrainingConfig:
     """LightGBM training loop configuration and default hyper-parameters.
-    num_boost_round:
-        Maximum number of boosting iterations.
-    early_stopping_rounds:
-        Stop training if no improvement after this many rounds.
-    log_evaluation:
-        Frequency (in rounds) of log-evaluation callbacks.
-    params:
-        Raw LightGBM parameter dict; populated by :class:`BayesianTuner` or
-        set from ``config.ini`` defaults.
+    num_boost_round       : Maximum number of boosting iterations.
+    early_stopping_rounds : Stop training if no improvement after this many rounds.
+    log_evaluation        : Frequency (in rounds) of log-evaluation callbacks.
+    params                : Raw LightGBM parameter dict; populated by :class:`BayesianTuner` or
+                            set from ``config.ini`` defaults.
     """
     num_boost_round        : int = 1_000
     early_stopping_rounds  : int = 100
@@ -139,34 +128,26 @@ class TrainingConfig:
 @dataclass
 class TuningConfig:
     """Optuna Bayesian optimisation settings.
-    n_trials:
-        Number of Optuna trials.
-    timeout:
-        Wall-clock budget in seconds (``None`` = unlimited).
-    direction:
-        ``"maximize"`` for NDCG, ``"minimize"`` for loss-based metrics.
-    study_name:
-        Optuna study identifier.
-    sampler:
-        ``"tpe"`` | ``"random"`` | ``"cmaes"``
-    pruner:
-        ``"median"`` | ``"hyperband"`` | ``"none"``
+    n_trials   : Number of Optuna trials.
+    timeout    : Wall-clock budget in seconds (``None`` = unlimited).
+    direction  : "maximize" for NDCG, "minimize" for loss-based metrics.
+    study_name : Optuna study identifier.
+    sampler    : "tpe" | "random" | "cmaes"
+    pruner     : "median" | "hyperband" | "none"
     """
     n_trials:   int           = 50
     timeout:    Optional[int] = 3_600
     direction:  str           = "maximize"
     study_name: str           = "lgbm_ltr_study"
     sampler:    str           = "tpe"
-    pruner:     str           = "median"
+    pruner:     str           = "hyperband"
 
 
 @dataclass
 class InferenceConfig:
     """Inference and top-K ranking settings.
-    top_k:
-        Number of top-ranked items to return per query.
-    score_col:
-        Name of the score column added to inference output.
+    top_k     : Number of top-ranked items to return per query.
+    score_col : Name of the score column added to inference output.
     """
     top_k:     int = 20
     score_col: str = "relevance_score"
@@ -175,12 +156,9 @@ class InferenceConfig:
 @dataclass
 class PathConfig:
     """Filesystem and MLflow URI settings.
-    output_dir:
-        Root directory for all artefacts (created if absent).
-    mlflow_tracking_uri:
-        MLflow tracking server URI or local path.
-    html_report_path:
-        Output path for the HTML monitoring report.
+    output_dir          : Root directory for all artefacts (created if absent).
+    mlflow_tracking_uri : MLflow tracking server URI or local path.
+    html_report_path    : Output path for the HTML monitoring report.
     """
     output_dir          : str = str(PosDir / "models" / dates)
     mlflow_tracking_uri : str = str(PosDir / "mlruns" / dates)
@@ -199,11 +177,11 @@ class LTRConfig:
     """Master composite configuration for the entire LTR pipeline.
     """
     feature   : FeatureConfig
-    model     : ModelConfig     = field(default_factory=ModelConfig)
-    training  : TrainingConfig  = field(default_factory=TrainingConfig)
-    tuning    : TuningConfig    = field(default_factory=TuningConfig)
-    inference : InferenceConfig = field(default_factory=InferenceConfig)
-    path      : PathConfig      = field(default_factory=PathConfig)
+    model     : ModelConfig     = field(default_factory = ModelConfig)
+    training  : TrainingConfig  = field(default_factory = TrainingConfig)
+    tuning    : TuningConfig    = field(default_factory = TuningConfig)
+    inference : InferenceConfig = field(default_factory = InferenceConfig)
+    path      : PathConfig      = field(default_factory = PathConfig)
 
     @classmethod
     def from_ini(cls, 
@@ -281,17 +259,16 @@ class LTRConfig:
         path_cfg = PathConfig(
             output_dir          = _get("PATHS", "output_dir", str(PosDir / "models" / dates)),
             mlflow_tracking_uri = _get("PATHS", "mlflow_tracking_uri", str(PosDir / "mlruns" / dates)),
-            html_report_path    = _get("PATHS", "html_report_path", str(PosDir / "reports" / f'{dates}_LGBM_report.html')),)
+            html_report_path    = _get("PATHS", "html_report_path",
+                                       str(PosDir / "reports" / f'{dates}_LGBM_report.html')),)
 
         logger.debug("LTRConfig successfully loaded.")
-        return cls(
-            feature   = feature_cfg,
-            model     = model_cfg,
-            training  = training_cfg,
-            tuning    = tuning_cfg,
-            inference = inference_cfg,
-            path      = path_cfg,
-        )
+        return cls(feature   = feature_cfg,
+                   model     = model_cfg,
+                   training  = training_cfg,
+                   tuning    = tuning_cfg,
+                   inference = inference_cfg,
+                   path      = path_cfg)
 
     def validate(self) -> None:
         self.feature.validate()

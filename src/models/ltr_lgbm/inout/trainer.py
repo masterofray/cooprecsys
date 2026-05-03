@@ -33,7 +33,7 @@ from typing import Any, Dict
 
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
-from configs import LTRConfig, logger
+from configs import logger
 
 
 class LTRTrainer:
@@ -45,7 +45,7 @@ class LTRTrainer:
     runtime_minutes : float, Wall-clock training time in minutes.
     best_iteration  : int, Booster's best iteration (early stopping).
     """
-    def __init__(self, config: LTRConfig) -> None:
+    def __init__(self, config) -> None:
         self._config = config
         self.model:           lgb.Booster | None = None
         self.evals_result:    Dict[str, Any]     = dict()
@@ -55,7 +55,7 @@ class LTRTrainer:
         logger.debug("LTRTrainer initialised.")
 
     @property
-    def config(self) -> LTRConfig:
+    def config(self):
         return self._config
 
     @property

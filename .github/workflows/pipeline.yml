@@ -1,1 +1,221 @@
-pass
+# ==========================================================
+# GitHub Actions Workflow for CoopRecSys
+# Author: Aryanto
+# File Location: .github/workflows/pipeline.yml
+# ==========================================================
+
+name: CoopRecSys CI CD Pipeline
+
+# ----------------------------------------------------------
+# Trigger workflow:
+# - push ke branch dev / master
+# - pull request ke dev / master
+# - manual trigger dari GitHub UI
+# ----------------------------------------------------------
+on:
+  push:
+    branches:
+      - dev
+      - master
+
+  pull_request:
+    branches:
+      - dev
+      - master
+
+  workflow_dispatch:
+
+# ----------------------------------------------------------
+# Global environment variable
+# ----------------------------------------------------------
+env:
+  PYTHON_VERSION: "3.10"
+
+jobs:
+
+  # ========================================================
+  # JOB 1 : CODE QUALITY CHECK
+  # ========================================================
+  quality:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      # Clone repository ke runner GitHub
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # Install Python 3.10
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Cache dependency agar install lebih cepat
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-${{ hashFiles('requirements.txt') }}
+
+      # Install tools untuk quality checking
+      - name: Install QA Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install black ruff isort
+
+      # Linting source code
+      - name: Run Ruff Linter
+        run: |
+          ruff check src test
+
+      # Validasi formatting Black
+      - name: Run Black Format Check
+        run: |
+          black . --check
+
+      # Validasi import order
+      - name: Run isort Check
+        run: |
+          isort . --check-only
+
+
+  # ========================================================
+  # JOB 2 : UNIT TEST
+  # ========================================================
+  test:
+    name: Run Unit Tests
+    runs-on: ubuntu-latest
+    needs: quality
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Install project dependency
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      # Jalankan seluruh test di folder /test
+      - name: Run Pytest
+        run: |
+          pytest test -v \
+            --cov=src \
+            --cov-report=term \
+            --cov-report=xml
+
+      # Upload hasil coverage.xml sebagai artifact
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+
+  # ========================================================
+  # JOB 3 : LIGHTGBM LTR PIPELINE TEST
+  # ========================================================
+  smoke-ltr:
+    name: LTR LightGBM Smoke Test
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Install dependency project
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Jalankan script testing LightGBM ranking pipeline
+      - name: Run ltrlgbm_example.py
+        run: |
+          python3 -m test.ltrlgbm_test
+
+    # (Opsional) 6. Mengunggah laporan HTML jika test berhasil/gagal
+    - name: Upload HTML Report
+      if: always() # Tetap jalankan langkah ini meski test gagal
+      uses: actions/upload-artifact@v4
+      with:
+        name: ltr-evaluation-report
+        path: artifacts/reports/*.html
+        retention-days: 7
+
+  # ========================================================
+  # JOB 4 : BUILD PACKAGE
+  # ========================================================
+  package:
+    name: Build Python Package
+    runs-on: ubuntu-latest
+    needs: smoke-ltr
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Install build module
+      - name: Install Build Tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      # Generate .whl dan source package
+      - name: Build Distribution
+        run: |
+          python -m build
+
+      # Simpan hasil build
+      - name: Upload Package Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-dist
+          path: dist/
+
+
+  # ========================================================
+  # JOB 5 : SECURITY CHECK
+  # ========================================================
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Install Bandit
+      - name: Install Bandit
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit
+
+      # Scan folder src terhadap security issue
+      - name: Run Bandit Security Scan
+        run: |
+          bandit -r src -ll

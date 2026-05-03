@@ -13,7 +13,7 @@ __created__    = "2026-04-30"
 
 """
 lgbm_processor.py
-=================
+_____________________________________________
 DuckDB-backed, parallel-safe data preparation for LightGBM LTR datasets.
 All heavy data manipulation (sorting by query ID, group-size computation,
 feature/label extraction) is delegated to an in-process DuckDB connection.
@@ -21,27 +21,31 @@ For very large datasets the module forks worker processes via
 `concurrent.futures.ProcessPoolExecutor` so that sorting and extraction
 run in parallel per data-split.
 
-    Design notes
-    ------------
-    * State lives on ``self``; no public ``return`` from :meth:`prepare`.
-    * DuckDB is *always* used (even for small data) to guarantee consistent,
-    SQL-based ordering semantics.
-    * Parallel execution is activated when ``len(df) > config.model.large_data_threshold``.
+Design notes
+_____________________________________________
+* State lives on ``self``; no public ``return`` from :meth:`prepare`.
+* DuckDB is *always* used (even for small data) to guarantee consistent,
+  SQL-based ordering semantics.
+* Parallel execution is activated when ``len(df) > config.model.large_data_threshold``.
 """
 
 import io
 import os
+import sys
 import duckdb
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from copy import deepcopy
+from pathlib import Path
 from datetime import datetime
 from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
-from ..configs import LTRConfig, _cfg, logger
-from ..db import DuckDBManager, duckdb_connection
+LocDir = Path(__file__).resolve().parents[1]
+sys.path.append(str(LocDir))
+from configs import LTRConfig, _cfg, logger
+from db import DuckDBManager, duckdb_connection
 
 dates = f'{datetime.now():%Y%m%d}'
 

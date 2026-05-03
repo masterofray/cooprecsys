@@ -1,0 +1,16 @@
+# Bagian ini menentukan pemilik global untuk seluruh repositori.
+# Jika tidak ada aturan spesifik di bawahnya, akun ini yang akan bertanggung jawab.
+*       @masterofray
+
+# Tim atau orang yang bertanggung jawab khusus untuk folder sumber kode (src).
+# Perubahan pada logika model LTR atau sistem rekomendasi harus ditinjau di sini.
+/src/   @masterofray
+
+# Spesifik untuk konfigurasi CI/CD dan GitHub Actions.
+/.github/workflows/ @masterofray
+
+# Penanggung jawab untuk folder pembuatan model AI.
+# /src/models/ @masterofray
+
+# Penanggung jawab untuk folder pengujian (test).
+/test/  @masterofray

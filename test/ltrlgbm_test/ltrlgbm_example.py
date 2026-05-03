@@ -17,6 +17,7 @@ A demonstration script to test the complete LightGBM LTR framework.
 This script loads 'sampledata.parquet', prepares a group-aware train/test split,
 configures the pipeline, and triggers all downstream LTR processes.
 '''
+from ipdb import set_trace as st
 
 import os
 import sys
@@ -35,13 +36,15 @@ def maintest():
     logger.info("=" * 60)
 
     # 1. Calling data
+    #_________________________________________
     data_path = LocDir.parents[0] / 'data' / 'sampledata.parquet'
     if not data_path.exists():
         raise FileNotFoundError(f"Could not find {str(data_path)}.")
-    logger.info(f"Loading data from {data_path}...")
+    logger.info(f"Loading data from {data_path}.")
     data = pd.read_parquet(data_path)
 
     # 2. Define Schema & Features
+    #_________________________________________
     query_col   = "CustomerID"
     label_col   = "Quantity"
     TheFeatures = ["ProductPrice", "Discount", "CategoryID", 
@@ -51,20 +54,26 @@ def maintest():
     data = data.sort_values(query_col).reset_index(drop=True)
 
     # 3. Group-Aware Train/Test Split
+    #_________________________________________
     logger.info("Splitting data into Train and Test sets (Grouped by CustomerID).")
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state = 4)
-    train_idx, test_idx = next(gss.split(data, groups=data[query_col]))
+    train_idx, test_idx = next(gss.split(data, groups = data[query_col]))
     train_df = data.iloc[train_idx].copy()
     test_df  = data.iloc[test_idx].copy()
     logger.info(f"Train set: {len(train_df)} rows | Test set: {len(test_df)} rows")
+    logger.debug(train_df.head(4))
+    logger.debug(test_df.head(4))
+    st()
     
     # 4. Initialize your config
+    #_________________________________________
     cfg = LTRConfig.from_ini(ini_path = str(LocDir / 'configs' / 'configuration.ini'), 
                              features = TheFeatures)
     cfg.feature.label = label_col
     cfg.feature.query_id = query_col
 
     # 5. Execute the Pipeline
+    #_________________________________________
     logger.info("\nStarting the `run_pipeline` orchestrator.")
     try:
         trainer = lgbm_fit_transform(config     = cfg,

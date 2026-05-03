@@ -34,7 +34,7 @@ from typing import List, Optional
 
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
-from configs import LTRConfig, logger
+from configs import LTRConfig, logger, _cfg
 
 
 class LTRInference:
@@ -177,7 +177,6 @@ class LTRInference:
 
     def save_rankings(self, 
                       output_path: Optional[str] = None,
-                      parquet : bool = True,
                      ) -> None:
         """Persist ``self.ranked_df_`` to a CSV file.
         output_path: Destination path. Defaults to
@@ -186,6 +185,7 @@ class LTRInference:
         if self.ranked_df_ is None:
             raise RuntimeError("No rankings available. Call rank_top_k() first.")
         k    = self._config.inference.top_k
+        parquet = _cfg.getboolean('INFERENCE', 'parquet')
         ext  = '.csv' if not parquet else '.parquet'
         path = output_path or os.path.join(
             self._config.path.output_dir,
@@ -200,6 +200,7 @@ class LTRInference:
         else:
             self.ranked_df_.to_csv(path, index = False)
         logger.info("Rankings saved to: %s", path)
+        return path
 
 
     def score_single_query(self,

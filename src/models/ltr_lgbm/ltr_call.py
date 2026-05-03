@@ -39,14 +39,20 @@ import sys
 import time
 import argparse
 import pandas as pd
+from pathlib import Path
 import matplotlib.pyplot as plt
 from tqdm        import tqdm
 from typing      import Any, Dict, List, Optional
-from .ftcore     import (BayesianTuner, MLflowMonitor, 
+
+LocDir = Path(__file__).resolve()
+sys.path.append(str(LocDir.parents[0]))
+from ftcore      import (BayesianTuner, MLflowMonitor, 
                          Visualizer, MLPstyle)
-from .inout      import LTRTrainer, LTRInference
-from src.configs  import LTRConfig, logger
-from src.features import DataProcessor
+from inout       import LTRTrainer, LTRInference
+
+sys.path.append(str(LocDir.parents[2]))
+from configs     import LTRConfig, logger
+from features    import DataProcessor
 
 plt.rcParams.update(MLPstyle)
 
@@ -138,7 +144,6 @@ def run_pipeline(
         X_test       = processor.X_test,
         metrics      = trainer.metrics)
     viz()
-    viz.genreport(tuner_summary=tuner_summary)
 
     # ── 6. MLflow logging ─────────────────────────────────────────────
     _stage_banner("6 / 7  MLflow Logging")
@@ -159,10 +164,15 @@ def run_pipeline(
 
     # ── 7. Inference demo ─────────────────────────────────────────────
     _stage_banner("7 / 7  Inference Demo (Top-K on Test Set)")
-    inference = LTRInference(config, model=trainer.model)
+    inference = LTRInference(config, model = trainer.model)
     inference.rank_top_k(test_df)
-    inference.save_rankings()
+    predictpath = inference.save_rankings()
     logger.info("Top-%d rankings saved.", config.inference.top_k)
+
+    logger.info('Begin to write report with HTML format.')
+    viz.genreport(tuner_summary = tuner_summary, 
+                  preddata = predictpath)
+    logger.info("Created HTML report is done!")
 
     # ── Summary ───────────────────────────────────────────────────────
     total_minutes = (time.perf_counter() - pipeline_start) / 60.0

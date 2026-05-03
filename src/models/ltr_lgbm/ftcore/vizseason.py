@@ -44,7 +44,7 @@ matplotlib.use("Agg")
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
 
-from configs import LTRConfig, logger
+from configs import LTRConfig, logger, _cfg
 from models.ltr_lgbm.report import render_report
 
 # ---------------------------------------------------------------------------
@@ -326,6 +326,7 @@ class Visualizer:
     # ------------------------------------------------------------------
     def genreport(
             self,
+            preddata     : Optional[str | Path] = None,
             tuner_summary: Optional[Dict[str, Any]] = None,
         ) -> None:
         """
@@ -334,6 +335,7 @@ class Visualizer:
         be shared as a single file with no external dependencies.
         ________________________________
         Parameters
+        preddata     : Result of Prediction dataframe's locatated
         tuner_summary: Optional dict returned by :meth:`BayesianTuner.summary`
                        (adds a tuning section to the report).
         ________________________________
@@ -367,8 +369,23 @@ class Visualizer:
             ("metrics_summary", "Metrics Summary", False),
             ("feature_correlation",
              "Feature Correlation Heatmap",
-             True),
-            ]
+             True)]
+
+        # =====================================================
+        # Open the prediction data
+        # =====================================================
+        pred = Path(preddata)
+        parq = _cfg.getboolean('INFERENCE', 'parquet')
+        ext  = '.csv' if not parq else '.parquet'
+        if pred.exists():
+            if 'csv' in ext:
+                predictdata = pd.read_csv(str(pred))
+            else:
+                predictdata = pd.read_parquet(str(pred), engine = 'pyarrow')
+        else:
+            logger.error('Prediction data is not floud in {str(pred)}'
+                         'We can not continue the progress to write HTML file.')
+            predictdata = pd.DataFrame([])
 
         # =====================================================
         # Build charts safely
@@ -451,6 +468,7 @@ class Visualizer:
             
             "tuner_summary": tuner_summary,
             "charts": charts,
+            "predictiondata": predictdata,
             }
             logger.debug("Context built for template report`s requirement successfully.")
         except Exception as arc:
