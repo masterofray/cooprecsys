@@ -20,10 +20,12 @@ configures the pipeline, and triggers all downstream LTR processes.
 
 import os
 import sys
+import mlflow
 import pandas as pd
 from pathlib import Path
 #from pdb import set_trace as st
 from sklearn.model_selection import GroupShuffleSplit
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))

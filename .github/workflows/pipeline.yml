@@ -64,31 +64,31 @@ jobs:
   security:
     name: Security Scan
     runs-on: ubuntu-latest
-
+  
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
-
+  
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
+  
       - name: Install Bandit
         run: |
           python -m pip install --upgrade pip
           pip install bandit
-
+  
       - name: Run Bandit Security Scan
         run: |
-          # Jalankan scan, tapi tangkap exit code
           set +e
-          bandit -r src -ll -f custom --severity-level high
+          echo "Aryanto wants to run the Bandit Security Check"
+          bandit -r src --severity-level high -f txt
           EXIT_CODE=$?
           set -e
-          
+  
           if [ $EXIT_CODE -eq 0 ]; then
-            echo "No High severity issues found"
+            echo "No high severity issues found"
           elif [ $EXIT_CODE -eq 1 ]; then
             echo "High severity issues found - Failing pipeline"
             exit 1
