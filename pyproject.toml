@@ -5,11 +5,11 @@ requires = [
     "cython>=0.29",
     "numpy>=1.21",
 ]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name            = "arycolbring"
-version         = "0.1.0"
+version         = "0.0.1"
 description     = "Ultra-optimised user-to-item collaborative filtering (Cython + OpenMP)"
 readme          = "README.md"
 requires-python = ">=3.8"
@@ -76,3 +76,4 @@ log_cli_level = "DEBUG"
 
 [tool.cython-lint]
 max-line-length = 120
+

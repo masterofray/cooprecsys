@@ -38,8 +38,8 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -e .
+          pip install --quiet -r requirements.txt
+          # pip install -e .   # DIHAPUS karena belum diperlukan
   
       - name: Debug directory
         run: |
@@ -49,6 +49,7 @@ jobs:
   
       - name: Run ltrlgbm_test
         run: |
+          # Sesuaikan path ini dengan struktur folder sebenarnya
           python -m test.ltrlgbm_test.ltrlgbm_example
   
       - name: Upload HTML Report (if exists)
