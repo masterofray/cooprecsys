@@ -48,8 +48,9 @@ jobs:
           python -c "import sys; print(sys.path)"
   
       - name: Run ltrlgbm_test
+        env:
+          MLFLOW_TRACKING_URI: "sqlite:///mlflow.db"
         run: |
-          # Sesuaikan path ini dengan struktur folder sebenarnya
           python -m test.ltrlgbm_test.ltrlgbm_example
   
       - name: Upload HTML Report (if exists)
