@@ -57,7 +57,7 @@ try:
     optuna.logging.set_verbosity(level)
 except AttributeError:
     optuna.logging.set_verbosity(optuna.logging.WARNING)
-
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 # ---------------------------------------------------------------------------
 # Helper builders

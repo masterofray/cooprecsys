@@ -30,10 +30,10 @@ from typing import Any, Dict, Optional
 from mlflow.types.schema import Schema, ColSpec
 from mlflow.models.signature import ModelSignature
 
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
 from configs import LTRConfig, logger
-
 
 class MLflowMonitor:
     """Log parameters, metrics, and artefacts to an MLflow experiment.
