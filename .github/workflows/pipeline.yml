@@ -25,7 +25,6 @@ jobs:
   smoke-ltr:
     name: LTR LightGBM Smoke Test
     runs-on: ubuntu-latest
-    needs: test
   
     steps:
       - name: Checkout Source Code
