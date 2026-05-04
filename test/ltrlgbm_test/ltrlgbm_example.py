@@ -17,12 +17,12 @@ A demonstration script to test the complete LightGBM LTR framework.
 This script loads 'sampledata.parquet', prepares a group-aware train/test split,
 configures the pipeline, and triggers all downstream LTR processes.
 '''
-from ipdb import set_trace as st
 
 import os
 import sys
 import pandas as pd
 from pathlib import Path
+#from pdb import set_trace as st
 from sklearn.model_selection import GroupShuffleSplit
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
@@ -63,7 +63,6 @@ def maintest():
     logger.info(f"Train set: {len(train_df)} rows | Test set: {len(test_df)} rows")
     logger.debug(train_df.head(4))
     logger.debug(test_df.head(4))
-    st()
     
     # 4. Initialize your config
     #_________________________________________

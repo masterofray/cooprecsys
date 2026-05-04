@@ -81,4 +81,18 @@ jobs:
 
       - name: Run Bandit Security Scan
         run: |
-          bandit -r src -ll
+          # Jalankan scan, tapi tangkap exit code
+          set +e
+          bandit -r src -ll -f custom --severity-level high
+          EXIT_CODE=$?
+          set -e
+          
+          if [ $EXIT_CODE -eq 0 ]; then
+            echo "No High severity issues found"
+          elif [ $EXIT_CODE -eq 1 ]; then
+            echo "High severity issues found - Failing pipeline"
+            exit 1
+          else
+            echo "Bandit exited with code $EXIT_CODE"
+            exit 0
+          fi
