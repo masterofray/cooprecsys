@@ -89,7 +89,7 @@ class LabelEncoderManager(object):
         self._Column = value
 
 
-     def fit(self) -> None:
+    def fit(self) -> None:
         for item in tqdm(self.Column, 
                          desc   = 'Fit encoder Labels',
                          colour = _cfg.get('tqdm', 'colour'),

@@ -144,7 +144,7 @@ class DateProcessor(object):
                     unix_cols.append(item)
                 elif any(k in norm for k in self.datetime_keywords):
                     datetime_cols.append(item)
-                elif any(k in normfor k in self.time_keywords):
+                elif any(k in norm for k in self.time_keywords):
                     time_cols.append(item)
                 elif any(k in norm for k in self.date_keywords):
                     date_cols.append(item)
