@@ -100,32 +100,36 @@ class DateProcessor(object):
     # _________________________________________________________________
     def _is_unix_timestamp(self, series: pd.Series) -> bool:
         try:
-            numeric = pd.to_numeric(series, errors = "coerce").dropna()
+            if not pd.api.types.is_numeric_dtype(series):
+                return False
+            numeric = pd.to_numeric(series, errors="coerce").dropna()
             if numeric.empty:
                 return False
             med = numeric.median()
-            return ((1e9 <= med <= 2e10) or (1e12 <= med <= 2e13))
-        except Exception as exc:
-            logger.debug("Unix detection failed: %s", exc)
+            return (1e9 <= med <= 2e10) or (1e12 <= med <= 2e13)
+        except Exception:
+            logger.warning("Unix detection failed: %s", exc)
             return False
 
     def _is_date_like(self, series: pd.Series) -> bool:
         try:
+            if pd.api.types.is_numeric_dtype(series):
+                return False
             sample = series.dropna().head(30)
             if sample.empty:
                 return False
             parsed = pd.to_datetime(sample, errors="coerce")
-            score  = parsed.notna().mean()
+            score = parsed.notna().mean()
             return score >= 0.70
-        except Exception as exc:
-            logger.debug("Date-like detection failed: %s", exc)
+        except Exception:
+            logger.warning("Date-like detection failed: %s", exc)
             return False
 
 
     # _________________________________________________________________
     # COLUMN DETECTION
     # _________________________________________________________________
-    def detect_column_types(self) -> Dict[str, List[str]]:
+    def detect_column_types(self) -> None:
         logger.info("Detecting column types")
         date_cols     : List[str] = list()
         time_cols     : List[str] = list()
@@ -134,7 +138,7 @@ class DateProcessor(object):
         for item in tqdm(self.data.columns, 
                          desc   = 'Detect columns',
                          colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                         ncols  = _cfg.getint('tqdm', 'ncols'),
                          unit   = 'Column',
                          mininterval = 0.1):
             try:
@@ -142,12 +146,12 @@ class DateProcessor(object):
                 norm = self._normalize(item)
                 if any(k in norm for k in self.unix_keywords):
                     unix_cols.append(item)
+                elif any(k in norm for k in self.date_keywords):
+                    date_cols.append(item)
                 elif any(k in norm for k in self.datetime_keywords):
                     datetime_cols.append(item)
                 elif any(k in norm for k in self.time_keywords):
                     time_cols.append(item)
-                elif any(k in norm for k in self.date_keywords):
-                    date_cols.append(item)
                 elif np.issubdtype(series.dtype, np.datetime64):
                     datetime_cols.append(item)
                 else:
@@ -162,7 +166,7 @@ class DateProcessor(object):
                         'time'     : list(set(time_cols)),
                         'datetime' : list(set(datetime_cols)),
                         'unix'     : list(set(unix_cols))}
-        logger.debug("Detection result: %s", result)
+        logger.debug("Detection result: %s", self._result)
 
 
     # _________________________________________________________________
@@ -174,7 +178,7 @@ class DateProcessor(object):
         for item in tqdm(UnixColumn, 
                  desc   = 'Unix convert',
                  colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                 ncols  = _cfg.getint('tqdm', 'ncols'),
                  unit   = 'Column',
                  mininterval = 0.1):
             try:
@@ -202,7 +206,7 @@ class DateProcessor(object):
         for item in tqdm(datecolumn,
                  desc   = 'Date Features Process',
                  colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                 ncols  = _cfg.getint('tqdm', 'ncols'),
                  unit   = 'Column',
                  mininterval = 0.1):
             try:
@@ -236,7 +240,7 @@ class DateProcessor(object):
         for item in tqdm(timecolumn,
                  desc   = 'Time Features Process',
                  colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                 ncols  = _cfg.getint('tqdm', 'ncols'),
                  unit   = 'Column',
                  mininterval = 0.1):
             try:
@@ -275,7 +279,7 @@ class DateProcessor(object):
         for item in tqdm(datetimecol,
                          desc   = 'DateTime Features Process',
                          colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                         ncols  = _cfg.getint('tqdm', 'ncols'),
                          unit   = 'Column',
                          mininterval = 0.1):
             try:
@@ -302,21 +306,23 @@ class DateProcessor(object):
     # _________________________________________________________________
     # DURATION PAIRS
     # _________________________________________________________________
-    def detect_duration_pairs(self) -> List[Tuple[str, str]]:
+    def detect_duration_pairs(self,
+                             candidate_cols: Optional[List[str]] = None
+                             ) -> List[Tuple[str, str]]:
+        """Find start‑end pairs among a restricted set of columns."""
         logger.info("Detecting duration pairs")
-        templates = [("start", "end"),
-                     ("departure", "arrival"),
-                     ("pickup", "dropoff"),
-                     ("clockin", "clockout"),
-                     ("shiftstart", "shiftend"),
-                     ("checkin", "checkout"),
-                     ("request", "response"),
-                     ("started", "finished"),
-                     ("sessionstart", "sessionend"),
-                     ("booked", "completed"),
-                     ("validfrom", "validuntil")]
-        norm_map = {c: self._normalize(c) for c in self.data.columns}
-        found = [(c1, c2) for c1, c2 in permutations(self.data.columns, 2)
+        if candidate_cols is None:
+            # Fallback for backward compatibility (use all columns)
+            candidate_cols = self.data.columns.tolist()
+        templates = [
+            ("start", "end"), ("departure", "arrival"),
+            ("pickup", "dropoff"), ("clockin", "clockout"),
+            ("shiftstart", "shiftend"), ("checkin", "checkout"),
+            ("request", "response"), ("started", "finished"),
+            ("sessionstart", "sessionend"), ("booked", "completed"),
+            ("validfrom", "validuntil")]
+        norm_map = {c: self._normalize(c) for c in candidate_cols}
+        found = [(c1, c2) for c1, c2 in permutations(candidate_cols, 2)
                  if any(a in norm_map[c1] and b in norm_map[c2] for a, b in templates)]
         logger.debug("Found %s duration pairs", len(found))
         return found
@@ -326,12 +332,17 @@ class DateProcessor(object):
     # DURATION FEATURES
     # _________________________________________________________________
     def process_duration_features(self) -> None:
+        """Compute duration features using only detected date/time columns."""
         logger.debug("Processing duration features")
-        pairs = self.detect_duration_pairs()
+        candidate_cols = (self._result.get("date", list()) +
+                          self._result.get("time", list()) +
+                          self._result.get("datetime", list()) +
+                          self._result.get("unix", list()))
+        pairs = self.detect_duration_pairs(candidate_cols)
         for mystart, myend in tqdm(pairs,
                          desc   = 'Duration Features',
                          colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                         ncols  = _cfg.getint('tqdm', 'ncols'),
                          unit   = 'Column',
                          mininterval = 0.1):
             try:
@@ -351,9 +362,10 @@ class DateProcessor(object):
     # _________________________________________________________________
     # MAIN
     # _________________________________________________________________
-    def fit_transform(self) -> pd.DataFrame:
+    def fit(self) -> pd.DataFrame:
         logger.info("Starting full feature process")
         try:
+            self.detect_column_types()
             self.convert_unix_columns()
             self.process_date_features()
             self.process_time_features()
@@ -366,16 +378,17 @@ class DateProcessor(object):
             raise ValueError()
 
 
-    # _________________________________________________________________
-    # CALL
-    # _________________________________________________________________
-    def __call__(self,
-                 data: Optional[pd.DataFrame] = None
-                ) -> pd.DataFrame:
-        logger.debug("__call__ invoked")
-        if data is not None:
-            self.data = data
-        return self.fit_transform()
+    def transform(self, column_types: Dict[str, List[str]]) -> pd.DataFrame:
+        logger.info("Applying transformations with fixed column types")
+        self._result = deepcopy(column_types)
+        self.convert_unix_columns()
+        self.process_date_features()
+        self.process_time_features()
+        self.process_datetime_features()
+        self.process_duration_features()
+        logger.info("Feature engineering completed, shape = %s", self.data.shape)
+        return self.data
+
 
 
 if __name__ == '__main__':

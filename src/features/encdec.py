@@ -93,7 +93,7 @@ class LabelEncoderManager(object):
         for item in tqdm(self.Column, 
                          desc   = 'Fit encoder Labels',
                          colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                         ncols  = _cfg.getint('tqdm', 'ncols'),
                          unit   = 'Column',
                          mininterval = 0.1):
             Temp_enc = LabelEncoder()
@@ -112,7 +112,7 @@ class LabelEncoderManager(object):
         for item in tqdm(self.Column,
                          desc   = 'Transform Labels in column',
                          colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                         ncols  = _cfg.getint('tqdm', 'ncols'),
                          unit   = 'Column',
                          mininterval = 0.1):
             if item not in self.encoders:
@@ -133,7 +133,7 @@ class LabelEncoderManager(object):
         for item in tqdm(self.Column,
                          desc   = 'Inverse the transformation Labels',
                          colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getinteger('tqdm', 'ncols'),
+                         ncols  = _cfg.getint('tqdm', 'ncols'),
                          unit   = 'Column',
                          mininterval = 0.1):
             ecol = f"{item}_enc"
