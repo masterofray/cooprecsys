@@ -58,6 +58,10 @@ try:
 except AttributeError:
     optuna.logging.set_verbosity(optuna.logging.WARNING)
 
+if _cfg.getboolean('DEFAULT', 'is_cicd'):
+    mlflow.set_tracking_uri('file:./mlruns')
+else:
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 # ---------------------------------------------------------------------------
 # Helper builders
@@ -284,7 +288,7 @@ class BayesianTuner:
         # Merge best trial params into base config
         self.best_params = {**base_params, **best.params}
         self._config.training.update_params(self.best_params)
-        logger.info("Best params written back to config.training.params.")
+        logger.warning("Best params from Bayesian Optimization written back to config.training.params.")
         return self.best_params
 
     def summary(self) -> Dict[str, Any]:

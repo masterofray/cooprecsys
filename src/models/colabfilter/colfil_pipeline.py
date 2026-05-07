@@ -17,6 +17,7 @@ import numpy as np
 import pandas as pd
 import duckdb
 import mlflow
+import shlex
 from joblib import Parallel, delayed, dump, load
 from tqdm.auto import tqdm
 from tqdm_joblib import tqdm_joblib
@@ -1122,7 +1123,8 @@ class CollaborativeFilteringPipeline:
             
             if mlflow_ui:
                 logger.info("[Pipeline] Launching MLflow UI...")
-                os.system(f"mlflow ui --backend-store-uri sqlite:///{self.output_dir}/mlflow.db")
+                cmd = f"mlflow ui --backend-store-uri sqlite:///{self.output_dir}/mlflow.db"
+                os.system(shlex.quote(cmd))
         
         except Exception as e:
             logger.error(f"[Pipeline] Pipeline failed: {e}")

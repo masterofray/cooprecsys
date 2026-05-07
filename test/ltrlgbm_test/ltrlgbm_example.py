@@ -20,10 +20,13 @@ configures the pipeline, and triggers all downstream LTR processes.
 
 import os
 import sys
+import mlflow
 import pandas as pd
 from pathlib import Path
+#from pdb import set_trace as st
 from sklearn.model_selection import GroupShuffleSplit
 
+#mlflow.set_tracking_uri("sqlite:///mlflow.db")
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
 from configs import LTRConfig, logger
@@ -35,13 +38,15 @@ def maintest():
     logger.info("=" * 60)
 
     # 1. Calling data
+    #_________________________________________
     data_path = LocDir.parents[0] / 'data' / 'sampledata.parquet'
     if not data_path.exists():
         raise FileNotFoundError(f"Could not find {str(data_path)}.")
-    logger.info(f"Loading data from {data_path}...")
+    logger.info(f"Loading data from {data_path}.")
     data = pd.read_parquet(data_path)
 
     # 2. Define Schema & Features
+    #_________________________________________
     query_col   = "CustomerID"
     label_col   = "Quantity"
     TheFeatures = ["ProductPrice", "Discount", "CategoryID", 
@@ -51,25 +56,30 @@ def maintest():
     data = data.sort_values(query_col).reset_index(drop=True)
 
     # 3. Group-Aware Train/Test Split
+    #_________________________________________
     logger.info("Splitting data into Train and Test sets (Grouped by CustomerID).")
     gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state = 4)
-    train_idx, test_idx = next(gss.split(data, groups=data[query_col]))
+    train_idx, test_idx = next(gss.split(data, groups = data[query_col]))
     train_df = data.iloc[train_idx].copy()
     test_df  = data.iloc[test_idx].copy()
     logger.info(f"Train set: {len(train_df)} rows | Test set: {len(test_df)} rows")
+    logger.debug(train_df.head(4))
+    logger.debug(test_df.head(4))
     
     # 4. Initialize your config
+    #_________________________________________
     cfg = LTRConfig.from_ini(ini_path = str(LocDir / 'configs' / 'configuration.ini'), 
                              features = TheFeatures)
     cfg.feature.label = label_col
     cfg.feature.query_id = query_col
 
     # 5. Execute the Pipeline
+    #_________________________________________
     logger.info("\nStarting the `run_pipeline` orchestrator.")
     try:
         trainer = lgbm_fit_transform(config     = cfg,
-                                     train_df   = train_df,
-                                     test_df    = test_df,
+                                     train      = train_df,
+                                     test       = test_df,
                                      run_tuning = True,
                                      run_name   = "demo_LTR_LGBM")
         logger.info("\n" + "=" * 60)

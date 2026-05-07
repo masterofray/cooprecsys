@@ -13,9 +13,24 @@ __created__    = "2026-04-28"
 from .feat_engine    import AutoFeatureEngineer
 from .lgbm_processor import DataProcessor
 from .load           import load_data
+from .date_processor import DateProcessor
+from .encdec         import LabelEncoderManager, InferenceDecoder
+from .feat_utils     import (prepare_inference_data, 
+                             load_group_sizes, 
+                             load_feature_columns, 
+                             load_encoders,
+                             TrueString)
 
 __all__ = [
     "AutoFeatureEngineer",
     "DataProcessor",
     "load_data",
+    "DateProcessor",
+    "LabelEncoderManager", 
+    "InferenceDecoder",
+    "prepare_inference_data",
+    "load_group_sizes",
+    "load_feature_columns",
+    "load_encoders",
+    "TrueString",
     ]
