@@ -11,9 +11,11 @@ __status__     = "Development"
 __created__    = "2026-05-03"
 
 import os
+import re
 import sys
 import json
 import pandas as pd
+from tqdm.auto       import tqdm
 from pathlib         import Path
 from copy            import deepcopy
 from typing          import Dict, List, Optional
@@ -76,6 +78,69 @@ def prepare_inference_data(data             : pd.DataFrame,
     encproc.fit_transform()
     datasetv2 = encproc.data
     return datasetv2
+
+
+def TrueString(data: pd.DataFrame,
+               id_patterns: Optional[List[str]] = None,
+               exclude_patterns: Optional[List[str]] = None,
+               unique_threshold: float = 0.8,
+               min_unique_ratio: float = 0.0,
+               max_unique_ratio: float = 1.0,
+              ) -> List[str]:
+    """
+    Flexible version with separate include/exclude patterns and unique ratio range.
+    data             : Input dataframe.
+    id_patterns      : Regex patterns to INCLUDE as potential ID columns (exclude from result).
+    exclude_patterns : Regex patterns to EXCLUDE from ID detection (keep in result).
+    unique_threshold : Upper bound for unique ratio (columns above this are excluded).
+    min_unique_ratio : Lower bound for unique ratio (columns below this are excluded).
+    max_unique_ratio : Alternative upper bound if different from unique_threshold.
+    """
+    if id_patterns is None:
+        id_patterns = [
+            r'(^|_)id($|_)', r'(^|_)key($|_)', r'(^|_)code($|_)',
+            r'uuid', r'guid', r'user', r'account', r'customer',
+            r'member', r'client', r'name', r'nama', r'username',
+            r'email', r'phone', r'telepon', r'mobile', r'contact',
+            r'address', r'alamat', r'npwp', r'nik', r'ktp',
+            r'ref', r'transaction', r'invoice', r'order',
+            r'token', r'hash', r'signature', r'checksum',
+            r'url', r'link', r'path', r'image', r'photo',
+            r'timestamp', r'datetime', r'date', r'time',
+            r'description', r'deskripsi', r'keterangan',
+            r'note', r'comment', r'remark']
+    include_regex = re.compile('|'.join(id_patterns), re.IGNORECASE)
+    
+    # Compile exclude patterns if provided
+    exclude_regex = None
+    if exclude_patterns:
+        exclude_regex = re.compile('|'.join(exclude_patterns), re.IGNORECASE)
+    string_cols = [col for col in data.columns
+                   if pd.api.types.is_string_dtype(data[col])]
+    result = list()
+    n = len(data)
+    for item in tqdm(string_cols, 
+                 desc   = 'Detect columns',
+                 colour = _cfg.get('tqdm', 'colour'),
+                 ncols  = _cfg.getint('tqdm', 'ncols'),
+                 unit   = 'Column',
+                 mininterval = 0.5):
+        col_lower = item.lower()
+        if exclude_regex and exclude_regex.search(col_lower):
+            unique_ratio = data[item].nunique(dropna=True) / n
+            if min_unique_ratio <= unique_ratio <= max_unique_ratio and \
+            unique_ratio < unique_threshold:
+                result.append(item)
+            continue
+        
+        if include_regex.search(col_lower):
+            continue
+        
+        unique_ratio = data[item].nunique(dropna=True) / n
+        if min_unique_ratio <= unique_ratio <= max_unique_ratio and \
+        unique_ratio < unique_threshold:
+            result.append(item)
+    return result
 
 if __name__ == '__main__':
     pass

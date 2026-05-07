@@ -11,10 +11,12 @@ on:
     branches:
       - dev
       - master
+
   pull_request:
     branches:
       - dev
       - master
+
   workflow_dispatch:
 
 env:
@@ -22,78 +24,173 @@ env:
 
 jobs:
 
+  # ==========================================================
+  # LTR LIGHTGBM SMOKE TEST
+  # ==========================================================
   smoke-ltr:
+
     name: LTR LightGBM Smoke Test
     runs-on: ubuntu-latest
-  
+
     steps:
+
+      # ------------------------------------------------------
+      # Checkout repository
+      # ------------------------------------------------------
       - name: Checkout Source Code
         uses: actions/checkout@v4
-  
+
+      # ------------------------------------------------------
+      # Setup Python
+      # ------------------------------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-  
+
+      # ------------------------------------------------------
+      # Upgrade pip + install dependencies
+      # ------------------------------------------------------
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install --quiet -r requirements.txt
-          # pip install -e .   # DIHAPUS karena belum diperlukan
-  
-      - name: Debug directory
+
+      # ------------------------------------------------------
+      # Debug repository structure
+      # ------------------------------------------------------
+      - name: Debug Repository Structure
         run: |
+          echo "===== ROOT DIRECTORY ====="
           ls -la
+
+          echo ""
+          echo "===== TEST DIRECTORY ====="
           ls -la test/ || echo "Folder test tidak ditemukan"
+
+          echo ""
+          echo "===== PYTHON PATH ====="
           python -c "import sys; print(sys.path)"
-  
+
+      # ------------------------------------------------------
+      # Run LTR Smoke Test
+      # ------------------------------------------------------
       - name: Run ltrlgbm_test
         env:
-          MLFLOW_TRACKING_URI: "sqlite:///mlflow.db"
+          # IMPORTANT:
+          # Use local file storage instead of SQLite DB
+          # This is MUCH more stable in GitHub Actions
+          MLFLOW_TRACKING_URI: "file:./mlruns"
+
         run: |
+          echo "===== STARTING LTR LIGHTGBM TEST ====="
+
           python -m test.ltrlgbm_test.ltrlgbm_example
-  
-      - name: Upload HTML Report (if exists)
+
+          echo "===== TEST FINISHED ====="
+
+      # ------------------------------------------------------
+      # Debug generated outputs
+      # ------------------------------------------------------
+      - name: Debug Generated Files
         if: always()
+
+        run: |
+          echo "===== MLFLOW FILES ====="
+          find mlruns || true
+
+          echo ""
+          echo "===== ARTIFACT FILES ====="
+          find artifacts || true
+
+      # ------------------------------------------------------
+      # Upload MLflow outputs
+      # ------------------------------------------------------
+      - name: Upload MLflow Artifacts
+        if: always()
+
         uses: actions/upload-artifact@v4
+
+        with:
+          name: mlflow-runs
+          path: mlruns/
+          retention-days: 7
+          if-no-files-found: warn
+
+      # ------------------------------------------------------
+      # Upload HTML reports
+      # ------------------------------------------------------
+      - name: Upload HTML Report
+        if: always()
+
+        uses: actions/upload-artifact@v4
+
         with:
           name: ltr-evaluation-report
           path: artifacts/reports/*.html
           retention-days: 7
           if-no-files-found: warn
 
+  # ==========================================================
+  # SECURITY SCAN
+  # ==========================================================
   security:
+
     name: Security Scan
     runs-on: ubuntu-latest
-  
+
     steps:
+
+      # ------------------------------------------------------
+      # Checkout repository
+      # ------------------------------------------------------
       - name: Checkout Source Code
         uses: actions/checkout@v4
-  
+
+      # ------------------------------------------------------
+      # Setup Python
+      # ------------------------------------------------------
       - name: Setup Python
         uses: actions/setup-python@v5
+
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-  
+
+      # ------------------------------------------------------
+      # Install Bandit
+      # ------------------------------------------------------
       - name: Install Bandit
         run: |
           python -m pip install --upgrade pip
           pip install bandit
-  
+
+      # ------------------------------------------------------
+      # Run Bandit
+      # ------------------------------------------------------
       - name: Run Bandit Security Scan
         run: |
+
           set +e
-          echo "Aryanto wants to run the Bandit Security Check"
+
+          echo "===== RUNNING BANDIT SECURITY SCAN ====="
+
           bandit -r src --severity-level high -f txt
+
           EXIT_CODE=$?
+
           set -e
-  
+
+          echo ""
+          echo "Bandit Exit Code: $EXIT_CODE"
+
           if [ $EXIT_CODE -eq 0 ]; then
             echo "No high severity issues found"
+
           elif [ $EXIT_CODE -eq 1 ]; then
-            echo "High severity issues found - Failing pipeline"
+            echo "High severity issues found"
             exit 1
+
           else
-            echo "Bandit exited with code $EXIT_CODE"
+            echo "Bandit exited with unexpected code: $EXIT_CODE"
             exit 0
           fi

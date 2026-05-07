@@ -19,11 +19,13 @@ from pathlib import Path
 from copy import deepcopy
 from tqdm.auto import tqdm
 from itertools import permutations
+from warnings import filterwarnings
 from typing import Optional, Dict, List, Tuple, Any
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(LocDir)
 from configs import _cfg, logger
+filterwarnings('ignore', category=UserWarning, module='pandas')
 
 
 class DateProcessor(object):
@@ -135,7 +137,8 @@ class DateProcessor(object):
         time_cols     : List[str] = list()
         datetime_cols : List[str] = list()
         unix_cols     : List[str] = list()
-        for item in tqdm(self.data.columns, 
+        Column = self.data.select_dtypes(include = ['object', 'string']).columns.tolist()
+        for item in tqdm(Column,
                          desc   = 'Detect columns',
                          colour = _cfg.get('tqdm', 'colour'),
                          ncols  = _cfg.getint('tqdm', 'ncols'),
@@ -152,7 +155,7 @@ class DateProcessor(object):
                     datetime_cols.append(item)
                 elif any(k in norm for k in self.time_keywords):
                     time_cols.append(item)
-                elif np.issubdtype(series.dtype, np.datetime64):
+                elif pd.api.types.is_datetime64_any_dtype(series):
                     datetime_cols.append(item)
                 else:
                     if self._is_unix_timestamp(series):

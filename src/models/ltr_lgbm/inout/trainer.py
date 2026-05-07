@@ -136,23 +136,23 @@ class LTRTrainer:
             pbar.update(delta)
             _pbar_state["last_iter"] = env.iteration
 
-        callbacks = [lgb.early_stopping(
+        callme = [lgb.early_stopping(
                 stopping_rounds = tcfg.early_stopping_rounds,
                 verbose         = False),
-            lgb.log_evaluation(period=tcfg.log_evaluation),
+            lgb.log_evaluation(period = tcfg.log_evaluation),
             lgb.record_evaluation(self.evals_result),
             _tqdm_callback]
         start_time = time.perf_counter()
         self.model = lgb.train(self._params,
                                train_lgb,
-                               valid_sets   = [train_lgb, test_lgb],
-                               valid_names  = ["train", "test"],
+                               valid_sets      = [train_lgb, test_lgb],
+                               valid_names     = ["train", "test"],
                                num_boost_round = tcfg.num_boost_round,
-                               callbacks    = callbacks)
-        elapsed = time.perf_counter() - start_time
-        self.runtime_minutes = round(elapsed / 60.0, 2)
+                               callbacks       = callme)
         self.best_iteration  = self.model.best_iteration
         pbar.close()
+        elapsed = time.perf_counter() - start_time
+        self.runtime_minutes = round(elapsed / 60.0, 2)
         logger.info("Training complete — best_iteration=%d | runtime=%.2f min",
                     self.best_iteration, self.runtime_minutes)
         self._extract_metrics_from_evals()

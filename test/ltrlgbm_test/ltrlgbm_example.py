@@ -25,8 +25,8 @@ import pandas as pd
 from pathlib import Path
 #from pdb import set_trace as st
 from sklearn.model_selection import GroupShuffleSplit
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
+#mlflow.set_tracking_uri("sqlite:///mlflow.db")
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
 from configs import LTRConfig, logger
@@ -78,8 +78,8 @@ def maintest():
     logger.info("\nStarting the `run_pipeline` orchestrator.")
     try:
         trainer = lgbm_fit_transform(config     = cfg,
-                                     train_df   = train_df,
-                                     test_df    = test_df,
+                                     train      = train_df,
+                                     test       = test_df,
                                      run_tuning = True,
                                      run_name   = "demo_LTR_LGBM")
         logger.info("\n" + "=" * 60)

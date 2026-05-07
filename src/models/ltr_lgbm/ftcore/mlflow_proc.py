@@ -30,10 +30,14 @@ from typing import Any, Dict, Optional
 from mlflow.types.schema import Schema, ColSpec
 from mlflow.models.signature import ModelSignature
 
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
-from configs import LTRConfig, logger
+from configs import LTRConfig, logger, _cfg
+
+if _cfg.getboolean('DEFAULT', 'is_cicd'):
+    mlflow.set_tracking_uri("file:./mlruns")
+else:
+    mlflow.set_tracking_uri("sqlite:///mlflow.db")
 
 class MLflowMonitor:
     """Log parameters, metrics, and artefacts to an MLflow experiment.
@@ -68,8 +72,12 @@ class MLflowMonitor:
     # ------------------------------------------------------------------
     def __enter__(self) -> "MLflowMonitor":
         tracking_uri = self._config.path.mlflow_tracking_uri
-        os.makedirs(tracking_uri, exist_ok=True)
-        mlflow.set_tracking_uri(tracking_uri)
+        aksi_github  = _cfg.getboolean('DEFAULT', 'is_cicd')
+        if not aksi_github:
+            os.makedirs(tracking_uri, exist_ok=True)
+            mlflow.set_tracking_uri(tracking_uri)
+        else:
+            mlflow.set_tracking_uri("file:./mlruns")
         mlflow.set_experiment(self._config.model.experiment_name)
         self._run    = mlflow.start_run(run_name = self._run_name)
         self.run_id  = self._run.info.run_id

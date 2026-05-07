@@ -18,7 +18,8 @@ from .encdec         import LabelEncoderManager, InferenceDecoder
 from .feat_utils     import (prepare_inference_data, 
                              load_group_sizes, 
                              load_feature_columns, 
-                             load_encoders)
+                             load_encoders,
+                             TrueString)
 
 __all__ = [
     "AutoFeatureEngineer",
@@ -31,4 +32,5 @@ __all__ = [
     "load_group_sizes",
     "load_feature_columns",
     "load_encoders",
+    "TrueString",
     ]

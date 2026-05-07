@@ -10,6 +10,7 @@ artifacts/*.*
 artifacts/models
 artifacts/reports
 artifacts/logs
+mlruns/
 
 # Distribution / packaging
 .Python

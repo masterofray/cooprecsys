@@ -49,10 +49,11 @@ sys.path.append(str(LocDir.parents[0]))
 from ftcore      import (BayesianTuner, MLflowMonitor, 
                          Visualizer, MLPstyle)
 from inout       import LTRTrainer, LTRInference
+from dataprepared import data_aftermath
 
 sys.path.append(str(LocDir.parents[2]))
 from configs     import LTRConfig, logger
-from features    import DataProcessor
+from features    import DataProcessor, TrueString
 
 plt.rcParams.update(MLPstyle)
 
@@ -73,15 +74,15 @@ def _stage_banner(stage: str) -> None:
 # ---------------------------------------------------------------------------
 def run_pipeline(
         config:      LTRConfig,
-        train_df:    pd.DataFrame,
-        test_df:     pd.DataFrame,
+        train:       pd.DataFrame,
+        test:        pd.DataFrame,
         run_tuning:  bool = True,
         run_name:    str  = "ltr_run",
     ) -> LTRTrainer:
     """Execute the full LTR pipeline end-to-end.
     config     : Fully-initialised `LTRConfig`.
-    train_df   : Raw training DataFrame.
-    test_df    : Raw validation / test DataFrame.
+    train   : Raw training DataFrame.
+    test    : Raw validation / test DataFrame.
     run_tuning : Whether to run Bayesian hyper-parameter optimisation before
                  training.  Set ``False`` to use the config defaults.
     run_name   : Human-readable MLflow run name.
@@ -100,9 +101,15 @@ def run_pipeline(
     logger.debug("Config validated. Output dir: %s", config.path.output_dir)
 
     # ── 2. Data preparation ───────────────────────────────────────────
+    strcols = TrueString(data  = train, 
+                     exclude_patterns = [r'product', r'category', r'type'])
+    train_ready, test_ready, encoder_manager = data_aftermath(
+        train_df       = train, 
+        test_df        = test, 
+        string_columns = strcols)
     _stage_banner("2 / 7  Data Preparation")
     processor = DataProcessor(config)
-    processor.prepare(train_df, test_df)
+    processor.prepare(train, test)
 
     # ── 3. Bayesian tuning (optional) ─────────────────────────────────
     tuner_summary: Optional[Dict[str, Any]] = None
@@ -165,7 +172,7 @@ def run_pipeline(
     # ── 7. Inference demo ─────────────────────────────────────────────
     _stage_banner("7 / 7  Inference Demo (Top-K on Test Set)")
     inference = LTRInference(config, model = trainer.model)
-    inference.rank_top_k(test_df)
+    inference.rank_top_k(test)
     predictpath = inference.save_rankings()
     logger.info("Top-%d rankings saved.", config.inference.top_k)
 
@@ -239,7 +246,7 @@ if __name__ == "__main__":
     cfg.feature.label    = args.label
     cfg.feature.query_id = args.query_id.replace("-", "_")
     run_pipeline(config     = cfg,
-                 train_df   = train_df_,
-                 test_df    = test_df_,
+                 train      = train_df_,
+                 test       = test_df_,
                  run_tuning = not args.no_tuning,
                  run_name   = args.run_name)
