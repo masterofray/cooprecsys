@@ -39,11 +39,14 @@ from pathlib import Path
 from datetime import datetime
 import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Optional
+from ipdb import set_trace
+
 
 matplotlib.use("Agg")
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
 
+from prepare import Dict2Json
 from configs import LTRConfig, logger, _cfg
 from models.ltr_lgbm.report import render_report
 
@@ -56,50 +59,54 @@ sns.set_theme(
     palette = "muted",
     rc      = {"figure.dpi": 120, "axes.titlesize": 14, "axes.labelsize": 12},
 )
+
 vintages = [
-        "#003366",  # Oxford Blue (Primary)
-        "#ca3838",  # Oxide Red (Comparison)
-        "#0a890a",  # Dark Green (Success Metrics)
-        "#704214",  # Sepia (Neutral)
-    ]
+    "#0f5403",  # Dark Green (Primary) - matches your text color
+    "#1a7a0a",  # Medium Green (Secondary)
+    "#28a745",  # Bright Green (Success)
+    "#85c97d",  # Light Green (Accent)
+]
+
 MLPstyle = {
-    # Background - The specific parchment hex you requested
-    "figure.facecolor"  : "#789bef",
-    "axes.facecolor"    : "#789baf",
-    "savefig.facecolor" : "#789bef",
-
-    # Grid - Subtle contrast using a darker version of the background
+    # Background - Your specified light background
+    "figure.facecolor"  : "#e6ebf2",
+    "axes.facecolor"    : "#e6ebf2",
+    "savefig.facecolor" : "#e6ebf2",
+    
+    # Grid - Subtle grid with green tint
     "axes.grid"         : True,
-    "grid.color"        : "#1759b2",
+    "grid.color"        : "#c5d5c0",  # Light green-gray for grid
     "grid.linestyle"    : "-",
-    "grid.linewidth"    : 1.0,
-
-    # Typography - Deep Charcoal/Blue instead of pure black for a softer feel
-    "text.color"        : "#6c0808",
-    "axes.labelcolor"   : "#8d0808",
-    "xtick.color"       : "#948e8e",
-    "ytick.color"       : "#948e8e",
+    "grid.linewidth"    : 0.8,
+    
+    # Typography - Your specified green text
+    "text.color"        : "#0f5403",
+    "axes.labelcolor"   : "#0f5403",
+    "xtick.color"       : "#0f5403",
+    "ytick.color"       : "#0f5403",
+    "axes.titlecolor"   : "#0f5403",
     "axes.titlesize"    : 17,
     "axes.titleweight"  : "bold",
     "axes.titlepad"     : 14,
     "font.size"         : 10,
-
-    # Spines - Classic 'L-frame' for publication
+    
+    # Spines - Clean L-frame with green borders
     "axes.spines.top"   : False,
     "axes.spines.right" : False,
     "axes.spines.left"  : True,
     "axes.spines.bottom": True,
-    "axes.edgecolor"    : "#6c0808",
+    "axes.edgecolor"    : "#0f5403",
     "axes.linewidth"    : 1.2,
-
-    # Data Point Styling
+    
+    # Data Point Styling - Green theme throughout
     "axes.prop_cycle"   : plt.cycler(color = vintages),
     "lines.linewidth"   : 2.2,
     "lines.markersize"  : 8,
-    "patch.edgecolor"   : "#6c0841",
-    }
-plt.rcParams.update(MLPstyle)
+    "patch.edgecolor"   : "#0f5403",
+    "patch.force_edgecolor": True,
+}
 
+plt.rcParams.update(MLPstyle)
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +194,7 @@ class Visualizer:
         """
         logger.debug("Plotting feature importance (type=%s, top_n=%d).",
                      importance_type, top_n)
-        imp      = self._model.feature_importance(importance_type=importance_type)
+        imp      = self._model.feature_importance(importance_type = importance_type)
         names    = self._model.feature_name()
         dataplot = (pd.DataFrame({"Feature": names, "Importance": imp})
                    .sort_values("Importance", ascending=False)
@@ -205,6 +212,7 @@ class Visualizer:
         ax.set_xlabel(f"Importance ({importance_type})")
         ax.set_ylabel("")
         self._record("feature_importance", fig)
+
 
     def plot_prediction_distribution(self) -> None:
         """Histogram + KDE of test-set relevance scores."""
@@ -419,10 +427,10 @@ class Visualizer:
         logger.debug("Final chart count prepared: %d",len(charts))
 
         # =====================================================
-        # Build Context
+        # Build context Recsys
         # =====================================================
         try:
-            context = {
+            contextRecsys = {
             "page_title":
                 "LightGBM LTR Monitoring Report",
             
@@ -468,12 +476,12 @@ class Visualizer:
             
             "tuner_summary": tuner_summary,
             "charts": charts,
-            "predictiondata": predictdata,
+            "predictiondata": predictdata.to_dict(orient='records'),
             }
-            logger.debug("Context built for template report`s requirement successfully.")
+            logger.debug("contextRecsys built for template report`s requirement successfully.")
         except Exception as arc:
-            logger.exception("Failed building report context.")
-            raise RuntimeError("Unable to build report context.") from arc
+            logger.exception("Failed building report contextRecsys.")
+            raise RuntimeError("Unable to build report contextRecsys.") from arc
 
 
         # =====================================================
@@ -481,13 +489,15 @@ class Visualizer:
         # =====================================================
         try:
             logger.debug("Rendering report HTML.")
-            html = render_report(context     = context,
+            Dict2Json(contextRecsys, str(output_path.parent / 'contextRecsys.json'))
+            html = render_report(context     = contextRecsys,
                                  output_path = output_path)
+            #set_trace()
             if not html or not html.strip():
                 raise ValueError("Rendered HTML is empty.")
             logger.debug("HTML rendered successfully ""(%d chars).",len(html))
         except Exception as arc:
-            logger.exception("Failed rendering HTML.")
+            logger.error("Failed rendering HTML.")
             raise RuntimeError("Report rendering failed.") from arc
 
         # =====================================================

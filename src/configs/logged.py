@@ -37,7 +37,8 @@ def setup_logging():
     log_path = os.path.join(log_dir, log_name)
 
     # 3. Configure Logging
-    log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    #log_format = '%(asctime)s - %(filename)s - %(levelname)s - %(message)s'
+    log_format = '%(asctime)s - %(filename)s - %(funcName)s - %(message)s'
     _log_level = config.get("logging", "level", fallback="DEBUG")
     logging.basicConfig(
         level=getattr(logging, _log_level, logging.DEBUG),

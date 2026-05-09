@@ -101,15 +101,16 @@ def run_pipeline(
     logger.debug("Config validated. Output dir: %s", config.path.output_dir)
 
     # ── 2. Data preparation ───────────────────────────────────────────
-    strcols = TrueString(data  = train, 
-                     exclude_patterns = [r'product', r'category', r'type'])
-    train_ready, test_ready, encoder_manager = data_aftermath(
+    _stage_banner("2 / 7  Data Preparation")
+    strcols = TrueString(data  = train, )
+              #exclude_patterns = [r'product', r'category', r'type'])
+    train_ready, test_ready, encoman = data_aftermath(
         train_df       = train, 
         test_df        = test, 
         string_columns = strcols)
-    _stage_banner("2 / 7  Data Preparation")
+    encoman.save()
     processor = DataProcessor(config)
-    processor.prepare(train, test)
+    processor.prepare(train_ready, test_ready)
 
     # ── 3. Bayesian tuning (optional) ─────────────────────────────────
     tuner_summary: Optional[Dict[str, Any]] = None
@@ -172,10 +173,9 @@ def run_pipeline(
     # ── 7. Inference demo ─────────────────────────────────────────────
     _stage_banner("7 / 7  Inference Demo (Top-K on Test Set)")
     inference = LTRInference(config, model = trainer.model)
-    inference.rank_top_k(test)
+    inference.rank_top_k(test_ready)
     predictpath = inference.save_rankings()
     logger.info("Top-%d rankings saved.", config.inference.top_k)
-
     logger.info('Begin to write report with HTML format.')
     viz.genreport(tuner_summary = tuner_summary, 
                   preddata = predictpath)

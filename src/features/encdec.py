@@ -31,8 +31,8 @@ from copy      import deepcopy
 from typing    import Dict, List, Optional, Any, Union
 from sklearn.preprocessing import LabelEncoder
 
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
+LocDir = Path(__file__).resolve()
+sys.path.append(str(LocDir.parents[1]))
 from configs  import logger, _cfg
 
 
@@ -42,6 +42,7 @@ class LabelEncoderManager(object):
                  data   : pd.DataFrame,
                  Column : List[str],
                  EncDir : Optional[Path] = None,
+                 Remove4Done : bool = None,
                 ) -> None:
         """Initialize encoder manager.
         Args:
@@ -55,7 +56,10 @@ class LabelEncoderManager(object):
         self.Column  = Column
         tempenc      = _cfg.get('PATHS', 'labelcoder')
         self.EncDir  = Path(EncDir) if EncDir else Path(tempenc)
+        self._proceedcl    = list()
+        self._removecolumn = Remove4Done if Remove4Done is not None else _cfg.getboolean('FEATURES', 'remove_column')
         self.EncDir.mkdir(parents=True, exist_ok=True)
+        self._savepath = Path.cwd() / 'LabelEncoderManager.pkl'
         self.encoders        : Dict[str, LabelEncoder] = dict()
         self.encoder_classes : Dict[str, List[Any]] = dict()
 
@@ -123,7 +127,11 @@ class LabelEncoderManager(object):
             known_classes = set(tempenc.classes_)
             values = values.apply(
                 lambda x: x if x in known_classes else tempenc.classes_[0])
-            self.data[f'{item}_enc'] = tempenc.transform(values)
+            newID = f'{item}_enc'
+            self.data[newID] = tempenc.transform(values)
+            self._proceedcl.append(newID)
+            if self._removecolumn:
+                self.data.drop([item], axis = 1, inplace = True)
 
     def fit_transform(self) -> None:
         self.fit()
@@ -154,13 +162,15 @@ class LabelEncoderManager(object):
     def save(self, path: Optional[Path] = None) -> None:
         if path is None:
             dstr = datetime.now().strftime('%Y%m%d')
-            path = self.EncDir / f"{dstr}_encoders.pkl"
+            path = self.EncDir / f"{dstr}_LabelEncoderManager.cloudpickle"
         encoder_data = {"encoders"        : self.encoders,
                         "encoder_classes" : self.encoder_classes}
         with open(path, 'wb') as f:
             cp.dump(encoder_data, f)
         logger.info(f"Encoders saved to: {path}")
         json_path = path.with_suffix('.json')
+        self._savepath = deepcopy(path)
+        logger.info(f'Save path is in {self._savepath}.')
         with open(json_path, 'w') as f:
             json.dump(encoder_data, f, indent = 2, default = str)
         logger.debug(f"Encoder JSON saved to: {json_path}")
@@ -169,8 +179,8 @@ class LabelEncoderManager(object):
     def load(self, path: Optional[Path] = None) -> None:
         """Loads the most recent encoder file if path is not provided."""
         if path is None:
-            files = sorted(self.EncDir.glob("*_encoders.pkl"))
-            path  = files[-1] if files else self.EncDir / "encoders.pkl"
+            files = sorted(self.EncDir.glob("*_LabelEncoderManager.cloudpickle"))
+            path  = files[-1] if files else self.EncDir / "LabelEncoderManager.cloudpickle"
         path      = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"Encoder file not found: {path}")
@@ -258,12 +268,24 @@ class InferenceDecoder:
 
 if __name__ == "__main__":
     # Test loading and usage
-    print("Data Preprocessing Module")
-    print("Available classes:")
-    print("  - LabelEncoderManager: Manage label encoders")
-    print("  - InferenceDecoder: Decode model predictions")
-    print("  - FeatureProcessor: Process features for inference")
-    print("\nUsage:")
-    print("  from data_preprocessing import LabelEncoderManager")
-    print("  manager = LabelEncoderManager()")
-    print("  manager.load(Path('output/encoders/encoders.pkl'))")
+    logger.info("Data Preprocessing Module")
+    import re
+    pathdata = LocDir.parents[2] / 'data' / 'sampledata.parquet'
+    dt    = pd.read_parquet(str(pathdata))
+    strCL = dt.select_dtypes(include=["object", "category"]).columns.tolist()
+    logger.info(strCL)
+    cleanstrCL = list(filter(
+        lambda x: not re.search(r'date|hour|minute|time', x, flags=re.IGNORECASE), strCL))
+    logger.info(cleanstrCL)
+    Enc = LabelEncoderManager(data = dt, Column = cleanstrCL)
+    Enc.fit_transform()
+    
+    newdata = Enc.data
+    logger.warning(newdata.sample(6))
+    logger.info('\n\n')
+    logger.warning(newdata.info())
+    logger.info('\n\n')
+    logger.warning(newdata.describe())
+    logger.info('\n\n')
+    for item in Enc.encoders.keys():
+        logger.info(f"- {item}: {len(Enc.encoder_classes[item])} classes")

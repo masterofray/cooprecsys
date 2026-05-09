@@ -258,8 +258,9 @@ class DateProcessor(object):
                                      (hour >= 10) & (hour < 14),
                                      (hour >= 14) & (hour < 18),
                                      (hour >= 18)],
-                                    ["dawn", "morning", "afternoon", "evening", "night"],
-                            default = "night")
+                                    #["dawn", "morning", "afternoon", "evening", "night"],
+                                    [1, 2, 3, 4, 5],
+                            default = 5)
                 seg_col = f"{item}_segment"
                 self._data[seg_col] = segment
                 self._to_category(seg_col)
