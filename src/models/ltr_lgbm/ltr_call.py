@@ -39,9 +39,11 @@ import sys
 import time
 import argparse
 import pandas as pd
-from pathlib import Path
+import cloudpickle as cp
 import matplotlib.pyplot as plt
+from pathlib     import Path
 from tqdm        import tqdm
+from datetime    import datetime
 from typing      import Any, Dict, List, Optional
 
 LocDir = Path(__file__).resolve()
@@ -52,6 +54,7 @@ from inout       import LTRTrainer, LTRInference
 from dataprepared import data_aftermath
 
 sys.path.append(str(LocDir.parents[2]))
+from prepare     import Dict2Json
 from configs     import LTRConfig, logger
 from features    import DataProcessor, TrueString
 
@@ -124,6 +127,9 @@ def run_pipeline(
         tuner.tune()
         tuner_summary = tuner.summary()
         logger.debug("Tuning summary: %s", tuner_summary)
+        tunepath = Path(config.path.html_report_path).resolve().parent / 'BayesTune.json'
+        Dict2Json(tuner_summary, tunepath)
+        logger.debug(f'Tuner summary saved on {str(tunepath)}.')
     else:
         _stage_banner("3 / 7  Bayesian Tuning — SKIPPED")
         logger.debug("Using default / config-supplied params.")
@@ -139,9 +145,15 @@ def run_pipeline(
         y_test      = processor.y_test,
         group_test  = processor.group_test)
     trainer.save_model()
+    
+    dates = f'{datetime.now():%Y%m%d}'
+    configfile = Path(config.path.output_dir).resolve() / f'{dates}_config.cloudpic'
     logger.info(
         "Training complete — best_iteration=%d | runtime=%.2f min",
         trainer.best_iteration, trainer.runtime_minutes)
+    with configfile.open('wb') as file:
+        cp.dump(config, file)
+        logger.info(f'Done to save LTRConfig file: {str(configfile)}')
 
     # ── 5. Visualisation ──────────────────────────────────────────────
     _stage_banner("5 / 7  Visualisation")
@@ -178,7 +190,8 @@ def run_pipeline(
     logger.info("Top-%d rankings saved.", config.inference.top_k)
     logger.info('Begin to write report with HTML format.')
     viz.genreport(tuner_summary = tuner_summary, 
-                  preddata = predictpath)
+                  preddata      = predictpath,
+                  model_metric  = trainer.metrics)
     logger.info("Created HTML report is done!")
 
     # ── Summary ───────────────────────────────────────────────────────

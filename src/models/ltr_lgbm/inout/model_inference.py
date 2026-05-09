@@ -1,4 +1,16 @@
 #!/usr/bin/env python3
+
+__author__     = "Aryanto"
+__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+__credits__    = ["aryanto"]
+__license__    = "GNU_Public"
+__version__    = "0.0.1"
+__maintainer__ = "Aryanto"
+__email__      = "aryanto.dandan@gmail.com"
+__status__     = "Development"
+__created__    = "2026-05-09"
+
+
 """
 model_inference.py
 __________________________________________________________________
@@ -10,14 +22,18 @@ Author: MiniMax Agent
 import os
 import sys
 import json
-from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple
-from copy import deepcopy
-
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import lightgbm as lgb
+from pathlib import Path
+from copy import deepcopy
+from typing import List, Optional, Dict, Any, Tuple
+
+
+LocDir = Path(__file__).resolve().parents[3]
+sys.path.append(str(LocDir))
+from configs import LTRConfig, logger, _cfg
 
 # Import from data_preprocessing module
 from data_preprocessing import (
@@ -76,7 +92,7 @@ class LTRModelInference:
 
     def __init__(
         self,
-        config: Optional[InferenceConfig] = None,
+        config: LTRConfig = None,
         model: Optional[lgb.Booster] = None,
     ) -> None:
         """Initialize inference engine.

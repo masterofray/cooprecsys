@@ -336,6 +336,7 @@ class Visualizer:
             self,
             preddata     : Optional[str | Path] = None,
             tuner_summary: Optional[Dict[str, Any]] = None,
+            model_metric : Dict = dict(),
         ) -> None:
         """
         Render a self-contained HTML monitoring report.
@@ -393,7 +394,7 @@ class Visualizer:
         else:
             logger.error('Prediction data is not floud in {str(pred)}'
                          'We can not continue the progress to write HTML file.')
-            predictdata = pd.DataFrame([])
+            predictdata = pd.DataFrame(list())
 
         # =====================================================
         # Build charts safely
@@ -431,54 +432,37 @@ class Visualizer:
         # =====================================================
         try:
             contextRecsys = {
-            "page_title":
-                "LightGBM LTR Monitoring Report",
-            
-            "title":
-                "LightGBM LTR Monitoring Dashboard",
-            
-            "subtitle":
-                "Production Model Evaluation & Diagnostics",
-            
-            "experiment_name": getattr(
-                self._config.model,
-                "experiment_name",
-                "unknown_experiment"),
-            
-            "model_path": getattr(
-                self._config.model,
-                "model_path",
-                "unknown_model"),
-            
-            "best_iteration": getattr(
-                self._model,
-                "best_iteration",
-                None),
-            
-            "generated_at": datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"),
-            
-            "metrics": dict(sorted(getattr(self,
-                       "_metrics",{}).items()
-                       )),
-            
-            "training_params": {
-                **getattr(self._config.training,
-                    "params",{}),
-                "num_boost_round": getattr(
-                    self._config.training,
-                    "num_boost_round",
-                    None),
-                "early_stopping_rounds": getattr(
-                    self._config.training,
-                    "early_stopping_rounds",
-                    None)},
-            
-            "tuner_summary": tuner_summary,
-            "charts": charts,
-            "predictiondata": predictdata.to_dict(orient='records'),
+            "page_title"        : "LightGBM LTR Monitoring Report",
+            "title"             : "LightGBM LTR Monitoring Dashboard",
+            "subtitle"          : "Production Model Evaluation & Diagnostics",
+            "experiment_name"   : getattr(self._config.model,
+                                          "experiment_name",
+                                          "unknown_experiment"),
+            "model_path"        : getattr(self._config.model,
+                                          "model_path",
+                                          "unknown_model"),
+            "best_iteration"    : getattr(self._model,
+                                          "best_iteration",
+                                          None),
+            "generated_at"      : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "metrics"           : dict(sorted(getattr(self,"_metrics",{}).items())),
+            "training_params"   : {**getattr(self._config.training,
+                                        "params",{}),
+                                    "num_boost_round": getattr(
+                                        self._config.training,
+                                        "num_boost_round",
+                                        None),
+                                    "early_stopping_rounds": getattr(
+                                        self._config.training,
+                                        "early_stopping_rounds",
+                                        None)},
+            "tuner_summary"     : tuner_summary,
+            "charts"            : charts,
+            "modelmetric"       : model_metric,
+            "predictiondata"    : predictdata.to_dict(orient = 'records'),
             }
-            logger.debug("contextRecsys built for template report`s requirement successfully.")
+            logger.debug("contextRecsys built for template "
+            "report`s requirement successfully.")
         except Exception as arc:
             logger.exception("Failed building report contextRecsys.")
             raise RuntimeError("Unable to build report contextRecsys.") from arc
