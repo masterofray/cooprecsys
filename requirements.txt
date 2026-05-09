@@ -21,6 +21,8 @@ seaborn>=0.12.0
 # __ Support Libraries ______________________
 tqdm>=4.60
 joblib>=1.1
+ipdb~=0.13
+cloudpickle~=3.1.0
 
 # __ Experiment tracking ____________________
 mlflow>=2.11.0
