@@ -99,16 +99,13 @@ def TrueString(data: pd.DataFrame,
     if id_patterns is None:
         id_patterns = [
             r'(^|_)id($|_)', r'(^|_)key($|_)', r'(^|_)code($|_)',
-            r'uuid', r'guid', r'user', r'account', r'customer',
-            r'member', r'client', r'name', r'nama', r'username',
-            r'email', r'phone', r'telepon', r'mobile', r'contact',
-            r'address', r'alamat', r'npwp', r'nik', r'ktp',
-            r'ref', r'transaction', r'invoice', r'order',
-            r'token', r'hash', r'signature', r'checksum',
-            r'url', r'link', r'path', r'image', r'photo',
-            r'timestamp', r'datetime', r'date', r'time',
+            r'uuid', r'guid', r'username', r'email', r'phone', 
+            r'telepon', r'mobile', r'contact', r'address', 
+            r'alamat', r'npwp', r'nik', r'ktp', r'hash', 
+            r'signature', r'checksum', r'url', r'image', 
+            r'photo', r'timestamp', r'datetime', r'date', 
             r'description', r'deskripsi', r'keterangan',
-            r'note', r'comment', r'remark']
+            r'time', r'note', r'comment', r'remark']
     include_regex = re.compile('|'.join(id_patterns), re.IGNORECASE)
     
     # Compile exclude patterns if provided

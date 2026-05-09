@@ -23,7 +23,6 @@ import sys
 import mlflow
 import pandas as pd
 from pathlib import Path
-#from pdb import set_trace as st
 from sklearn.model_selection import GroupShuffleSplit
 
 #mlflow.set_tracking_uri("sqlite:///mlflow.db")
@@ -46,14 +45,23 @@ def maintest():
     data = pd.read_parquet(data_path)
 
     # 2. Define Schema & Features
+    # The crucial thing is choosen lable_col 
+    # must be category less than 30 unique unit.
+    # And it must type int32.
     #_________________________________________
     query_col   = "CustomerID"
-    label_col   = "Quantity"
-    TheFeatures = ["ProductPrice", "Discount", "CategoryID", 
+    #label_col   = "Quantity"
+    label_col   = "CategoryID"
+    TheFeatures = ['ProductName', "ProductPrice", "Discount", "TotalPrice", 
+                   "Class", "Resistant", "IsAllergic", "CityName", "CountryName", 
+                   "EmployeeID", "EmployeeGender", "Employee_City", "Quantity",
                    "VitalityDays", "EmployeeAge", "YearsWorking"]
+    data['TotalPrice'] = pd.to_numeric(data['TotalPrice'], errors = 'coerce').astype('float64')
+    logger.debug('This is information of data schema:')
+    logger.debug(data.info())
     data[TheFeatures] = data[TheFeatures].fillna(0)
-    data[label_col] = data[label_col].fillna(0)
-    data = data.sort_values(query_col).reset_index(drop=True)
+    data[label_col]   = data[label_col].fillna('unkown_product')
+    data              = data.sort_values(query_col).reset_index(drop=True)
 
     # 3. Group-Aware Train/Test Split
     #_________________________________________

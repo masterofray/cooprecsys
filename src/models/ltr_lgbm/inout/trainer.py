@@ -142,6 +142,7 @@ class LTRTrainer:
             lgb.log_evaluation(period = tcfg.log_evaluation),
             lgb.record_evaluation(self.evals_result),
             _tqdm_callback]
+        
         start_time = time.perf_counter()
         self.model = lgb.train(self._params,
                                train_lgb,
@@ -157,6 +158,7 @@ class LTRTrainer:
                     self.best_iteration, self.runtime_minutes)
         self._extract_metrics_from_evals()
         self._compute_prediction_stats(X_test)
+        logger.info(f'Here is the metric: \n{self.metrics}.')
 
 
     def _compute_prediction_stats(self, X_test: np.ndarray) -> None:

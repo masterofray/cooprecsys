@@ -10,3 +10,6 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-30"
 
+from .dictjson import Dict2Json
+
+__all__ = ['Dict2Json']

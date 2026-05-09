@@ -30,6 +30,7 @@ _____________________________________________
 """
 
 import io
+import re
 import os
 import sys
 import duckdb
@@ -43,11 +44,11 @@ from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 LocDir = Path(__file__).resolve().parents[1]
+dates  = f'{datetime.now():%Y%m%d}'
 sys.path.append(str(LocDir))
 from configs import LTRConfig, _cfg, logger
 from db import DuckDBManager, duckdb_connection
 
-dates = f'{datetime.now():%Y%m%d}'
 
 # ---------------------------------------------------------------------------
 # Module-level worker - must be picklable (top-level function)
@@ -134,8 +135,14 @@ class DataProcessor:
         required = set(self._features) | {self._label, self._query_id}
         missing  = required - set(df.columns)
         if missing:
-            raise ValueError(
-                f"[{name}] Missing required columns: {sorted(missing)}")
+            logger.warning(
+                f"[{name}] Missing required columns: {sorted(missing)}.\n"
+                f"We will use all other features except for {self._label} and {self._query_id}.")
+            strCL = df.select_dtypes(exclude=["object"]).columns.tolist()
+            checkColumn = lambda t, c_list: next((c for c in c_list if re.search(t, c, re.I)), t)
+            self._config.feature.query_id = checkColumn(self._query_id, strCL)
+            self._config.feature.label    = checkColumn(self._label, strCL)
+            self._config.feature.features = list( set(strCL) - {self._label, self._query_id} )
         logger.debug("[%s] DataFrame validated. Shape: %s", name, df.shape)
 
 
@@ -171,7 +178,8 @@ class DataProcessor:
         Serialises DataFrames as Parquet bytes for inter-process transfer.
         Updates ``self`` in-place.
         """
-        logger.info("Large dataset detected (> %d rows). \nActivating parallel processing for data preparation.",
+        logger.info("Large dataset detected (> %d rows)."
+        "\nActivating parallel processing for data preparation.",
         self._threshold)
 
         def _serialise(df: pd.DataFrame) -> bytes:

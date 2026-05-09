@@ -11,6 +11,7 @@ __status__     = "Development"
 __created__    = "2026-05-05"
 
 
+import re
 import sys
 import numpy as np
 import pandas as pd
@@ -30,9 +31,12 @@ def data_aftermath(train_df       : pd.DataFrame,
                    drop_columns   : Optional[List[str]] = None,
                   ) -> Tuple[pd.DataFrame, pd.DataFrame, LabelEncoderManager]:
     if string_columns is None:
-        string_columns = train_df.select_dtypes(
-            include=["object", "category"]
-        ).columns.tolist()
+        string_columns = train_df.select_dtypes(include = 
+                         ["object", "str", "category"]).columns.tolist()
+    cleanstrCL = list(filter(
+        lambda x: not re.search(r'date|hour|minute|time', x, 
+        flags=re.IGNORECASE), string_columns))
+    logger.debug(f'Here is the String Column : {cleanstrCL}.')
 
     # ===== TRAIN =====
     logger.info("Run preprocessing for Train Data.")
@@ -42,7 +46,7 @@ def data_aftermath(train_df       : pd.DataFrame,
     if drop_columns:
         train_feat  = train_feat.drop(
             columns = [c for c in drop_columns if c in train_feat.columns])
-    enc = LabelEncoderManager(data=train_feat, Column=string_columns)
+    enc = LabelEncoderManager(data = train_feat, Column = cleanstrCL)
     enc.fit_transform()
     train_final = enc.data
 
@@ -53,11 +57,13 @@ def data_aftermath(train_df       : pd.DataFrame,
     if drop_columns:
         test_feat   = test_feat.drop(
             columns = [c for c in drop_columns if c in test_feat.columns])
-    enc_test = LabelEncoderManager(data=test_feat, Column=string_columns)
+    enc_test = LabelEncoderManager(data = test_feat, Column = cleanstrCL)
     enc_test.encoders = enc.encoders
     enc_test.encoder_classes = enc.encoder_classes
     enc_test.transform()
     test_final = enc_test.data
+    
+    logger.debug('Success to run the datapreparation.')
     return train_final, test_final, enc
 
 
@@ -103,23 +109,33 @@ def generate_sample_data(n    : int = 50,
 
 
 if __name__ == "__main__":
-    dtrain = generate_sample_data(n=80, seed=4)
-    dtest  = generate_sample_data(n=40, seed=12)
-    logger.debug(f"Data mentah (train): {dtrain.shape}.")
-    logger.debug(dtrain.head())
-    logger.debug(f"Data mentah (test): {dtest.shape}.")
-    logger.debug(f"Kolom: {dtrain.columns.tolist()}.")
-    string_columns = ["nama_produk", "kategori"]
-    train_ready, test_ready, encoder_manager = data_aftermath(
-        train_df = dtrain, test_df = dtest, string_columns = string_columns)
+    dryrun = True
+    if not dryrun:
+        dtrain = generate_sample_data(n=80, seed=4)
+        dtest  = generate_sample_data(n=40, seed=12)
+        logger.debug(f"Data mentah (train): {dtrain.shape}.")
+        logger.debug(dtrain.head())
+        logger.debug(f"Data mentah (test): {dtest.shape}.")
+        logger.debug(f"Kolom: {dtrain.columns.tolist()}.")
+        string_columns = ["nama_produk", "kategori"]
+        train_ready, test_ready, encoder_manager = data_aftermath(
+            train_df = dtrain, test_df = dtest, string_columns = string_columns)
 
-    logger.debug("\n--- Hasil ---")
-    logger.debug(f"Train ready shape: {train_ready.shape}.")
-    logger.debug(f"Test ready shape: {test_ready.shape}.")
-    logger.debug("\nContoh kolom baru (train):")
-    logger.debug(train_ready.filter(like="date_transaction").head(3))
-    
-    pd.set_option('display.max_columns', None)
-    logger.debug("\nContoh kolom baru (test):")
-    logger.debug(test_ready.head(3))
-    encoder_manager.save()
+        logger.debug("\n--- Hasil ---")
+        logger.debug(f"Train ready shape: {train_ready.shape}.")
+        logger.debug(f"Test ready shape: {test_ready.shape}.")
+        logger.debug("\nContoh kolom baru (train):")
+        logger.debug(train_ready.filter(like="date_transaction").head(3))
+        
+        pd.set_option('display.max_columns', None)
+        logger.debug("\nContoh kolom baru (test):")
+        logger.debug(test_ready.head(3))
+        encoder_manager.save()
+    else:
+        from sklearn.model_selection import train_test_split
+        
+        pathdata = LocDir.parents[3] / 'data' / 'sampledata.parquet'
+        data = pd.read_parquet(str(pathdata))
+        tr, te = train_test_split(data, test_size = 0.2)
+        trx, tex, _ = data_aftermath(tr, te)
+        logger.warning(trx.sample(6))
