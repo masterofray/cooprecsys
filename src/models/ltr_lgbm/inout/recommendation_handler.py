@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+
 """
 recommendation_handler.py
 __________________________________________________________________
@@ -8,6 +10,7 @@ prediction doesn't provide enough items, falls back to similar items
 based on CategoryID, TotalPrice, and CityName from purchase history.
 Author: MiniMax Agent
 """
+
 
 import os
 import sys

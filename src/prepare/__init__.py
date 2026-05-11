@@ -11,5 +11,6 @@ __status__     = "Development"
 __created__    = "2026-04-30"
 
 from .dictjson import Dict2Json
+from .lostfound import latest_found
 
-__all__ = ['Dict2Json']
+__all__ = ['Dict2Json', 'latest_found']

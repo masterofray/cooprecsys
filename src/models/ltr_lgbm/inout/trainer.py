@@ -125,9 +125,11 @@ class LTRTrainer:
             X_test,  y_test,  group_test)
 
         # Progress bar via tqdm callback
-        pbar = tqdm(total       = tcfg.num_boost_round,
-                    desc        = "Training rounds",
-                    unit        = "round",
+        pbar = tqdm(total  = tcfg.num_boost_round,
+                    desc   = "Training rounds",
+                    colour = _cfg.get('tqdm', 'colour'),
+                    ncols  = _cfg.getint('tqdm', 'ncols'),
+                    unit   = "round",
                     dynamic_ncols = True)
         _pbar_state: Dict[str, Any] = {"last_iter": 0}
 
