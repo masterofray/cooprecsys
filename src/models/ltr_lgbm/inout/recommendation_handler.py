@@ -24,7 +24,7 @@ import pandas as pd
 from tqdm import tqdm
 
 # Import from model_inference
-from model_inference import LTRModelInference, create_inference_engine
+from infcore import LTRModelInference, create_inference_engine
 
 
 # ============================================================================
