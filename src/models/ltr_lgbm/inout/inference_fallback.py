@@ -36,7 +36,7 @@ from typing import (Optional, List, Dict, Any, Callable,
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parent))
 from infcore    import LTRModelInference
-from infhandler import (tqdm_joblib, _CustomerCfg,
+from infhandler import (Joblibar, _CustomerCfg,
                        Process_Customer)
 from infsupport import *
 
@@ -57,8 +57,8 @@ class AdaptiveFallbackRanker:
     ab_callback : Callable, A/B testing callback function (cannot be stored in INI).
     """
     def __init__(self,
-            engine      : "LTRModelInference",
-            config      : Optional["FallbackConfig"] = None,
+            engine      : LTRModelInference,
+            config      : Optional[FallbackConfig] = None,
             ab_callback : Optional[Callable[[pd.DataFrame], None]] = None,
        ) -> None:
         if engine is None:
@@ -519,7 +519,7 @@ class AdaptiveFallbackRanker:
             tqdm_bar.close()
 
         else:
-            # Paralel - tqdm_joblib context manager meng-hook progress bar
+            # Paralel - Joblibar context manager meng-hook progress bar
             # ke joblib's BatchCompletionCallBack sehingga bar ter-update
             # setiap batch selesai (kompatibel dengan backend loky/threading).
             logger.debug(
@@ -527,7 +527,7 @@ class AdaptiveFallbackRanker:
                 self.n_jobs,
                 getattr(self, "parallel_backend", "loky"),
                 self.batch_size)
-            with tqdm_joblib(tqdm_bar):
+            with Joblibar(tqdm_bar):
                 results     = Parallel(
                     n_jobs  = self.n_jobs,
                     backend = getattr(self, "parallel_backend", "loky"),
@@ -573,7 +573,7 @@ class AdaptiveFallbackRanker:
         score_col    = self.score_col
         rank_col     = self.rank_col
         df[rank_col] = df.groupby(q_col)[score_col].rank(
-                       method='first', ascending=False).astype(int)
+                       method = 'first', ascending = False).astype(int)
         return df.sort_values([q_col, rank_col]).reset_index(drop = True)
 
 

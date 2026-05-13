@@ -138,8 +138,6 @@ def load_data(
     ) -> pd.DataFrame:
     """
     Universal production data loader.
-    Parameters
-    ----------
     data_path    : str | Path to data file
     table_name   : str, optional | DuckDB table name
     query        : str, optional | Custom SQL query for DuckDB
@@ -147,13 +145,9 @@ def load_data(
     threads      : int, optional | DuckDB threads
     memory_limit : str | DuckDB memory limit
     kwargs       : forwarded to pandas loader
-    Returns
-    -------
-    pd.DataFrame
     """
-
     logger.info("=" * 70)
-    logger.info("LOAD DATA START")
+    logger.info("load data start")
     logger.info("=" * 70)
     _validate_exists(data_path)
     ext = Path(data_path).suffix.lower()
@@ -198,7 +192,7 @@ def load_data(
             df = df.head(sample_n)
         _validate_dataframe(df)
         _log_dataframe(df)
-        logger.info("LOAD DATA SUCCESS")
+        logger.info("load data success")
         logger.info("=" * 70)
         gc.collect()
         return df

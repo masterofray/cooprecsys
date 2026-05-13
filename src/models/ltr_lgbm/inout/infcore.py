@@ -11,7 +11,7 @@ __status__     = "Development"
 __created__    = "2026-05-10"
 
 """
-model_inference.py
+infcore.py
 __________________________________________________________________
 LightGBM LambdaRank inference for product recommendations.
 Handles model loading, scoring, and ranking of items per customer.
@@ -52,17 +52,18 @@ class LTRModelInference:
            config       : Master config from lgbm_config.py. If None, loads from INI.
            encoder_path : Override for label encoder pickle file
         """
-        self.ltr_config = config
-        self.encman     = LabelEncoderManager()
-        self._model     : Optional[lgb.Booster]  = None
-        self._data      : Optional[pd.DataFrame] = None
-        self.scores_    : Optional[np.ndarray]   = None
-        self.ranked_df_ : Optional[pd.DataFrame] = None
-        self._base             = Path(self.ltr_config.path.output_dir).resolve().parents[2]
-        self.encoder_path      = encoder_path or latest_found(self._base, 'encoder')
-        self._feature          = config.feature.features
-        self._label            = config.feature.label
-        self._query_id         = config.feature.query_id
+        self.ltr_config   = config
+        self.encman       = LabelEncoderManager()
+        self._model       : Optional[lgb.Booster]  = None
+        self._data        : Optional[pd.DataFrame] = None
+        self.scores_      : Optional[np.ndarray]   = None
+        self.ranked_df_   : Optional[pd.DataFrame] = None
+        self._model_path  : Optional[str]          = None
+        self._base        = Path(self.ltr_config.path.output_dir).resolve().parents[2]
+        self.encoder_path = encoder_path or latest_found(self._base, 'encoder')
+        self._feature     = config.feature.features
+        self._label       = config.feature.label
+        self._query_id    = config.feature.query_id
         
         # Load encoders and feature columns if they exist
         if self.encoder_path.exists():
@@ -104,7 +105,15 @@ class LTRModelInference:
     @property
     def model_path(self) -> Path:
         """Model file path from config."""
-        return Path(self.ltr_config.model.model_path)
+        mp = Path(self.ltr_config.model.model_path)
+        if not mp.exists():
+            mp = latest_found(self._base, 'model')
+            logger.debug(f'Found the model path at {mp}.')
+        return mp
+    
+    @model.setter
+    def model_path(self, value : Path) -> None:
+        self._model_path = value
     
     @property
     def model(self) -> lgb.Booster:
@@ -112,12 +121,9 @@ class LTRModelInference:
         if self._model is None:
             path = Path(self.model_path)
             if not path.exists():
-                path = latest_found(self._base, 'model')
-                if not path.exists():
-                    raise FileNotFoundError(
-                        f"No model file found at '{path}'. "
-                        "Train the model first or provide a model instance."
-                    )
+                raise FileNotFoundError(
+                    f"No model file found at '{path}'. "
+                    "Train the model first or provide a model instance.")
             self._model = lgb.Booster(model_file = str(path))
             logger.info(f"Model loaded from: {path}")
         return self._model

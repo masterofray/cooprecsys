@@ -18,6 +18,7 @@ from typing import Optional
 def latest_found(dir       : Path, 
                  keyword   : str = "encoder",
                  recursive : bool = True,
+                 Not4Json  : bool = False,
                 ) -> Optional[Path]:
     """
     Search dir for files containing 'keyword' (case‑insensitive).
@@ -36,16 +37,26 @@ def latest_found(dir       : Path,
             continue
         if not keyword_re.search(path.name):
             continue
-        date_match = date_pattern.match(path.name)
-        if not date_match:
-            continue
-        date_int = int(date_match.group(1))
-        is_json  = path.suffix.lower() == ".json"
-        candidates.append((date_int, is_json, path))
+        if not Not4Json:
+            date_match = date_pattern.match(path.name)
+            if not date_match:
+                continue
+            date_int = int(date_match.group(1))
+            is_json  = path.suffix.lower() == ".json"
+            candidates.append((date_int, is_json, path))
+        else:
+            candidates.append(path)
     if not candidates:
         return None
 
-    # Sort by: is_json=True first, then by 
-    # date_int descending (latest first)
-    candidates.sort(key=lambda x: (x[1], x[0]), reverse=True)
-    return candidates[0][2]
+    if not Not4Json:
+        # Sort by: is_json=True first, then by date_int descending (latest first)
+        candidates.sort(key = lambda x: (x[1], x[0]), reverse = True)
+        return candidates[0][2]
+    else:
+        candidates.sort(reverse = True)
+        return candidates[0]
+
+
+if __name__ == '__main__':
+    pass

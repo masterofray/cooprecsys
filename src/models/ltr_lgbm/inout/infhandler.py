@@ -30,11 +30,11 @@ from configs import logger, _cfg
 
 
 @contextlib.contextmanager
-def tqdm_joblib(tqdm_bar: tqdm):
+def Joblibar(tqdm_bar: tqdm):
     '''
     Context manager yang menghubungkan joblib's batch-completion callback
     ke sebuah tqdm progress bar. How to:
-    with tqdm_joblib(tqdm(total=n, desc="Fallback")) as bar:
+    with Joblibar(tqdm(total=n, desc="Fallback")) as bar:
         results = Parallel(...)(delayed(fn)(...) for ...)
     '''
     class _TqdmBatchCallback:

@@ -11,10 +11,11 @@ __status__     = "Development"
 __created__    = "2026-05-11"
 
 
-from pathlib import Path
+from pathlib      import Path
 from configparser import ConfigParser
-from dataclasses import dataclass, field, fields
-from typing import get_type_hints, get_origin, get_args, Union
+from dataclasses  import dataclass, field, fields
+from typing       import (get_type_hints, get_origin, 
+                          get_args, Union, Optional, Dict)
 
 
 @dataclass

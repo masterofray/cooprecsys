@@ -146,13 +146,13 @@ def run_pipeline(
     trainer.save_model()
     
     dates = f'{datetime.now():%Y%m%d}'
-    configfile = Path(config.path.output_dir).resolve() / f'{dates}_config.cloudpic'
+    configfile = Path(config.path.output_dir).resolve() / f'{dates}_config.cloudpickle'
     logger.info(
-        "Training complete — best_iteration=%d | runtime=%.2f min",
+        "Training complete — best_iteration = %d | runtime = %.2f min",
         trainer.best_iteration, trainer.runtime_minutes)
     with configfile.open('wb') as file:
         cp.dump(config, file)
-        logger.info(f'Done to save LTRConfig file: {str(configfile)}')
+        logger.info(f'Done to save LTRConfig file: {str(configfile)}.')
 
     # ── 5. Visualisation ──────────────────────────────────────────────
     _stage_banner("5 / 7  Visualisation")
