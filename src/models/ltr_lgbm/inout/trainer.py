@@ -33,7 +33,7 @@ from typing import Any, Dict
 
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
-from configs import logger
+from configs import logger, _cfg
 
 
 class LTRTrainer:

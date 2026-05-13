@@ -41,7 +41,7 @@ from infhandler import (Joblibar, _CustomerCfg,
 from infsupport import *
 
 sys.path.append(str(LocDir.parents[3]))
-from callduckdb import DuckDBManager
+from db         import DuckDBManager
 from configs    import logger, _cfg, FallbackConfig
 
 

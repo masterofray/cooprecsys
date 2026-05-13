@@ -258,5 +258,6 @@ class HybridStrategy(BaseFallbackStrategy):
 def _compute_cache_key(feature_cols: List[str], catalog_hash: str) -> str:
     return hashlib.md5(f"{sorted(feature_cols)}|{catalog_hash}".encode()).hexdigest()
 
-íf __name__ == "__main__":
+
+if __name__ == "__main__":
     pass

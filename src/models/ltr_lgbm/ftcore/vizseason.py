@@ -48,7 +48,7 @@ sys.path.append(str(LocDir))
 
 from prepare import Dict2Json
 from configs import LTRConfig, logger, _cfg
-from models.ltr_lgbm.report import render_report
+from models.ltr_lgbm.report import repot
 
 # ---------------------------------------------------------------------------
 # Seaborn global theme
@@ -474,27 +474,13 @@ class Visualizer:
         try:
             logger.debug("Rendering report HTML.")
             Dict2Json(contextRecsys, str(output_path.parent / 'contextRecsys.json'))
-            html = render_report(context     = contextRecsys,
-                                 output_path = output_path)
-            #set_trace()
-            if not html or not html.strip():
+            htmlpath = repot()
+            if not htmlpath.exists():
                 raise ValueError("Rendered HTML is empty.")
-            logger.debug("HTML rendered successfully ""(%d chars).",len(html))
+            logger.debug("HTML rendered successfully ""(%s).",str(htmlpath))
         except Exception as arc:
             logger.error("Failed rendering HTML.")
             raise RuntimeError("Report rendering failed.") from arc
-
-        # =====================================================
-        # Save HTML
-        # =====================================================
-        try:
-            with open(output_path, "w", encoding = "utf-8") as f:
-                f.write(html)
-            logger.info("Monitoring report saved: %s", output_path)
-        except Exception as arc:
-            logger.exception("Failed saving HTML report.")
-            raise RuntimeError("Unable to save report.") from arc
-        logger.info("Done!\n`genreport()` completed successfully.")
 
 
 if __name__ == '__main__':

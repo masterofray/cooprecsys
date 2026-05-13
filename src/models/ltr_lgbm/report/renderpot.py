@@ -312,7 +312,7 @@ def build_context(json_path: str | Path) -> Dict[str, Any]:
     logger.debug("Entering build_context().")
     try:
         context = load_context(json_path)
-        metrics = context.get("metrics", {})
+        metrics = context.get("metrics", dict())
         logger.debug("Metrics count = %d", len(metrics))
         prediction_df             = load_prediction_dataframe(context)
         context["scorecards"]     = generate_scorecards(metrics)
@@ -378,7 +378,7 @@ def render_report(context: Dict[str, Any], output_path: str | Path) -> str:
         logger.error("Unexpected rendering failure.", exc_info=True)
         raise RuntimeError("Dashboard rendering failed.") from exc
 
-def main() -> str:
+def repot() -> str:
     """Main dashboard generation pipeline."""
     logger.info("Starting dashboard generation pipeline.")
     try:
@@ -397,7 +397,7 @@ def main() -> str:
         logger.info("Total rankings   = %d", context.get("total_rankings", 0))
         logger.info("Total scorecards = %d", len(context.get("scorecards", [])))
         logger.info("Total charts     = %d", len(context.get("charts", [])))
-        return str(output_path)
+        return output_path
     except Exception as exc:
         logger.error("Dashboard generation pipeline failed.", exc_info=True)
         raise RuntimeError("Dashboard generation failed.") from exc

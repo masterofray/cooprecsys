@@ -12,7 +12,7 @@ __created__    = "2026-04-30"
 
 from .ftcore   import BayesianTuner, MLflowMonitor, Visualizer
 from .inout    import LTRTrainer, LTRInference
-from .report   import render_report
+from .report   import repot as render_report
 from .ltr_call import run_pipeline as lgbm_fit_transform
 
 __all__ = ["BayesianTuner",

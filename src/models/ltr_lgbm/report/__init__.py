@@ -10,6 +10,6 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-01"
 
-from .renderpot import render_report
+from .renderpot import repot
 
-__all__ = ["render_report"]
+__all__ = ["repot"]

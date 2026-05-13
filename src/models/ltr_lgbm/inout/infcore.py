@@ -111,7 +111,7 @@ class LTRModelInference:
             logger.debug(f'Found the model path at {mp}.')
         return mp
     
-    @model.setter
+    @model_path.setter
     def model_path(self, value : Path) -> None:
         self._model_path = value
     
