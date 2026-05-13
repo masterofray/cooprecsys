@@ -35,12 +35,14 @@ from typing import (Optional, List, Dict, Any, Callable,
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parent))
-from infcore import LTRModelInference
+from infcore    import LTRModelInference
+from infhandler import (tqdm_joblib, _CustomerCfg,
+                       _process_customer)
 from infsupport import *
 
 sys.path.append(str(LocDir.parents[3]))
 from callduckdb import DuckDBManager
-from configs import logger, _cfg, FallbackConfig
+from configs    import logger, _cfg, FallbackConfig
 
 
 # ---------------------------------------------------------------------------
@@ -453,260 +455,144 @@ class AdaptiveFallbackRanker:
 
 
     # ------------------------------------------------------------------
-    # Parallel worker function for deficient customers
-    # ------------------------------------------------------------------
-    def _process_customer(self,
-                          cust_id   : int,
-                          ranked    : pd.DataFrame,
-                          q_col     : str,
-                          score_col : str,
-                          item_col  : str,
-                          fallback_score : float,
-                          cold_threshold : int
-                         ) -> Optional[pd.DataFrame]:
-        """Process fallback recommendations for one customer."""
-        logger.debug(f"[{cust_id}] Starting customer processing.")
-        
-        # Extract customer data
-        logger.debug(f"[{cust_id}] Extracting customer data from ranked.")
-        cust_df     = ranked[ranked[q_col] == cust_id]
-        current_ids = cust_df[item_col].tolist()
-        needed      = self.k - len(cust_df)
-        if needed <= 0:
-            logger.debug(f"[{cust_id}] No fallback needed (already has >=k items).")
-            return None
-        logger.debug(f"[{cust_id}] Need {needed} more items.")
-        
-        # Determine cold start
-        logger.debug(f"[{cust_id}] Checking cold start status.")
-        is_cold  = len(cust_df) <= cold_threshold
-        strategy = self._cold_start_strategy if is_cold else self._strategy
-        logger.debug(f"[{cust_id}] Using {'cold' if is_cold else 'normal'} strategy.")
-        
-        # Filter available catalog (vectorized)
-        logger.debug(f"[{cust_id}] Filtering available catalog.")
-        catalog_ids       = self._item_id_map
-        available_mask    = ~catalog_ids.isin(current_ids)
-        available_catalog = self._catalog[available_mask].copy()
-        if len(available_catalog) == 0:
-            logger.debug(f"[{cust_id}] No available catalog items.")
-            return None
-        logger.debug(f"[{cust_id}] {len(available_catalog)} available items.")
-        
-        # User profile (content/hybrid only)
-        logger.debug(f"[{cust_id}] Computing user profile.")
-        user_profile = None
-        if isinstance(strategy, (ContentBasedStrategy, HybridStrategy)
-        ) and self.item_vectors is not None:
-            existing_idx = catalog_ids[catalog_ids.isin(current_ids)].index
-            if len(existing_idx) > 0:
-                user_profile = self.item_vectors[existing_idx].mean(axis = 0, keepdims = True)
-                logger.debug(f"[{cust_id}] User profile shape: {user_profile.shape}")
-        
-        # Candidate vectors (optimized indexing)
-        logger.debug(f"[{cust_id}] Preparing candidate vectors.")
-        candidate_vecs = None
-        if self.item_vectors is not None and len(available_catalog) > 0:
-            vec_positions = list()
-            for idx in tqdm(
-                available_catalog.index,
-                desc        = f'[{cust_id}] Vector lookup',
-                colour      = _cfg.get('tqdm', 'colour'),
-                ncols       = _cfg.getint('tqdm', 'ncols'),
-                unit        = 'item',
-                mininterval = 0.1,
-                leave       = False):
-                pos = np.where(self._vector_index == idx)[0]
-                if len(pos) > 0:
-                    vec_positions.append(pos[0])
-            if vec_positions:
-                candidate_vecs = self.item_vectors[vec_positions]
-                
-                # Sampling if too many candidates
-                if self.max_candidates_scan and \
-                len(candidate_vecs) > self.max_candidates_scan:
-                    logger.debug(f"[{cust_id}] Sampling {self.max_candidates_scan} from {len(candidate_vecs)} candidates.")
-                    rng = np.random.RandomState(self.random_state + \
-                          hash(str(cust_id)) % 10_000)
-                    sampled_idx       = rng.choice(len(candidate_vecs), 
-                                        self.max_candidates_scan, replace=False)
-                    candidate_vecs    = candidate_vecs[sampled_idx]
-                    available_catalog = available_catalog.iloc[sampled_idx]
-        
-        # Collaborative scores (optimized with Counter)
-        logger.debug(f"[{cust_id}] Computing collaborative scores.")
-        coll_dict: Dict[int, float] = dict()
-        if isinstance(strategy, (CollaborativeStrategy, HybridStrategy)) or \
-            (is_cold and isinstance(self._cold_start_strategy, 
-            (CollaborativeStrategy, HybridStrategy))):
-            coll_matrix = self.collaborative_scores
-            combined = defaultdict(float)
-              for ci in tqdm(
-                current_ids,
-                desc        = f'[{cust_id}] Collab scores',
-                colour      = _cfg.get('tqdm', 'colour'),
-                ncols       = _cfg.getint('tqdm', 'ncols'),
-                unit        = 'item',
-                mininterval = 0.1,
-                leave       = False):
-                if ci in coll_matrix:
-                    for item_j, score in coll_matrix[ci].items():
-                        combined[item_j] += score
-            coll_dict = dict(combined)
-            logger.debug(f"[{cust_id}] Found {len(coll_dict)} collaborative neighbors.")
-        
-        # Create context and select
-        logger.debug(f"[{cust_id}] Creating fallback context.")
-        context = FallbackContext(
-            candidate_items      = available_catalog,
-            candidate_vectors    = candidate_vecs,
-            current_item_ids     = current_ids,
-            user_profile         = user_profile,
-            popularity_scores    = self.popularity_scores,
-            collaborative_scores = coll_dict,
-            top_k                = needed,
-            random_state         = self.random_state + hash(str(cust_id)) % 10_000,)
-        
-        # Strategy execution with fallback
-        logger.debug(f"[{cust_id}] Executing strategy selection.")
-        try:
-            selected = strategy.select_items(context)
-            logger.debug(f"[{cust_id}] Strategy selected {len(selected)} items.")
-        except Exception as e:
-            logger.debug(f"[{cust_id}] Strategy failed: {e}, falling back to random.")
-            rng      = np.random.RandomState(context.random_state)
-            selected = available_catalog.sample(
-                min(needed, len(available_catalog)),
-                random_state = rng)
-        
-        # Finalize output
-        logger.debug(f"[{cust_id}] Finalizing output DataFrame.")
-        selected            = selected.head(needed).copy()
-        selected[q_col]     = cust_id
-        selected[score_col] = fallback_score
-        selected[item_col]  = catalog_ids[selected.index].values if \
-                              self.item_id_col else selected.index
-        if self.mark_fallback:
-            selected['is_fallback'] = True
-        logger.debug(f"[{cust_id}] Completed: added {len(selected)} fallback items.")
-        return selected
-
-
-    # ------------------------------------------------------------------
     # Main ranking method
     # ------------------------------------------------------------------
     def rank_with_fallback(self) -> pd.DataFrame:
-        logger.debug("Starting rank_with_fallback.")
-        # 1. LTR ranking
+        """
+        Jalankan LTR ranking kemudian isi kekurangan item setiap customer
+        dengan strategi fallback.  Pemrosesan per-customer dilakukan secara
+        paralel menggunakan joblib, dengan progress-bar tqdm.auto.
+        """
+        logger.debug("Memulai rank_with_fallback.")
+
+        #--- 1. LTR ranking ---------------------------------------------
         try:
-            ranked = self.engine.rank_top_k(top_k=self.k)
-        except Exception as e:
-            raise RuntimeError(f"LTR inference failed: {e}") from e
+            ranked = self.engine.rank_top_k(top_k = self.k)
+        except Exception as exc:
+            raise RuntimeError(f"LTR inference gagal: {exc}") from exc
         if ranked.empty:
             return ranked
-
-        q_col = self.query_id_col
+        q_col     = self.query_id_col
         score_col = self.score_col
-        rank_col = self.rank_col
-        item_col = self.item_id_col or '__fallback_item_id__'
+        rank_col  = self.rank_col
+        item_col  = self.item_id_col or "__fallback_item_id__"
         if self.item_id_col is None:
             ranked[item_col] = ranked.index
 
-        # 2. Identify deficient customers
-        counts = ranked.groupby(q_col).size()
+        #--- 2. Identifikasi customer yang kekurangan item -----------------
+        counts         = ranked.groupby(q_col).size()
         deficient_list = counts[counts < self.k].index.tolist()
         if not deficient_list:
-            logger.info("All customers have sufficient items.")
-            return self._final_rerank(ranked, item_col if self.item_id_col is None else None)
-
-        logger.info(f"Fallback needed for {len(deficient_list)} customers.")
-        all_scores = ranked[score_col].values
+            logger.info("Semua customer sudah memiliki item yang cukup.")
+            return self._final_rerank(
+                ranked, item_col if self.item_id_col is None else None)
+        logger.info("Fallback dibutuhkan untuk %d customer.", len(deficient_list))
+        all_scores     = ranked[score_col].values
         fallback_score = self._compute_fallback_score(all_scores)
 
-        # 3. Parallel processing of deficient customers
+        #--- 3. Bangun _CustomerCfg sekali, dikirim ke semua worker --------
+        #------ Ini menghindari serialisasi self yang tidak picklable.
+        cust_cfg       = _CustomerCfg.from_ranker(self)
+        shared_kwargs  = dict(
+            ranked         = ranked,
+            q_col          = q_col,
+            score_col      = score_col,
+            item_col       = item_col,
+            fallback_score = fallback_score,
+            cold_threshold = self.cold_start_threshold,
+            cfg            = cust_cfg)
+
+        #--- 4. Eksekusi paralel / serial --------------------------------
+        tqdm_bar = tqdm(total       = len(deficient_list),
+                        desc        = "Fallback Process",
+                        colour      = _cfg.get("tqdm", "colour"),
+                        ncols       = _cfg.getint("tqdm", "ncols"),
+                        unit        = "customer",
+                        mininterval = 0.1)
         if self.n_jobs == 1 or len(deficient_list) <= 1:
-            # Serial processing with tqdm
-            fallback_parts = list()
-            for cust in tqdm(deficient_list,
-                             desc='Fallback Process',
-                             colour=_cfg.get('tqdm', 'colour'),
-                             ncols=_cfg.getint('tqdm', 'ncols'),
-                             unit='Customer',
-                             mininterval=0.1):
-                res = self._process_customer(
-                    cust, ranked, q_col, score_col, item_col,
-                    fallback_score, self.cold_start_threshold
-                )
+            fallback_parts: List[pd.DataFrame] = list()
+            for cust in deficient_list:
+                res = _process_customer(cust_id = cust, **shared_kwargs)
                 if res is not None:
                     fallback_parts.append(res)
-        else:
-            # Joblib parallel (threading)
-            logger.debug(f"Using joblib with {self.n_jobs} workers, backend='threading'")
-            results = Parallel(
-                n_jobs=self.n_jobs,
-                backend='threading',
-                batch_size=self.batch_size,
-            )(
-                delayed(self._process_customer)(
-                    cust, ranked, q_col, score_col, item_col,
-                    fallback_score, self.cold_start_threshold
-                )
-                for cust in tqdm(deficient_list,
-                                 desc='Fallback Process',
-                                 colour=_cfg.get('tqdm', 'colour'),
-                                 ncols=_cfg.getint('tqdm', 'ncols'),
-                                 unit='Customer',
-                                 mininterval=0.1)
-            )
-            fallback_parts = [r for r in results if r is not None]
+                tqdm_bar.update(1)
+            tqdm_bar.close()
 
-        # 4. Merge
+        else:
+            # Paralel - tqdm_joblib context manager meng-hook progress bar
+            # ke joblib's BatchCompletionCallBack sehingga bar ter-update
+            # setiap batch selesai (kompatibel dengan backend loky/threading).
+            logger.debug(
+                "Menggunakan joblib: n_jobs = %d, backend = '%s', batch_size= %s",
+                self.n_jobs,
+                getattr(self, "parallel_backend", "loky"),
+                self.batch_size)
+            with tqdm_joblib(tqdm_bar):
+                results     = Parallel(
+                    n_jobs  = self.n_jobs,
+                    backend = getattr(self, "parallel_backend", "loky"),
+                    batch_size = self.batch_size,
+                )(  delayed(_process_customer)(cust_id=cust, **shared_kwargs)
+                    for cust in deficient_list)
+            fallback_parts  = [r for r in results if r is not None]
+
+        #--- 5. Gabungkan hasil fallback ke ranked --------------------
         temp_drop = item_col if self.item_id_col is None else None
         if fallback_parts:
-            fallback_df = pd.concat(fallback_parts, ignore_index=True)
+            fallback_df = pd.concat(fallback_parts, ignore_index = True)
             if temp_drop:
-                ranked.drop(columns=[temp_drop], errors='ignore', inplace=True)
-                fallback_df.drop(columns=[temp_drop], errors='ignore', inplace=True)
-            for c in ranked.columns:
-                if c not in fallback_df.columns:
-                    fallback_df[c] = np.nan
+                ranked.drop(columns = [temp_drop],
+                    errors = "ignore", inplace = True)
+                fallback_df.drop(columns = [temp_drop], 
+                    errors = "ignore", inplace = True)
+
+            # Samakan kolom antara ranked dan fallback_df
+            for col in ranked.columns:
+                if col not in fallback_df.columns:
+                    fallback_df[col] = np.nan
             fallback_df = fallback_df[ranked.columns]
-            if self.mark_fallback and 'is_fallback' not in ranked.columns:
-                ranked['is_fallback'] = False
-            ranked = pd.concat([ranked, fallback_df], ignore_index=True)
+
+            if self.mark_fallback and "is_fallback" not in ranked.columns:
+                ranked["is_fallback"] = False
+            ranked = pd.concat([ranked, fallback_df], ignore_index = True)
         else:
             if temp_drop:
-                ranked.drop(columns=[temp_drop], errors='ignore', inplace=True)
+                ranked.drop(columns = [temp_drop], 
+                errors = "ignore", inplace = True)
 
-        # 5. Final re-rank
-        final = self._final_rerank(ranked)
+        #--- 6. Final re-rank -------------------------------------------
+        final           = self._final_rerank(ranked)
         self._ranked_df = final
-
         if self.ab_callback:
             self.ab_callback(final)
-
-        logger.info(f"Ranking complete, shape: {final.shape}")
+        logger.info("Ranking selesai, shape: %s", final.shape)
         return final
 
     def _final_rerank(self, df: pd.DataFrame) -> pd.DataFrame:
-        q_col = self.query_id_col
-        score_col = self.score_col
-        rank_col = self.rank_col
-        df[rank_col] = df.groupby(q_col)[score_col].rank(method='first', ascending=False).astype(int)
-        return df.sort_values([q_col, rank_col]).reset_index(drop=True)
+        q_col        = self.query_id_col
+        score_col    = self.score_col
+        rank_col     = self.rank_col
+        df[rank_col] = df.groupby(q_col)[score_col].rank(
+                       method='first', ascending=False).astype(int)
+        return df.sort_values([q_col, rank_col]).reset_index(drop = True)
+
 
     # ------------------------------------------------------------------
     # Save / Convenience
     # ------------------------------------------------------------------
-    def save_rankings(self, output_path: str, as_parquet: bool = True) -> str:
+    def save_rankings(self, 
+                      output_path : str, 
+                      as_parquet  : bool = True,
+                     ) -> str:
         if self._ranked_df is None:
             raise RuntimeError("Call rank_with_fallback() first.")
         path_obj = Path(output_path)
         path_obj.parent.mkdir(parents = True, exist_ok = True)
         if as_parquet:
-            self._ranked_df.to_parquet(output_path, index=False, engine='pyarrow', compression='gzip')
+            self._ranked_df.to_parquet(output_path, index = False, 
+            engine = 'pyarrow', compression = 'gzip')
         else:
-            self._ranked_df.to_csv(output_path, index=False)
+            self._ranked_df.to_csv(output_path, index = False)
         logger.info(f"Saved rankings to {output_path}")
         return output_path
 
@@ -714,5 +600,8 @@ class AdaptiveFallbackRanker:
         return self.rank_with_fallback()
 
     def __repr__(self) -> str:
-        return f"AdaptiveFallbackRanker(strategy={self._strategy.__class__.__name__}, top_k={self.k})"
+        return f"AdaptiveFallbackRanker(strategy = {self._strategy.__class__.__name__}, top_k={self.k})"
 
+
+if __name__ == '__main__':
+    pass

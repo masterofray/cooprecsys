@@ -10,10 +10,11 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-11"
 
-
+import sys
 import hashlib
 import numpy as np
 import pandas as pd
+from pathlib import Path
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from sklearn.metrics.pairwise import cosine_similarity
@@ -32,6 +33,9 @@ try:
 except ImportError:
     _ANNOY_AVAILABLE = False
 
+LocDir = Path(__file__).resolve().parents[3]
+sys.path.append(str(LocDir))
+from configs import logger, _cfg
 
 # ---------------------------------------------------------------------------
 # Custom Exceptions
