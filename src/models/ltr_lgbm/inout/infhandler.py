@@ -17,6 +17,7 @@ import contextlib
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from copy import deepcopy
 from tqdm.auto import tqdm
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -108,7 +109,7 @@ class _CustomerCfg:
 #-------------------------------------------------------------------------------
 # Fungsi "main standalone"
 #-------------------------------------------------------------------------------
-def _process_customer(
+def Process_Customer(
     cust_id        : int,
     ranked         : pd.DataFrame,
     q_col          : str,
@@ -159,7 +160,8 @@ def _process_customer(
     if len(available_catalog) == 0:
         logger.debug("[%s] Tidak ada item catalog yang tersedia.", cust_id)
         return None
-    logger.debug("[%s] %d item tersedia di catalog.", cust_id, len(available_catalog))
+    logger.debug("[%s] %d item tersedia di catalog.",
+    cust_id, len(available_catalog))
 
     # ── 4. User profile (content / hybrid saja) ──────────────────────────
     user_profile = None

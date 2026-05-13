@@ -318,7 +318,7 @@ class LTRModelInference:
 
 # UTILITY FUNCTIONS
 #____________________________________________________________________________
-def Inference_Engine(Data       : pd.DataFrame
+def Inference_Engine(Data       : pd.DataFrame,
                      TheConfig  : LTRConfig,
                      encdpath   : Path,
                      model_path : Path = None,
@@ -331,7 +331,7 @@ def Inference_Engine(Data       : pd.DataFrame
     engine.data = Data
     internalmp = Path(TheConfig.model.model_path)
     DoNotLoad  = False
-    if not internalmp.exist():
+    if not internalmp.exists():
         try:
             engine.model = lgb.Booster(model_file = str(model_path))
             DoNotLoad    = True
@@ -339,15 +339,15 @@ def Inference_Engine(Data       : pd.DataFrame
             logger.error(f'Check the model_path is exist or not: {model_path}.')
             raise ValueError('Model can load the binary lightGBM') from Arc
     try:
-        if no DoNotLoad:
+        if not DoNotLoad:
             engine.load()
             logger.debug("Inference engine successfully initialized")
         else:
             engine.load_encoders()
             logger.debug("Encoder engine successfully initialized")
         engine._validate_input()
-    except Exception as e:
-        logger.warning(f"Could not load all components: {e}")
+    except Exception as arc:
+        logger.warning(f"Could not load all components: {arc}")
         logger.info("Engine created but some components may need manual loading")
     return engine
 

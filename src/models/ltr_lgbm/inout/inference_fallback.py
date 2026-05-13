@@ -37,7 +37,7 @@ LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parent))
 from infcore    import LTRModelInference
 from infhandler import (tqdm_joblib, _CustomerCfg,
-                       _process_customer)
+                       Process_Customer)
 from infsupport import *
 
 sys.path.append(str(LocDir.parents[3]))
@@ -479,7 +479,7 @@ class AdaptiveFallbackRanker:
         if self.item_id_col is None:
             ranked[item_col] = ranked.index
 
-        #--- 2. Identifikasi customer yang kekurangan item -----------------
+        #--- 2. Identifikasi customer yang kekurangan item --------------
         counts         = ranked.groupby(q_col).size()
         deficient_list = counts[counts < self.k].index.tolist()
         if not deficient_list:
@@ -490,7 +490,7 @@ class AdaptiveFallbackRanker:
         all_scores     = ranked[score_col].values
         fallback_score = self._compute_fallback_score(all_scores)
 
-        #--- 3. Bangun _CustomerCfg sekali, dikirim ke semua worker --------
+        #--- 3. Bangun _CustomerCfg sekali, dikirim ke semua worker -----
         #------ Ini menghindari serialisasi self yang tidak picklable.
         cust_cfg       = _CustomerCfg.from_ranker(self)
         shared_kwargs  = dict(
@@ -502,7 +502,7 @@ class AdaptiveFallbackRanker:
             cold_threshold = self.cold_start_threshold,
             cfg            = cust_cfg)
 
-        #--- 4. Eksekusi paralel / serial --------------------------------
+        #--- 4. Eksekusi paralel / serial -------------------------------
         tqdm_bar = tqdm(total       = len(deficient_list),
                         desc        = "Fallback Process",
                         colour      = _cfg.get("tqdm", "colour"),
@@ -512,7 +512,7 @@ class AdaptiveFallbackRanker:
         if self.n_jobs == 1 or len(deficient_list) <= 1:
             fallback_parts: List[pd.DataFrame] = list()
             for cust in deficient_list:
-                res = _process_customer(cust_id = cust, **shared_kwargs)
+                res = Process_Customer(cust_id = cust, **shared_kwargs)
                 if res is not None:
                     fallback_parts.append(res)
                 tqdm_bar.update(1)
@@ -532,7 +532,7 @@ class AdaptiveFallbackRanker:
                     n_jobs  = self.n_jobs,
                     backend = getattr(self, "parallel_backend", "loky"),
                     batch_size = self.batch_size,
-                )(  delayed(_process_customer)(cust_id=cust, **shared_kwargs)
+                )(  delayed(Process_Customer)(cust_id = cust, **shared_kwargs)
                     for cust in deficient_list)
             fallback_parts  = [r for r in results if r is not None]
 
@@ -560,7 +560,7 @@ class AdaptiveFallbackRanker:
                 ranked.drop(columns = [temp_drop], 
                 errors = "ignore", inplace = True)
 
-        #--- 6. Final re-rank -------------------------------------------
+        #--- 6. Final re-rank -----------------------------------------
         final           = self._final_rerank(ranked)
         self._ranked_df = final
         if self.ab_callback:
