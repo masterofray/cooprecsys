@@ -40,6 +40,8 @@ def Dict2Json(data       : Dict[str, Any],
                 for k, v in data.items()}
     try:
         if filepath:
+            fp = Path(filepath).resolve().parent
+            fp.mkdir(parents = True, exist_ok = True)
             with open(filepath, 'w', encoding='utf-8') as files:
                 json.dump(data, files, indent = indent, ensure_ascii = False)
             logger.info(f"Successfully exported to {filepath}")
