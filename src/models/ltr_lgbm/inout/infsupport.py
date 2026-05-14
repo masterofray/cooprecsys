@@ -256,7 +256,8 @@ class HybridStrategy(BaseFallbackStrategy):
 # Utility: cache key for vectors
 # ---------------------------------------------------------------------------
 def _compute_cache_key(feature_cols: List[str], catalog_hash: str) -> str:
-    return hashlib.md5(f"{sorted(feature_cols)}|{catalog_hash}".encode()).hexdigest()
+    #return hashlib.md5(f"{sorted(feature_cols)}|{catalog_hash}".encode()).hexdigest()  # nosec B324
+    return hashlib.sha256(f"{sorted(feature_cols)}|{catalog_hash}".encode()).hexdigest()
 
 
 if __name__ == "__main__":

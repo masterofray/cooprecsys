@@ -131,6 +131,17 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+  merge-artifacts:
+    name: Merge Artifacts
+    runs-on: ubuntu-latest
+    needs: smoke-ltr
+    steps:
+      - name: Merge All Artifacts
+        uses: actions/upload-artifact/merge@v4
+        with:
+          name: all-artifacts
+          pattern: *
+
 
   # ==========================================================
   # LTR INFERENCE FALLBACK TEST
@@ -138,7 +149,7 @@ jobs:
   ltr-inference-fallback:
     name: LTR Inference Fallback Test
     runs-on: ubuntu-latest
-    needs: smoke-ltr
+    needs: merge-artifacts
 
     steps:
       - name: Checkout Source Code
@@ -157,8 +168,8 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: all-artifacts
           path: artifacts/
+          merge-multiple: true
 
       - name: Debug Artifacts Content
         run: |
