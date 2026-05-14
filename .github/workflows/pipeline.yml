@@ -184,7 +184,7 @@ jobs:
       - name: Run Inference Fallback Test
         run: |
           echo "===== STARTING INFERENCE FALLBACK TEST ====="
-          python -m test.ltrlgbm_test.inference_fallback_test
+          python -m test.ltrlgbm_test.ltrlgbm_inferencing
           echo "===== INFERENCE FALLBACK TEST FINISHED ====="
 
       - name: Upload Ranking Results
