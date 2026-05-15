@@ -37,6 +37,105 @@ LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
 from configs import logger, _cfg
 
+
+
+#-------------------------------------------------------------------------------
+# Dataclass: semua dependensi dari self
+#-------------------------------------------------------------------------------
+import logging
+from copy import deepcopy
+from dataclasses import dataclass
+from typing import Optional, Dict, Any
+
+logger = logging.getLogger(__name__ + ".CustomerCfg")
+
+@dataclass
+class _CustomerCfg:
+    """
+    Snapshot atribut AdaptiveFallbackRanker yang dibutuhkan oleh
+    _process_customer.  Dikirim sebagai satu objek ke setiap worker
+    sehingga semua field eksplisit dan picklable.
+    """
+    k                    : int
+    catalog              : pd.DataFrame
+    item_id_map          : pd.Series
+    vector_index         : Optional[np.ndarray]
+    item_vectors         : Optional[np.ndarray]
+    strategy             : object
+    cold_start_strategy  : object
+    collaborative_scores : Dict[int, Dict[int, float]]
+    popularity_scores    : Optional[pd.Series]
+    max_candidates_scan  : Optional[int]
+    random_state         : int
+    mark_fallback        : bool
+    item_id_col          : Optional[str]
+    tqdm_colour          : str  = "green"
+    tqdm_ncols           : int  = 100
+
+    @classmethod
+    def from_ranker(cls, ranker: "AdaptiveFallbackRanker") -> "_CustomerCfg":
+        """
+        Membuat _CustomerCfg dari instance AdaptiveFallbackRanker.
+        Hanya menggunakan properti publik untuk memicu lazy loading.
+        """
+        strategy      = ranker.strategy
+        cold_strategy = ranker.cold_start_strategy
+        catalog       = ranker.catalog
+        item_id_map   = ranker.item_id_map
+        vector_index  = ranker._vector_index
+        item_vectors  = ranker._item_vectors
+        collab_scores = ranker.collaborative_scores
+        pop_scores    = ranker.popularity_scores
+        logger.debug(
+            "Created the _CustomerCfg:\n"
+            "catalog       = %s,\n"
+            "item_id_map   = %s,\n"
+            "item_vectors  = %s,\n"
+            "collab_scores = %s,\n"
+            "pop_scores    = %s,\n",
+            "vector_index  = %s\n",
+            catalog.shape      if catalog is not None else None,
+            len(item_id_map)   if item_id_map is not None else None,
+            item_vectors.shape if item_vectors is not None else None,
+            len(collab_scores) if collab_scores else 0,
+            len(pop_scores)    if pop_scores is not None else 0,
+            type(vector_index).__name__ if vector_index is not None else None)
+        required = {"catalog"             : catalog,
+                    "item_id_map"         : item_id_map,
+                    "strategy"            : strategy,
+                    "cold_start_strategy" : cold_strategy}
+        for name, value in required.items():
+            if value is None:
+                raise RuntimeError(
+                    f"Atribut '{name}' masih None setelah lazy loading. "
+                    f"Pastikan ranker diinisialisasi dengan benar.")
+        if item_vectors is None:
+            logger.warning("item_vectors adalah None (konten/hybrid tidak tersedia).")
+        if pop_scores is None:
+            logger.warning("popularity_scores adalah None (strategi popularity tidak tersedia).")
+        if collab_scores is None:
+            logger.warning("collaborative_scores adalah None (strategi collaborative tidak tersedia).")
+
+        cfg = deepcopy(_cfg)
+        return cls(
+            k                    = ranker.k,
+            catalog              = catalog,
+            item_id_map          = item_id_map,
+            vector_index         = vector_index,
+            item_vectors         = item_vectors,
+            strategy             = strategy,
+            cold_start_strategy  = cold_strategy,
+            collaborative_scores = collab_scores,
+            popularity_scores    = pop_scores,
+            max_candidates_scan  = ranker.max_candidates_scan,
+            random_state         = ranker.random_state,
+            mark_fallback        = ranker.mark_fallback,
+            item_id_col          = ranker.item_id_col,
+            tqdm_colour          = cfg.get("tqdm", "colour"),
+            tqdm_ncols           = cfg.getint("tqdm", "ncols"),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Custom Exceptions
 # ---------------------------------------------------------------------------
@@ -165,10 +264,10 @@ class BaseFallbackStrategy(ABC):
 
 class ContentBasedStrategy(BaseFallbackStrategy):
     def __init__(self, 
-        similarity_func = cosine_similarity, 
-        min_similarity  : float = -1.0):
-        self.similarity_func = similarity_func
-        self.min_similarity = min_similarity
+        similarity_func       = cosine_similarity, 
+        min_similarity: float = -1.0):
+        self.similarity_func  = similarity_func
+        self.min_similarity   = min_similarity
 
     def select_items(self, 
         context: FallbackContext) -> pd.DataFrame:
@@ -187,10 +286,10 @@ class PopularityStrategy(BaseFallbackStrategy):
     def select_items(self, context: FallbackContext) -> pd.DataFrame:
         if context.popularity_scores is None:
             n = min(context.top_k, len(context.candidate_items))
-            return context.candidate_items.sample(n, random_state=context.random_state)
+            return context.candidate_items.sample(n, random_state = context.random_state)
         cand_scores = context.popularity_scores.reindex(
-            context.candidate_items.index, fill_value = 0
-        ).sort_values(ascending=False)
+                      context.candidate_items.index, fill_value = 0
+                      ).sort_values(ascending=False)
         return context.candidate_items.loc[cand_scores.head(context.top_k).index]
 
 

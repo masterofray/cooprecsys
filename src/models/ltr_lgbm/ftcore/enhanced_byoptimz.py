@@ -269,9 +269,12 @@ class BayesianTuner:
             early_stopping_rounds= min(trcfg.early_stopping_rounds, 50))
         self.study = self._build_study()
 
-        with tqdm(total = tcfg.n_trials,
-                  desc  = "Bayesian tuning",
-                  unit  = "trial",
+        with tqdm(total         = tcfg.n_trials,
+                  desc          = "Bayesian tuning",
+                  unit          = "trial",
+                  colour        = _cfg.get('tqdm', 'colour'),
+                  ncols         = _cfg.getint('tqdm', 'ncols'),
+                  mininterval   = 0.1,
                   dynamic_ncols = True) as pbar:
             self.study.optimize(
                 objective,

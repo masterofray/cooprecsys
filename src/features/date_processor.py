@@ -48,7 +48,16 @@ class DateProcessor(object):
         if data is not None:
             self.data = data
         self._result  = dict()
+        self._candfeat= list()
         logger.debug("DateProcessor initialized successfully")
+
+    @property
+    def candfeat(self):
+        self._candfeat = (self._result.get("date", list()) +
+                          self._result.get("time", list()) +
+                          self._result.get("datetime", list()) +
+                          self._result.get("unix", list()))
+        return self._candfeat
 
     @property
     def data(self) -> pd.DataFrame:
@@ -120,7 +129,7 @@ class DateProcessor(object):
             sample = series.dropna().head(30)
             if sample.empty:
                 return False
-            parsed = pd.to_datetime(sample, errors="coerce")
+            parsed = pd.to_datetime(sample, format='mixed', errors="coerce")
             score = parsed.notna().mean()
             return score >= 0.70
         except Exception:
@@ -338,11 +347,7 @@ class DateProcessor(object):
     def process_duration_features(self) -> None:
         """Compute duration features using only detected date/time columns."""
         logger.debug("Processing duration features")
-        candidate_cols = (self._result.get("date", list()) +
-                          self._result.get("time", list()) +
-                          self._result.get("datetime", list()) +
-                          self._result.get("unix", list()))
-        pairs = self.detect_duration_pairs(candidate_cols)
+        pairs = self.detect_duration_pairs(self.candfeat)
         for mystart, myend in tqdm(pairs,
                          desc   = 'Duration Features',
                          colour = _cfg.get('tqdm', 'colour'),

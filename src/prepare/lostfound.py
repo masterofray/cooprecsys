@@ -13,50 +13,77 @@ __created__    = "2026-05-10"
 
 import re
 from pathlib import Path
+from copy import deepcopy
 from typing import Optional
+from functools import lru_cache
 
-def latest_found(dir       : Path, 
-                 keyword   : str = "encoder",
-                 recursive : bool = True,
-                 Not4Json  : bool = False,
-                ) -> Optional[Path]:
-    """
-    Search dir for files containing 'keyword' (case‑insensitive).
-    - Prioritize .json files.
-    - Extract a date in YYYYMMDD format from the start of the filename.
-    - Return the file with the most recent date.
-    """
-    if not dir.is_dir():
-        return None
-    date_pattern = re.compile(r"^(\d{8})")
-    keyword_re   = re.compile(re.escape(keyword), re.IGNORECASE)
-    candidates   = list()
-    iterator     = directory.rglob("*") if recursive else directory.iterdir()
-    for path in iterator:
-        if not path.is_file():
-            continue
-        if not keyword_re.search(path.name):
-            continue
-        if not Not4Json:
-            date_match = date_pattern.match(path.name)
-            if not date_match:
-                continue
-            date_int = int(date_match.group(1))
-            is_json  = path.suffix.lower() == ".json"
-            candidates.append((date_int, is_json, path))
-        else:
-            candidates.append(path)
-    if not candidates:
+
+@lru_cache(maxsize = 128)
+def _cachedlost(str_dir   : Path, 
+                keyword   : str, 
+                recursive : bool, 
+                Not4Json  : bool,
+               ) -> Optional[str]:
+    """Internal cached function that works with string paths"""
+    dir_path      = Path(str_dir).resolve()
+    keyword_lower = keyword.lower()
+    date_pattern  = re.compile(r"^(\d{8})")
+    key_pattern   = re.compile(rf'{re.escape(keyword_lower)}', re.IGNORECASE)
+    if not dir_path.is_dir():
         return None
 
     if not Not4Json:
-        # Sort by: is_json=True first, then by date_int descending (latest first)
-        candidates.sort(key = lambda x: (x[1], x[0]), reverse = True)
-        return candidates[0][2]
-    else:
-        candidates.sort(reverse = True)
-        return candidates[0]
+        best_json  = None
+        best_other = None
+        paths      = dir_path.rglob("*") if recursive else dir_path.iterdir()
+        for path in paths:
+            if not path.is_file():
+                continue
+            if keyword_lower not in path.name.lower():
+                continue
+            if not key_pattern.search(path.name):
+                continue
+            date_match = date_pattern.match(path.name)
+            if not date_match:
+                continue
 
+            date_int = int(date_match.group(1))
+            is_json  = path.suffix.lower() == ".json"
+            path_str = str(path)
+            if is_json:
+                if best_json is None or date_int > best_json[0]:
+                    best_json = (date_int, path_str)
+            else:
+                if best_other is None or date_int > best_other[0]:
+                    best_other = (date_int, path_str)
+        if best_json:
+            return best_json[1]
+        if best_other:
+            return best_other[1]
+        return None
+    else:
+        best  = None
+        paths = dir_path.rglob("*") if recursive else dir_path.iterdir()
+        for path in paths:
+            if path.is_file() and (key_pattern.search(path.name) or \
+            keyword_lower in path.name):
+                if best is None or path.suffix.lower() != ".json":
+                    best = deepcopy(path)
+                    break
+        return best
+
+def latest_found(dir       : Path, 
+                 keyword   : str  = "encoder",
+                 recursive : bool = True,
+                 Not4Json  : bool = False,
+                ) -> Optional[Path]:
+    """Wrapper function that converts Path to string for caching"""
+    filepath = _cachedlost(dir, keyword, recursive, Not4Json)
+    return Path(filepath) if filepath else str()
 
 if __name__ == '__main__':
-    pass
+    test = Path.cwd().resolve().parents[2]
+    modelpath = latest_found(dir = test, 
+                keyword = 'encode', Not4Json = True)
+    if modelpath.exists():
+        print(modelpath)

@@ -14,18 +14,36 @@ import os
 import re
 import sys
 import json
+import numpy  as np
 import pandas as pd
 from tqdm.auto       import tqdm
 from pathlib         import Path
 from copy            import deepcopy
-from typing          import Dict, List, Optional
+from typing          import Dict, List, Optional, Tuple
 from .encdec         import LabelEncoderManager
 from .date_processor import DateProcessor
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(LocDir)
 from configs import _cfg, logger
+from db      import duckdb_connection
 
+
+def Inference_DataSplit(data     : pd.DataFrame,
+                        features : List[str],
+                        label    : str,
+                        query_id : str,
+                       ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    with duckdb_connection(':memory:') as con:
+        con.register_dataframe("datamentah", data)
+        RAW = con.query(f'SELECT * FROM datamentah ORDER BY "{query_id}"')
+    X     = RAW[features].to_numpy(dtype = np.float32)
+    y     = RAW[label].to_numpy(dtype = np.int32)
+    group = (RAW.groupby(query_id, sort = False)
+            .size()
+            .reindex(RAW[query_id].unique())
+            .to_numpy(dtype = np.int32))
+    return X, y, group
 
 def load_encoders(encoder_path: Optional[Path] = None) -> LabelEncoderManager:
     '''To make LabelEncoderManager with loaded encoders'''

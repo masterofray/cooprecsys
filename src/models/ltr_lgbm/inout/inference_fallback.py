@@ -36,9 +36,10 @@ from typing import (Optional, List, Dict, Any, Callable,
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parent))
 from infcore    import LTRModelInference
-from infhandler import (Joblibar, _CustomerCfg,
-                       Process_Customer)
-from infsupport import *
+from infhandler import Joblibar, Process_Customer
+from infsupport import (_CustomerCfg, ANNIndex, 
+                        ContentBasedStrategy, PopularityStrategy, 
+                        HybridStrategy, CollaborativeStrategy)
 
 sys.path.append(str(LocDir.parents[3]))
 from db         import DuckDBManager
@@ -82,10 +83,11 @@ class AdaptiveFallbackRanker:
         self.config.validate()
         self._k          = self.config.top_k if self.config.top_k is not None else engine.top_k
         self.ab_callback = ab_callback
-        self.cache_dir   = LocDir / _cfg.get('PATHS', 'output_dir')
+        self.cache_dir   = LocDir.parents[4] / _cfg.get('PATHS', 'output_dir')
         self.cache_dir.mkdir(parents = True, exist_ok = True)
         
         # Lazy Inisialization
+        self.score_mode    = _cfg.get('INFERENCE', 'scoremode')
         self._db           : Optional[DuckDBManager] = None
         self._catalog      : Optional[pd.DataFrame]  = None
         self._item_vectors : Optional[np.ndarray]    = None
@@ -117,7 +119,8 @@ class AdaptiveFallbackRanker:
         if "config" in self.__dict__ and hasattr(self.config, name):
             return getattr(self.config, name)
         raise AttributeError(
-            f"'{type(self).__name__}' object has no attribute '{name}'")
+            f"'{type(self).__name__}' object has no attribute '{name}'"
+            f"Also not found in config. Available config attributes: {dir(self.config)}")
 
     
     # ------------------------------------------------------------------
@@ -183,6 +186,32 @@ class AdaptiveFallbackRanker:
     def ranked_df(self) -> Optional[pd.DataFrame]:
         return self._ranked_df
 
+    @property
+    def item_id_map(self) -> pd.Series:
+        '''Mapping posisi baris di catalog, 
+        maka nilai item_id (series dengan index integer).'''
+        if self._item_id_map is None:
+            if self._catalog is None:
+                self._build_catalog()
+            id_col = self.item_id_col or 'index'
+            if id_col in self._catalog.columns:
+                self._item_id_map = self._catalog[id_col].reset_index(drop=True)
+            else:
+                self._item_id_map = self._catalog.index.to_series(
+                                    ).reset_index(drop=True)
+            logger.debug("item_id_map dibangun, panjang = %d", 
+                         len(self._item_id_map))
+        return self._item_id_map
+
+    @property
+    def vector_index(self) -> Optional[np.ndarray]:
+        '''Indeks ANN yang sudah dibangun (Faiss/NMSLIB), 
+        hanya untuk content/hybrid'''
+        if self._vector_index is None and isinstance(
+        self._strategy, (ContentBasedStrategy, HybridStrategy)):
+            _ = self.item_vectors
+        return self._vector_index
+
     # ------------------------------------------------------------------
     # DuckDB initialization
     # ------------------------------------------------------------------
@@ -198,6 +227,11 @@ class AdaptiveFallbackRanker:
             for c in obj_cols:
                 df_safe[c] = df_safe[c].astype(str)
             self._db.register_dataframe('candidates', df_safe)
+
+        # Turn the view into a real table so we can ALTER it
+        self._db.execute("CREATE OR REPLACE TABLE candidates_tmp AS SELECT * FROM candidates")
+        self._db.execute("DROP VIEW IF EXISTS candidates")
+        self._db.execute("ALTER TABLE candidates_tmp RENAME TO candidates")
 
         item_col = self.item_id_col if self.item_id_col else 'index'
         if item_col not in data.columns:
@@ -283,11 +317,13 @@ class AdaptiveFallbackRanker:
             num_arr = StandardScaler().fit_transform(num_arr)
         full = np.hstack([cat_arr, num_arr])
         if full.shape[1] == 0:
-            logger.warning("No usable features for content vectors."
+            logger.warning("No usable features for content vectors.\n"
             "Falling back to popularity.")
             self._strategy = PopularityStrategy()
             self._item_vectors = None
             return None
+        elif 1 < full.shape[1] < 6:
+            self._strategy = CollaborativeStrategy()
 
         self._item_vectors = full
         self._vector_index = catalog.index
@@ -332,7 +368,7 @@ class AdaptiveFallbackRanker:
                 counts = self.engine.data.index.value_counts()
             self._popularity_scores = counts / counts.max()
         logger.debug("Popularity scores computed.")
-        loger.info(f'Popularity Score as {type(self._popularity_scores)}.\n')
+        logger.info(f'Popularity Score as {type(self._popularity_scores)}.\n')
 
 
     def _compute_collaborative_scores(self):
@@ -457,6 +493,18 @@ class AdaptiveFallbackRanker:
     # ------------------------------------------------------------------
     # Main ranking method
     # ------------------------------------------------------------------
+    def _trigger_vector(self) -> None:
+        try:
+            self._build_catalog()
+            self._build_item_vectors()
+            _ = self.catalog
+            _ = self.item_vectors
+            _ = self.item_id_map
+            _ = self.vector_index
+            logger.debug('The Trigger of itemsmaps and items vector already done.')
+        except Exception as Arc:
+            logger.error('The Trigger was Fail, the program will be error.')
+    
     def rank_with_fallback(self) -> pd.DataFrame:
         """
         Jalankan LTR ranking kemudian isi kekurangan item setiap customer
@@ -492,6 +540,7 @@ class AdaptiveFallbackRanker:
 
         #--- 3. Bangun _CustomerCfg sekali, dikirim ke semua worker -----
         #------ Ini menghindari serialisasi self yang tidak picklable.
+        self._trigger_vector()
         cust_cfg       = _CustomerCfg.from_ranker(self)
         shared_kwargs  = dict(
             ranked         = ranked,
@@ -509,6 +558,16 @@ class AdaptiveFallbackRanker:
                         ncols       = _cfg.getint("tqdm", "ncols"),
                         unit        = "customer",
                         mininterval = 0.1)
+        # For debugging
+        # fallback_parts: List[pd.DataFrame] = list()
+        # for cust in deficient_list:
+            # res = Process_Customer(cust_id = cust, **shared_kwargs)
+            # if res is not None:
+                # fallback_parts.append(res)
+            # tqdm_bar.update(1)
+        # tqdm_bar.close()
+        
+        #Original
         if self.n_jobs == 1 or len(deficient_list) <= 1:
             fallback_parts: List[pd.DataFrame] = list()
             for cust in deficient_list:
@@ -517,7 +576,7 @@ class AdaptiveFallbackRanker:
                     fallback_parts.append(res)
                 tqdm_bar.update(1)
             tqdm_bar.close()
-
+        
         else:
             # Paralel - Joblibar context manager meng-hook progress bar
             # ke joblib's BatchCompletionCallBack sehingga bar ter-update

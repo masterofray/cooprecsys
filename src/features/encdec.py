@@ -31,9 +31,12 @@ from copy      import deepcopy
 from typing    import Dict, List, Optional, Any, Union
 from sklearn.preprocessing import LabelEncoder
 
+from pdb import set_trace
+
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))
 from configs  import logger, _cfg
+from prepare  import latest_found
 
 
 class LabelEncoderManager(object):
@@ -179,12 +182,16 @@ class LabelEncoderManager(object):
     def load(self, path: Optional[Path] = None) -> None:
         """Loads the most recent encoder file if path is not provided."""
         if path is None:
-            files = sorted(self.EncDir.glob("*_LabelEncoderManager.cloudpickle"))
-            path  = files[-1] if files else self.EncDir / "LabelEncoderManager.cloudpickle"
+            path = latest_found(
+                        dir       = str(LocDir.parents[2]), 
+                        keyword   = 'encode', 
+                        recursive = True, 
+                        Not4Json  = True)
         path      = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"Encoder file not found: {path}")
         logger.info(f"Loading encoders from: {path}")
+        #set_trace()
         with open(path, 'rb') as file:
             encoder_data     = cp.load(file)
         self.encoders        = encoder_data["encoders"]

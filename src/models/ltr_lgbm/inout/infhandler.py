@@ -24,8 +24,12 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
+LocDir = Path(__file__).resolve()
+sys.path.append(str(LocDir.parents[0]))
+from infsupport import (_CustomerCfg, ContentBasedStrategy, FallbackContext,
+                        HybridStrategy, CollaborativeStrategy)
+
+sys.path.append(str(LocDir.parents[3]))
 from configs import logger, _cfg
 
 
@@ -37,73 +41,26 @@ def Joblibar(tqdm_bar: tqdm):
     with Joblibar(tqdm(total=n, desc="Fallback")) as bar:
         results = Parallel(...)(delayed(fn)(...) for ...)
     '''
-    class _TqdmBatchCallback:
-        def __init__(self, bar: tqdm):
-            self._bar = bar
+    original_callback = joblib.parallel.BatchCompletionCallBack
+    class _TqdmBatchCallback(original_callback):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._bar = tqdm_bar
 
         def __call__(self, out):
-            self._bar.update(n=len(out) if hasattr(out, "__len__") else 1)
+            n = len(out) if hasattr(out, "__len__") else 1
+            self._bar.update(n)
+            super().__call__(out)
 
         def print_progress(self):
             pass
+
     try:
-        old_cb = getattr(joblib.parallel, "_verbosity_filter", None)
         joblib.parallel.BatchCompletionCallBack = _TqdmBatchCallback
         yield tqdm_bar
     finally:
-        if old_cb is not None:
-            joblib.parallel.BatchCompletionCallBack = old_cb
+        joblib.parallel.BatchCompletionCallBack = original_callback
         tqdm_bar.close()
-
-
-#-------------------------------------------------------------------------------
-# Dataclass: semua dependensi dari self
-#-------------------------------------------------------------------------------
-@dataclass
-class _CustomerCfg:
-    """
-    Snapshot atribut AdaptiveFallbackRanker yang dibutuhkan oleh
-    _process_customer.  Dikirim sebagai satu objek ke setiap worker
-    sehingga semua field eksplisit dan picklable.
-    """
-    k                    : int
-    catalog              : pd.DataFrame
-    item_id_map          : pd.Series
-    vector_index         : Optional[np.ndarray]
-    item_vectors         : Optional[np.ndarray]
-    strategy             : object
-    cold_start_strategy  : object
-    collaborative_scores : Dict[int, Dict[int, float]]
-    popularity_scores    : Optional[pd.Series]
-    max_candidates_scan  : Optional[int]
-    random_state         : int
-    mark_fallback        : bool
-    item_id_col          : Optional[str]
-    tqdm_colour          : str  = "green"
-    tqdm_ncols           : int  = 100
-
-    # ------------------------------------------------------------------ #
-    @classmethod
-    def from_ranker(cls, ranker: "AdaptiveFallbackRanker") -> "_CustomerCfg":
-        """Buat _CustomerCfg dari instance AdaptiveFallbackRanker."""
-        cfg = deepcopy(_cfg)
-        return cls(
-            k                    = ranker.k,
-            catalog              = ranker._catalog,
-            item_id_map          = ranker._item_id_map,
-            vector_index         = ranker._vector_index,
-            item_vectors         = ranker.item_vectors,
-            strategy             = ranker._strategy,
-            cold_start_strategy  = ranker._cold_start_strategy,
-            collaborative_scores = ranker.collaborative_scores,
-            popularity_scores    = ranker.popularity_scores,
-            max_candidates_scan  = ranker.max_candidates_scan,
-            random_state         = ranker.random_state,
-            mark_fallback        = ranker.mark_fallback,
-            item_id_col          = ranker.item_id_col,
-            tqdm_colour          = cfg.get("tqdm", "colour"),
-            tqdm_ncols           = cfg.getint("tqdm", "ncols"),
-        )
 
 
 #-------------------------------------------------------------------------------

@@ -44,35 +44,20 @@ class LTRModelInference:
     """LightGBM LambdaRank inference for scoring and ranking items.
     Uses centralized LTRConfig from lgbm_config.py for all configuration.
     """
-    def __init__(self,
-            config       : LTRConfig,
-            encoder_path : Optional[Path] = None,
-        ) -> None:
+    def __init__(self, config: LTRConfig) -> None:
         """Initialize inference engine with centralized config.
-           config       : Master config from lgbm_config.py. If None, loads from INI.
-           encoder_path : Override for label encoder pickle file
+           config : Master config from lgbm_config.py. If None, loads from INI.
         """
         self.ltr_config   = config
-        self.encman       = LabelEncoderManager()
         self._model       : Optional[lgb.Booster]  = None
         self._data        : Optional[pd.DataFrame] = None
         self.scores_      : Optional[np.ndarray]   = None
         self.ranked_df_   : Optional[pd.DataFrame] = None
         self._model_path  : Optional[str]          = None
         self._base        = Path(self.ltr_config.path.output_dir).resolve().parents[2]
-        self.encoder_path = encoder_path or latest_found(self._base, 'encoder')
         self._feature     = config.feature.features
         self._label       = config.feature.label
         self._query_id    = config.feature.query_id
-        
-        # Load encoders and feature columns if they exist
-        if self.encoder_path.exists():
-            try:
-                self.encman.load(self.encoder_path)
-                logger.info(f"Encoders loaded from: {self.encoder_path}")
-            except Exception as e:
-                logger.warning(f"Could not load encoders: {e}")
-
 
     # ------------------------------------------------------------------
     # Properties for Config values
@@ -153,15 +138,10 @@ class LTRModelInference:
 
     def load_model(self) -> None:
         self._model = lgb.Booster(model_file = str(self.model_path))
-        logger.info(f"Model loaded from: {path}")
-    
-    def load_encoders(self) -> None:
-        self.encman.load(self.encoder_path)
-        logger.info(f"Encoders loaded from: {path}")
+        logger.info(f"Model loaded from: {self.model_path}")
     
     def load(self) -> None:
         self.load_model()
-        self.load_encoders()
 
     
     # ------------------------------------------------------------------
@@ -326,17 +306,15 @@ class LTRModelInference:
 #____________________________________________________________________________
 def Inference_Engine(Data       : pd.DataFrame,
                      TheConfig  : LTRConfig,
-                     encdpath   : Path,
                      model_path : Path = None,
                     ) -> LTRModelInference:
     assert model_path, 'Model_path must not None'
     TheConfig.model.model_path = str(model_path)
     logger.info(f"Model path overridden: {model_path}")
-    engine = LTRModelInference(config       = TheConfig,
-                               encoder_path = encdpath)
+    engine      = LTRModelInference(TheConfig)
     engine.data = Data
-    internalmp = Path(TheConfig.model.model_path)
-    DoNotLoad  = False
+    internalmp  = Path(TheConfig.model.model_path)
+    DoNotLoad   = False
     if not internalmp.exists():
         try:
             engine.model = lgb.Booster(model_file = str(model_path))
