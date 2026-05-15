@@ -135,10 +135,11 @@ def TrueString(data: pd.DataFrame,
     result = list()
     n = len(data)
     for item in tqdm(string_cols, 
-                 desc   = 'Detect columns',
-                 colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getint('tqdm', 'ncols'),
-                 unit   = 'Column',
+                 desc        = 'Detect columns',
+                 colour      = _cfg.get('tqdm', 'colour'),
+                 ncols       = _cfg.getint('tqdm', 'ncols'),
+                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                 unit        = 'Column',
                  mininterval = 0.5):
         col_lower = item.lower()
         if exclude_regex and exclude_regex.search(col_lower):

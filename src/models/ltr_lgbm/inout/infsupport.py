@@ -12,9 +12,13 @@ __created__    = "2026-05-11"
 
 import sys
 import hashlib
+import joblib
+import contextlib
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from copy import deepcopy
+from tqdm.auto import tqdm
 from dataclasses import dataclass
 from abc import ABC, abstractmethod
 from sklearn.metrics.pairwise import cosine_similarity
@@ -38,17 +42,27 @@ sys.path.append(str(LocDir))
 from configs import logger, _cfg
 
 
+@contextlib.contextmanager
+def Joblibar(tqdm_bar: tqdm):
+    original_callback = joblib.parallel.BatchCompletionCallBack
+    class _TqdmBatchCallback(original_callback):
+        def __call__(self, *args, **kwargs):
+            tqdm_bar.update(self.batch_size)
+            return super().__call__(*args, **kwargs)
+
+        def print_progress(self):
+            return
+
+    joblib.parallel.BatchCompletionCallBack = _TqdmBatchCallback
+    try:
+        yield tqdm_bar
+    finally:
+        joblib.parallel.BatchCompletionCallBack = original_callback
+        tqdm_bar.close()
 
 #-------------------------------------------------------------------------------
 # Dataclass: semua dependensi dari self
 #-------------------------------------------------------------------------------
-import logging
-from copy import deepcopy
-from dataclasses import dataclass
-from typing import Optional, Dict, Any
-
-logger = logging.getLogger(__name__ + ".CustomerCfg")
-
 @dataclass
 class _CustomerCfg:
     """
@@ -70,7 +84,8 @@ class _CustomerCfg:
     mark_fallback        : bool
     item_id_col          : Optional[str]
     tqdm_colour          : str  = "green"
-    tqdm_ncols           : int  = 100
+    tqdm_ncols           : int  = 200
+    tqdm_bar             : str  = '{desc}{bar:40}{r_bar}'
 
     @classmethod
     def from_ranker(cls, ranker: "AdaptiveFallbackRanker") -> "_CustomerCfg":
@@ -133,6 +148,7 @@ class _CustomerCfg:
             item_id_col          = ranker.item_id_col,
             tqdm_colour          = cfg.get("tqdm", "colour"),
             tqdm_ncols           = cfg.getint("tqdm", "ncols"),
+            tqdm_bar             = cfg.get('tqdm', 'BarFormats'),
         )
 
 

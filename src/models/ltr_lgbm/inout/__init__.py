@@ -13,12 +13,14 @@ __created__    = "2026-04-30"
 from .inference          import LTRInference
 from .trainer            import LTRTrainer
 from .inference_fallback import AdaptiveFallbackRanker
-from .infhandler         import Joblibar, Process_Customer
+from .infhandler         import Process_Customer
 from .infcore            import LTRModelInference
+from .infsupport         import Joblibar
 
 __all__ = ['LTRInference', 
            'LTRTrainer', 
            'AdaptiveFallbackRanker',
            'Process_Customer',
+           'LTRModelInference',
            'Joblibar',
            ]

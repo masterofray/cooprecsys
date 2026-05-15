@@ -32,8 +32,8 @@ import re
 import mlflow
 import optuna
 import numpy as np
-from tqdm import tqdm
 import lightgbm as lgb
+from tqdm.auto       import tqdm
 from typing          import Any, Dict, Callable
 from optuna.pruners  import (BasePruner, 
                              HyperbandPruner, 
@@ -274,6 +274,7 @@ class BayesianTuner:
                   unit          = "trial",
                   colour        = _cfg.get('tqdm', 'colour'),
                   ncols         = _cfg.getint('tqdm', 'ncols'),
+                  bar_format    = _cfg.get('tqdm', 'BarFormats'),
                   mininterval   = 0.1,
                   dynamic_ncols = True) as pbar:
             self.study.optimize(

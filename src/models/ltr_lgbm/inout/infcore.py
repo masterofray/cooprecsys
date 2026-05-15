@@ -23,10 +23,10 @@ import sys
 import json
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import lightgbm as lgb
 from pathlib import Path
 from copy import deepcopy
+from tqdm.auto import tqdm
 from typing import List, Optional, Dict, Any, Tuple
 
 
@@ -218,10 +218,11 @@ class LTRModelInference:
         ranked_parts: List[pd.DataFrame] = list()
         query_groups = self._data[q_col].unique()
         for qid in tqdm(query_groups,
-                         desc   = 'Ranking Process',
-                         colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getint('tqdm', 'ncols'),
-                         unit   = 'Customer',
+                         desc        = 'Ranking Process',
+                         colour      = _cfg.get('tqdm', 'colour'),
+                         ncols       = _cfg.getint('tqdm', 'ncols'),
+                         bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                         unit        = 'Customer',
                          mininterval = 0.1):
             mask     = work_df[q_col] == qid
             group_df = deepcopy(work_df.loc[mask])

@@ -12,15 +12,12 @@ __created__    = "2026-05-13"
 
 
 import sys
-import joblib
-import contextlib
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from copy import deepcopy
 from tqdm.auto import tqdm
 from collections import defaultdict
-from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 
@@ -31,36 +28,6 @@ from infsupport import (_CustomerCfg, ContentBasedStrategy, FallbackContext,
 
 sys.path.append(str(LocDir.parents[3]))
 from configs import logger, _cfg
-
-
-@contextlib.contextmanager
-def Joblibar(tqdm_bar: tqdm):
-    '''
-    Context manager yang menghubungkan joblib's batch-completion callback
-    ke sebuah tqdm progress bar. How to:
-    with Joblibar(tqdm(total=n, desc="Fallback")) as bar:
-        results = Parallel(...)(delayed(fn)(...) for ...)
-    '''
-    original_callback = joblib.parallel.BatchCompletionCallBack
-    class _TqdmBatchCallback(original_callback):
-        def __init__(self, *args, **kwargs):
-            super().__init__(*args, **kwargs)
-            self._bar = tqdm_bar
-
-        def __call__(self, out):
-            n = len(out) if hasattr(out, "__len__") else 1
-            self._bar.update(n)
-            super().__call__(out)
-
-        def print_progress(self):
-            pass
-
-    try:
-        joblib.parallel.BatchCompletionCallBack = _TqdmBatchCallback
-        yield tqdm_bar
-    finally:
-        joblib.parallel.BatchCompletionCallBack = original_callback
-        tqdm_bar.close()
 
 
 #-------------------------------------------------------------------------------
@@ -135,14 +102,16 @@ def Process_Customer(
     candidate_vecs = None
     if cfg.item_vectors is not None and len(available_catalog) > 0:
         vec_positions: List[int] = list()
-        for idx in tqdm(
-            available_catalog.index,
-            desc        = f"[{cust_id}] Vector lookup",
-            colour      = cfg.tqdm_colour,
-            ncols       = cfg.tqdm_ncols,
-            unit        = "item",
-            mininterval = 0.1,
-            leave       = False):
+        for idx in available_catalog.index:
+        #for idx in tqdm(
+        #    available_catalog.index,
+        #    desc        = f"[{cust_id}] Vector lookup",
+        #    colour      = cfg.tqdm_colour,
+        #    ncols       = cfg.tqdm_ncols,
+        #    bar_format  = cfg.tqdm_bar,
+        #    unit        = "item",
+        #    mininterval = 0.4,
+        #    leave       = True):
             pos = np.where(cfg.vector_index == idx)[0]
             if len(pos) > 0:
                 vec_positions.append(pos[0])
@@ -152,8 +121,8 @@ def Process_Customer(
             # Sampling jika kandidat terlalu banyak
             if (cfg.max_candidates_scan and \
                 len(candidate_vecs) > cfg.max_candidates_scan):
-                logger.debug("[%s] Sampling %d dari %d kandidat.",
-                    cust_id, cfg.max_candidates_scan, len(candidate_vecs))
+                #logger.debug("[%s] Sampling %d dari %d kandidat.",
+                #    cust_id, cfg.max_candidates_scan, len(candidate_vecs))
                 rng               = np.random.RandomState(cfg.random_state 
                                     + hash(str(cust_id)) % 10_000)
                 sampled_idx       = rng.choice(len(candidate_vecs), 
@@ -168,13 +137,15 @@ def Process_Customer(
         (CollaborativeStrategy, HybridStrategy))):
         coll_matrix = cfg.collaborative_scores
         combined: Dict[int, float] = defaultdict(float)
-        for ci in tqdm(current_ids,
-            desc        = f"[{cust_id}] Collab scores",
-            colour      = cfg.tqdm_colour,
-            ncols       = cfg.tqdm_ncols,
-            unit        = "item",
-            mininterval = 0.1,
-            leave       = False):
+        for ci in current_ids:
+        #for ci in tqdm(current_ids,
+        #    desc        = f"[{cust_id}] Collab scores",
+        #    colour      = cfg.tqdm_colour,
+        #    ncols       = cfg.tqdm_ncols,
+        #    unit        = "item",
+        #    mininterval = 0.4,
+        #    position    = 0,
+        #    leave       = False):
             if ci in coll_matrix:
                 for item_j, score in coll_matrix[ci].items():
                     combined[item_j] += score

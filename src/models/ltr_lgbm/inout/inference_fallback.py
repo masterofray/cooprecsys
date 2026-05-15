@@ -35,9 +35,9 @@ from typing import (Optional, List, Dict, Any, Callable,
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parent))
+from infhandler import Process_Customer
 from infcore    import LTRModelInference
-from infhandler import Joblibar, Process_Customer
-from infsupport import (_CustomerCfg, ANNIndex, 
+from infsupport import (Joblibar, _CustomerCfg, ANNIndex, 
                         ContentBasedStrategy, PopularityStrategy, 
                         HybridStrategy, CollaborativeStrategy)
 
@@ -436,6 +436,7 @@ class AdaptiveFallbackRanker:
             item_freq  = df[item_col].value_counts().to_dict()
             colour     = _cfg.get('tqdm', 'colour')
             ncols      = _cfg.getint('tqdm', 'ncols')
+            bar        = _cfg.get('tqdm', 'BarFormats')
             user_items = df.groupby(user_col)[item_col].apply(lambda x: x.unique())
 
             # Hitung semua pasangan dengan Counter
@@ -445,6 +446,7 @@ class AdaptiveFallbackRanker:
                               colour = colour,
                               ncols  = ncols,
                               unit   = 'User',
+                              bar_format  = bar,
                               mininterval = 0.1):
                 for i, j in combinations(items, 2):
                     edge_counter[(i, j)] += 1
@@ -460,6 +462,7 @@ class AdaptiveFallbackRanker:
                            colour = colour,
                            ncols  = ncols,
                            unit   = 'Item',
+                           bar_format  = bar,
                            mininterval = 0.1):
                 total_i  = item_freq.get(i1, 1)
                 sim_dict = dict()
@@ -556,8 +559,12 @@ class AdaptiveFallbackRanker:
                         desc        = "Fallback Process",
                         colour      = _cfg.get("tqdm", "colour"),
                         ncols       = _cfg.getint("tqdm", "ncols"),
+                        bar_format  = _cfg.get('tqdm', 'BarFormats'),
                         unit        = "customer",
-                        mininterval = 0.1)
+                        dynamic_ncols = False,
+                        leave         = True,
+                        position      = 0,
+                        mininterval   = 0.4)
         # For debugging
         # fallback_parts: List[pd.DataFrame] = list()
         # for cust in deficient_list:

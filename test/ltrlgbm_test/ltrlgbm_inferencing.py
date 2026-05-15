@@ -14,12 +14,11 @@ import os
 import re
 import sys
 import pandas as pd
-import lightgbm as lgb
-from typing import List
-from pathlib import Path
-from copy import deepcopy
-from ipdb import set_trace
+#import lightgbm as lgb
+from pathlib  import Path
+from copy     import deepcopy
 from datetime import datetime
+from typing   import List, Tuple
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
@@ -35,7 +34,7 @@ def LoadEncode(Data           : pd.DataFrame,
                feature_column : List,
                location       : Path = None,
                clean          : bool = True,
-              ) -> pd.DataFrame:
+              ) -> Tuple[pd.DataFrame, object]:
     lct  = Path(location) if location else LocDir.parent/'artifact'
     LEM  = LabelEncoderManager(
             data        = deepcopy(Data), 
@@ -49,21 +48,30 @@ def LoadEncode(Data           : pd.DataFrame,
     return EncData, LEM
 
 
-def InferenceTest():
+def InferenceTest(Datapath  : Path,
+                  configpath: Path,
+                  QueryID   : str  = 'CustomerID',
+                  LabelID   : str  = 'CategoryID',
+                  FilterDF  : List = None,
+                  odir      : Path = None,
+                 ) -> pd.DataFrame:
     logger.info("Initializing Inference Models")
     logger.info("_" * 60)
 
     # 1. Calling data
-    data_path = LocDir.parents[0] / 'data' / 'sampledata.parquet'
-    if not data_path.exists():
-        raise FileNotFoundError(f"Could not find {str(data_path)}.")
-    logger.info(f"Loading data from {data_path}.")
-    rawdata               = load_data(data_path)
+    if not Datapath.exists():
+        raise FileNotFoundError(f"Could not find {str(Datapath)}.")
+    logger.info(f"Loading data from {Datapath}.")
+    rawdata = load_data(Datapath)
     
     # 2. Data Preprocessing
-    cleanstrCL            = TrueString(rawdata)
-    rawdata['TotalPrice'] = pd.to_numeric(rawdata['TotalPrice'], 
-                            errors = 'coerce').astype('float64')
+    cleanstrCL = TrueString(rawdata)
+    for item in rawdata.columns:
+        if 'price' in item.lower():
+            rawdata[item] = pd.to_numeric(rawdata[item],
+                            errors = 'coerce').astype('float32')
+        else:
+            continue
     
     # 3. Date feature engineer and Label Encoder
     dateproc = DateProcessor(rawdata)
@@ -74,23 +82,19 @@ def InferenceTest():
                    feature_column  = cleanstrCL)
     
     # 4. Define Schema & Features
-    QueryID     = "CustomerID"
-    LabelID     = "CategoryID"
     FeatureID   = list(set(DataEnc.columns.tolist()) - {QueryID, LabelID})
-
-    # X, Y, Group = Inference_DataSplit(data     = DataEnc,
-                                      # features = FeatureID,
-                                      # label    = LabelID,
-                                      # query_id = QueryID)
-    # DataLgb = lgb.Dataset(X, label      = Y,
-                          # group         = Group,
-                          # free_raw_data = False)
-    # logger.debug("LightGBM datasets built - Data Prediction: %d rows", len(Y))
+    #X, Y, Group = Inference_DataSplit(data     = DataEnc,
+    #                                  features = FeatureID,
+    #                                  label    = LabelID,
+    #                                  query_id = QueryID)
+    #DataLgb = lgb.Dataset(X, label      = Y,
+    #                      group         = Group,
+    #                      free_raw_data = False)
+    #logger.debug("LightGBM datasets built - Data Prediction: %d rows", len(Y))
     
     # 5. Initialize your config
     logger.debug("Lets try to intilized the main config")
-    LTRcfg = LTRConfig.from_ini(ini_path = str(
-             LocDir/'configs'/'configuration.ini'), 
+    LTRcfg = LTRConfig.from_ini(ini_path = str(configpath), 
              features = FeatureID)
     LTRcfg.feature.label    = LabelID
     LTRcfg.feature.query_id = QueryID
@@ -125,22 +129,42 @@ def InferenceTest():
     # 8. Running ranking with fallback
     logger.info("Starting fallback ranking process.")
     TheResult = ranker()
+    OutFinal  = LEM.inverse_transform(TheResult, True)
+    if FilterDF is not None:
+        OutFinal = OutFinal[FilterDF]
     
     # 9. Saving Reusult
     today = datetime.today()
     dstr  = today.strftime("%Y%m%d")
-    odir  = LocDir.parent/'artifacts'/f'{dstr}_ranks.parquet'
-    odir.parent.mkdir(exist_ok = True)
-    ranker.save_rankings(str(odir), as_parquet = True)
-    
-    # Finally
-    logger.info(f"Ranking completed. Result shape: {TheResult.shape}.")
+    if odir:
+        odir = Path(odir)/f'{dstr}_ranks.parquet'
+    else:
+        odir  = LocDir.parent/'artifacts'/f'{dstr}_ranks.parquet'
+    odir.parent.mkdir(parents = True, exist_ok = True)
+    #ranker.save_rankings(str(odir), as_parquet = True)
+    OutFinal.to_parquet(str(odir), 
+             engine            = "pyarrow", 
+             compression       = "gzip",
+             compression_level = 9,
+             index             = False)
+
+    #10. Finally
+    logger.info(f"Ranking completed. Result shape: {OutFinal.shape}.")
     logger.debug(f"Saved rankings to {odir}.")
-    logger.debug(TheResult.sample(4))
-    return TheResult
+    logger.debug(OutFinal.sample(4))
+    return OutFinal
 
 
 if __name__ == '__main__':
-    TheResult = InferenceTest()
+    Args      = {'Datapath'  : LocDir.parents[0]/'data'/'sampledata.parquet',
+                 'configpath': LocDir/'configs'/'configuration.ini',
+                 'QueryID'   : 'CustomerID',
+                 'LabelID'   : 'CategoryID',
+                 'FilterDF'  : ['CustomerID', 'ProductName', 'Class', 
+                                'Resistant', 'IsAllergic', 'ProductPrice', 
+                                'Quantity', 'Discount','TotalPrice', 
+                                'relevance_score', 'rank', 'is_fallback'],
+                 'odir'      : LocDir.parent/'artifacts'}
+    TheResult = InferenceTest(**Args)
     print(TheResult.head())
     
