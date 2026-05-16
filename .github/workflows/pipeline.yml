@@ -131,6 +131,80 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
+      # ------------------------------------------------------
+      # Install tree utility
+      # ------------------------------------------------------
+      - name: Install tree
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tree
+      
+      # ------------------------------------------------------
+      # Debug current workspace
+      # ------------------------------------------------------
+      - name: Debug Workspace
+        run: |
+          echo "===== CURRENT DIRECTORY ====="
+          pwd
+      
+          echo ""
+          echo "===== ROOT FILES ====="
+          ls -lah
+      
+      # ------------------------------------------------------
+      # Debug repository structure
+      # ------------------------------------------------------
+      - name: Debug Repository Tree
+        run: |
+          echo "===== REPOSITORY TREE ====="
+          tree -L 6
+      
+      # ------------------------------------------------------
+      # Debug test folder
+      # ------------------------------------------------------
+      - name: Debug Test Folder
+        run: |
+          echo "===== TEST TREE ====="
+          tree test || true
+      
+      # ------------------------------------------------------
+      # Debug src folder
+      # ------------------------------------------------------
+      - name: Debug SRC Folder
+        run: |
+          echo "===== SRC TREE ====="
+          tree src || true
+      
+      # ------------------------------------------------------
+      # Debug artifact folder
+      # ------------------------------------------------------
+      - name: Debug Artifact Folder
+        run: |
+          echo "===== ARTIFACT TREE ====="
+      
+          if [ -d "artifacts" ]; then
+            tree artifacts
+          else
+            echo "artifacts folder NOT FOUND"
+          fi
+      
+      # ------------------------------------------------------
+      # Debug mlruns folder
+      # ------------------------------------------------------
+      - name: Debug MLruns Folder
+        run: |
+          echo "===== MLRUNS TREE ====="
+      
+          if [ -d "mlruns" ]; then
+            tree mlruns
+          else
+            echo "mlruns folder NOT FOUND"
+          fi
+
+
+  # ==========================================================
+  # COPYING THE FILES
+  # ==========================================================
   merge-artifacts:
     name: Merge Artifacts
     runs-on: ubuntu-latest
@@ -171,11 +245,51 @@ jobs:
           path: artifacts/
           merge-multiple: true
 
-      - name: Debug Artifacts Content
+
+      # ------------------------------------------------------
+      # Install tree utility
+      # ------------------------------------------------------
+      - name: Install tree
         run: |
-          echo "===== Check contents of artifacts/ ====="
-          ls -la artifacts/ || echo "Folder artifacts tidak ditemukan"
-          find artifacts -type f
+          sudo apt-get update
+          sudo apt-get install -y tree
+      
+      # ------------------------------------------------------
+      # Debug downloaded artifacts
+      # ------------------------------------------------------
+      - name: Debug Downloaded Artifacts
+        run: |
+          echo "===== CURRENT DIRECTORY ====="
+          pwd
+      
+          echo ""
+          echo "===== ROOT TREE ====="
+          tree -L 4
+      
+          echo ""
+          echo "===== ARTIFACT TREE ====="
+      
+          if [ -d "artifacts" ]; then
+            tree artifacts
+          else
+            echo "artifacts folder NOT FOUND"
+          fi
+      
+          echo ""
+          echo "===== SEARCH FOR PKL FILES ====="
+          find . -name "*.pkl"
+      
+          echo ""
+          echo "===== SEARCH FOR MODEL FILES ====="
+          find . -iname "*model*"
+      
+          echo ""
+          echo "===== SEARCH FOR ENCODER FILES ====="
+          find . -iname "*encoder*"
+      
+          echo ""
+          echo "===== SEARCH FOR ALL PARQUET ====="
+          find . -name "*.parquet"
 
       - name: Set MLflow Tracking URI (if needed)
         run: |

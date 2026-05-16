@@ -45,7 +45,7 @@ def Inference_DataSplit(data     : pd.DataFrame,
             .to_numpy(dtype = np.int32))
     return X, y, group
 
-def load_encoders(encoder_path: Optional[Path] = None) -> LabelEncoderManager:
+def load_encoders(encoder_path: Optional[Path] = './') -> LabelEncoderManager:
     '''To make LabelEncoderManager with loaded encoders'''
     manager = LabelEncoderManager()
     manager.load(encoder_path)

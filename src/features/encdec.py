@@ -190,9 +190,9 @@ class LabelEncoderManager(object):
         logger.debug(f"Encoder JSON saved to: {json_path}")
 
 
-    def load(self, path: Optional[Path] = None) -> None:
+    def load(self, path: Optional[Path] = './') -> None:
         """Loads the most recent encoder file if path is not provided."""
-        if path is None:
+        if not Path(path).is_file():
             path = latest_found(
                         dir       = str(LocDir.parents[2]), 
                         keyword   = 'encode', 
