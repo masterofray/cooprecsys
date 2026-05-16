@@ -104,30 +104,16 @@ jobs:
           find artifacts || true
 
       # ------------------------------------------------------
-      # Upload MLflow outputs
+      # Upload Full Artifacts Directory
       # ------------------------------------------------------
-      - name: Upload MLflow Artifacts
+      - name: Upload Full Artifacts
         if: always()
-
         uses: actions/upload-artifact@v4
-
         with:
-          name: mlflow-runs
-          path: mlruns/
-          retention-days: 7
-          if-no-files-found: warn
-
-      # ------------------------------------------------------
-      # Upload HTML reports
-      # ------------------------------------------------------
-      - name: Upload HTML Report
-        if: always()
-
-        uses: actions/upload-artifact@v4
-
-        with:
-          name: ltr-evaluation-report
-          path: artifacts/reports/*.html
+          name: full-artifacts
+          path: |
+            artifacts/
+            mlruns/
           retention-days: 7
           if-no-files-found: warn
 
@@ -138,42 +124,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y tree
-      
-      # ------------------------------------------------------
-      # Debug current workspace
-      # ------------------------------------------------------
-      - name: Debug Workspace
-        run: |
-          echo "===== CURRENT DIRECTORY ====="
-          pwd
-      
-          echo ""
-          echo "===== ROOT FILES ====="
-          ls -lah
-      
-      # ------------------------------------------------------
-      # Debug repository structure
-      # ------------------------------------------------------
-      - name: Debug Repository Tree
-        run: |
-          echo "===== REPOSITORY TREE ====="
-          tree -L 6
-      
-      # ------------------------------------------------------
-      # Debug test folder
-      # ------------------------------------------------------
-      - name: Debug Test Folder
-        run: |
-          echo "===== TEST TREE ====="
-          tree test || true
-      
-      # ------------------------------------------------------
-      # Debug src folder
-      # ------------------------------------------------------
-      - name: Debug SRC Folder
-        run: |
-          echo "===== SRC TREE ====="
-          tree src || true
       
       # ------------------------------------------------------
       # Debug artifact folder
@@ -188,19 +138,6 @@ jobs:
             echo "artifacts folder NOT FOUND"
           fi
       
-      # ------------------------------------------------------
-      # Debug mlruns folder
-      # ------------------------------------------------------
-      - name: Debug MLruns Folder
-        run: |
-          echo "===== MLRUNS TREE ====="
-      
-          if [ -d "mlruns" ]; then
-            tree mlruns
-          else
-            echo "mlruns folder NOT FOUND"
-          fi
-
 
   # ==========================================================
   # COPYING THE FILES
@@ -209,12 +146,61 @@ jobs:
     name: Merge Artifacts
     runs-on: ubuntu-latest
     needs: smoke-ltr
+
     steps:
+  
+      # ------------------------------------------------------
+      # Install tree utility
+      # ------------------------------------------------------
+      - name: Install tree
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tree
+  
+      # ------------------------------------------------------
+      # Merge uploaded artifacts
+      # ------------------------------------------------------
       - name: Merge All Artifacts
         uses: actions/upload-artifact/merge@v4
+  
         with:
           name: all-artifacts
-          pattern: '*'
+          pattern: full-artifacts
+          separate-directories: false
+  
+      # ------------------------------------------------------
+      # Download merged artifacts for verification
+      # ------------------------------------------------------
+      - name: Download Merged Artifact
+        uses: actions/download-artifact@v4
+  
+        with:
+          name: all-artifacts
+          path: merged-debug/
+  
+      # ------------------------------------------------------
+      # Debug merged contents
+      # ------------------------------------------------------
+      - name: Debug Merged Artifact Tree
+        run: |
+          echo "===== MERGED TREE ====="
+          tree merged-debug
+  
+          echo ""
+          echo "===== SEARCH ENCODER ====="
+          find merged-debug -iname "*encoder*"
+  
+          echo ""
+          echo "===== SEARCH MODEL ====="
+          find merged-debug -iname "*model*"
+  
+          echo ""
+          echo "===== SEARCH CLOUDPICKLE ====="
+          find merged-debug -name "*.cloudpickle"
+  
+          echo ""
+          echo "===== SEARCH PARQUET ====="
+          find merged-debug -name "*.parquet"
 
 
   # ==========================================================
@@ -242,7 +228,8 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts/
+          name: all-artifacts
+          path: .
           merge-multiple: true
 
 
@@ -264,7 +251,7 @@ jobs:
       
           echo ""
           echo "===== ROOT TREE ====="
-          tree -L 4
+          tree -L 5
       
           echo ""
           echo "===== ARTIFACT TREE ====="
