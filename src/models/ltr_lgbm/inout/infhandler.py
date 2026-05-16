@@ -20,12 +20,10 @@ from tqdm.auto import tqdm
 from collections import defaultdict
 from typing import Dict, List, Optional
 
+from .infsupport import (_CustomerCfg, ContentBasedStrategy, FallbackContext,
+                         HybridStrategy, CollaborativeStrategy)
 
 LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[0]))
-from infsupport import (_CustomerCfg, ContentBasedStrategy, FallbackContext,
-                        HybridStrategy, CollaborativeStrategy)
-
 sys.path.append(str(LocDir.parents[3]))
 from configs import logger, _cfg
 

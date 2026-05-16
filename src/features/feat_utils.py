@@ -135,7 +135,7 @@ def TrueString(data: pd.DataFrame,
     result = list()
     n = len(data)
     for item in tqdm(string_cols, 
-                 desc        = 'Detect columns',
+                 desc        = 'Check TRUE String',
                  colour      = _cfg.get('tqdm', 'colour'),
                  ncols       = _cfg.getint('tqdm', 'ncols'),
                  bar_format  = _cfg.get('tqdm', 'BarFormats'),

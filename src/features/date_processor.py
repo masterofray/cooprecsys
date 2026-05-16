@@ -148,7 +148,7 @@ class DateProcessor(object):
         unix_cols     : List[str] = list()
         Column = self.data.select_dtypes(include = ['object', 'string']).columns.tolist()
         for item in tqdm(Column,
-                         desc        = 'Detect columns',
+                         desc        = 'Detect Date Attribute',
                          colour      = _cfg.get('tqdm', 'colour'),
                          ncols       = _cfg.getint('tqdm', 'ncols'),
                          bar_format  = _cfg.get('tqdm', 'BarFormats'),

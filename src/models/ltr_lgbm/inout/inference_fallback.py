@@ -33,14 +33,13 @@ from sklearn.preprocessing import StandardScaler
 from typing import (Optional, List, Dict, Any, Callable, 
                     Union, Tuple)
 
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parent))
-from infhandler import Process_Customer
-from infcore    import LTRModelInference
-from infsupport import (Joblibar, _CustomerCfg, ANNIndex, 
-                        ContentBasedStrategy, PopularityStrategy, 
-                        HybridStrategy, CollaborativeStrategy)
+from .infhandler import Process_Customer
+from .infcore    import LTRModelInference
+from .infsupport import (Joblibar, _CustomerCfg, ANNIndex, 
+                         ContentBasedStrategy, PopularityStrategy, 
+                         HybridStrategy, CollaborativeStrategy)
 
+LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[3]))
 from db         import DuckDBManager
 from configs    import logger, _cfg, FallbackConfig

@@ -8,7 +8,7 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-05-13"
+__created__    = "2026-05-16"
 
 import sys
 import pandas as pd
@@ -17,15 +17,14 @@ from pathlib  import Path
 from copy     import deepcopy
 from datetime import datetime
 from typing   import List, Tuple
+from .inout   import AdaptiveFallbackRanker, LTRModelInference
 
-LocDir = Path(__file__).resolve().parents[2] / 'src'
+LocDir = Path(__file__).resolve().parents[2]
 sys.path.append(str(LocDir))
-
 from prepare  import latest_found
 from configs  import LTRConfig, logger, FallbackConfig, _cfg
 from features import (LabelEncoderManager, load_data, TrueString,
                       DateProcessor, Inference_DataSplit, DataProcessor)
-from models.ltr_lgbm import AdaptiveFallbackRanker, LTRModelInference
 
 
 def LoadEncode(Data           : pd.DataFrame,
@@ -152,17 +151,5 @@ def InferenceTest(Datapath  : Path,
     logger.debug(OutFinal.sample(4))
     return OutFinal
 
-
 if __name__ == '__main__':
-    Args      = {'Datapath'  : LocDir.parents[0]/'data'/'sampledata.parquet',
-                 'configpath': LocDir/'configs'/'configuration.ini',
-                 'QueryID'   : 'CustomerID',
-                 'LabelID'   : 'CategoryID',
-                 'FilterDF'  : ['CustomerID', 'ProductName', 'Class', 
-                                'Resistant', 'IsAllergic', 'ProductPrice', 
-                                'Quantity', 'Discount','TotalPrice', 
-                                'relevance_score', 'rank', 'is_fallback'],
-                 'odir'      : LocDir.parent/'artifacts'}
-    TheResult = InferenceTest(**Args)
-    print(TheResult.head())
-    
+    pass
