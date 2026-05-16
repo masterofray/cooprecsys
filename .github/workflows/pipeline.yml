@@ -90,20 +90,6 @@ jobs:
           echo "===== TEST FINISHED ====="
 
       # ------------------------------------------------------
-      # Debug generated outputs
-      # ------------------------------------------------------
-      - name: Debug Generated Files
-        if: always()
-
-        run: |
-          echo "===== MLFLOW FILES ====="
-          find mlruns || true
-
-          echo ""
-          echo "===== ARTIFACT FILES ====="
-          find artifacts || true
-
-      # ------------------------------------------------------
       # Upload Full Artifacts Directory
       # ------------------------------------------------------
       - name: Upload Full Artifacts
