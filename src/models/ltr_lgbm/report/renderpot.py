@@ -34,12 +34,24 @@ from jinja2   import (Environment, FileSystemLoader,
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[3]))
 from configs import logger, _cfg
+from prepare import latest_found, FileCopier
 
 rpath        = _cfg.get('PATHS', 'html_report_path')
 TEMPLATE_DIR = LocDir.parent / "templates"
 STATIC_DIR   = LocDir.parent / "static"
 OUTPUT_DIR   = (LocDir.parents[4] / rpath).parents[0]
 DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
+
+
+def runcopy() -> None:
+    cssfile = STATIC_DIR/'css'/'navy_pro.css'
+    jspath  = STATIC_DIR/'js'/'dashboard.js'
+    logo    = STATIC_DIR/'compute01.png'
+    files   = [cssfile, jspath, logo]
+    dest    = OUTPUT_DIR/'assets'
+    for item in files:
+        _ = FileCopier(Scrpath = item, 
+                       Destdir = dest)
 
 
 # JINJA ENVIRONMENT
@@ -297,6 +309,8 @@ def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             normalized.append({
                 "title": chart.get("title", "Untitled Chart"),
                 "image": chart.get("image"),
+                "type" : chart.get("type"),
+                "data" : chart.get("data"),
                 "full" : "importance" in chart.get("title", "").lower()})
         logger.info("Normalized %d charts.", len(normalized))
         return normalized
@@ -311,7 +325,16 @@ def build_context(json_path: str | Path) -> Dict[str, Any]:
     """Build full dashboard rendering context."""
     logger.debug("Entering build_context().")
     try:
-        context = load_context(json_path)
+        if Path(json_path).exists():
+            context = load_context(json_path)
+        else:
+            json_path = latest_found(dir  = LocDir.parents[4],
+                                keyword   = 'Recsys',
+                                recursive = True,
+                                Not4Json  = False)
+            context   = load_context(json_path)
+        logger.info(f'The path is {str(json_path)}.')
+        
         metrics = context.get("metrics", dict())
         logger.debug("Metrics count = %d", len(metrics))
         prediction_df             = load_prediction_dataframe(context)
@@ -351,10 +374,22 @@ def build_context(json_path: str | Path) -> Dict[str, Any]:
 
 # HTML RENDERER
 #__________________________________________________________
+import ipdb
 def render_report(context: Dict[str, Any], output_path: str | Path) -> str:
     """Render dashboard HTML."""
     logger.debug("Entering render_report().")
     try:
+        #charts = context['charts']
+        #logger.debug(f"charts type: {type(charts)}")
+        #logger.debug(f"charts value: {charts}")
+        #
+        #for i, c in enumerate(charts):
+        #    logger.debug(f"chart[{i}] type: {type(c)}")
+        #    logger.debug(f"chart[{i}] value: {c}")
+        #
+        #ipdb.set_trace()
+        
+        
         env = get_env()
         logger.debug("Loading template=base.html.j2")
         template = env.get_template("base.html.j2")
@@ -387,11 +422,12 @@ def repot() -> str:
         output_path = OUTPUT_DIR / "report.html"
         logger.debug("Output HTML path=%s", output_path)
         context = build_context(DEFAULT_CONTEXT_PATH)
-        html = render_report(context=context, output_path=output_path)
+        html = render_report(context = context, output_path = output_path)
         logger.debug("Writing rendered HTML to disk.")
         with open(output_path, "w", encoding="utf-8") as f:
             f.write(html)
 
+        runcopy()
         logger.info("Dashboard generated successfully.")
         logger.info("Dashboard path   = %s", output_path)
         logger.info("Total rankings   = %d", context.get("total_rankings", 0))
@@ -404,4 +440,4 @@ def repot() -> str:
 
 
 if __name__ == "__main__":
-    main()
+    repot()

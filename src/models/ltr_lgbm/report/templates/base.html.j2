@@ -4,15 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ page_title }}</title>
-<link rel="stylesheet" href="{{ static_css }}/navy_pro.css">
+<link rel="stylesheet" href="./assets/navy_pro.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
 </head>
 <body>
 
 <!-- ── Sidebar ── -->
 <nav class="sidebar">
     <div class="sidebar-logo">
-        <img src="{{ static_img }}/compute01.png" alt="LTR">
+        <img src="./assets/compute01.png" alt="LTR">
     </div>
 
     <div class="sidebar-nav">
@@ -207,15 +208,162 @@
     <!-- ═══ PAGE: DIAGNOSTICS ═══ -->
     <div id="page-diagnostics" class="page-content">
         <div class="section">
-            <div class="section-title"><i class="fas fa-chart-line"></i> Visual Diagnostics</div>
+            <div class="section-title">
+                <i class="fas fa-chart-line"></i>
+                Visual Diagnostics
+            </div>
             <div class="cards-row-3">
                 {% for c in charts %}
-                <div class="chart-panel {% if c.full %}full{% endif %}" style="{% if c.full %}grid-column:1/-1;{% endif %}">
-                    <h3 style="font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">{{ c.title }}</h3>
-                    {% if c.image %}
-                        <img src="data:image/png;base64,{{ c.image }}" alt="{{ c.title }}" style="width:100%;border-radius:var(--radius);display:block;">
+                <div class="chart-panel {% if c['type'] == 'heatmap_plotly' %}full{% endif %}">
+                    <h3 style="font-size:0.9rem; font-weight:600; color:var(--text-secondary); margin-bottom:12px;">
+                        {{ c['title'] }}
+                    </h3>
+                    {% if c['type'] == 'heatmap_plotly' %}
+                    <div class="plotly-wrapper">
+                        <div id="plotly-{{ loop.index0 }}" class="plotly-chart"></div>
+                    </div>
+                    <script>
+                    (function () {
+                        try {
+                            const divId = "plotly-{{ loop.index0 }}";
+                            const chartEl = document.getElementById(divId);
+                            if (typeof Plotly === "undefined") {
+                                chartEl.innerHTML = '<p style="color:red;">Plotly gagal dimuat</p>';
+                                return;
+                            }
+                            /* ================================
+                               DATA FROM JINJA2
+                            ================================ */
+                            const zData = {{ c['data']['z'] | tojson }};
+                            const rawX = {{ c['data']['x'] | tojson }};
+                            const rawY = {{ c['data']['y'] | tojson }};
+                            if (!Array.isArray(zData) || zData.length === 0) {
+                                chartEl.innerHTML = '<p style="color:red;">Correlation matrix kosong</p>';
+                                return;
+                            }
+                            /* ================================
+                               RESPONSIVE FLAGS
+                            ================================ */
+                            const isMobile = window.innerWidth < 768;
+                            const isTablet = window.innerWidth < 1200;
+                            /* ================================
+                               SHORT LABELS
+                            ================================ */
+                            function shortenLabel(label, maxLength = isMobile ? 12 : 24) {
+                                if (!label) return "";
+                                if (label.length <= maxLength) return label;
+                                return label.slice(0, maxLength) + "...";
+                            }
+                            const xLabels = rawX.map(v => shortenLabel(v));
+                            const yLabels = rawY.map(v => shortenLabel(v));
+                            /* ================================
+                               DYNAMIC HEIGHT
+                            ================================ */
+                            function calculateHeatmapHeight() {
+                                /*
+                                    actual rendered width
+                                */
+                                const width = chartEl.parentElement.offsetWidth;
+                                /*
+                                    ideal square-ish ratio
+                                */
+                                let height = width * 1.28;
+                                /*
+                                    prevent absurd sizes
+                                */
+                                if (isMobile) {
+                                    height = Math.max(height, 520);
+                                    height = Math.min(height, 850);
+                                } else if (isTablet) {
+                                    height = Math.max(height, 820);
+                                    height = Math.min(height, 1200);
+                                } else {
+                                    height = Math.max(height, 950);
+                                    height = Math.min(height, 1450);
+                                }
+                                return Math.round(height);
+                            }
+                            /* ================================
+                               TRACE
+                            ================================ */
+                            const trace = {
+                                type: "heatmap",
+                                z: zData,
+                                x: xLabels,
+                                y: yLabels,
+                                colorscale: "RdBu",
+                                zmid: 0,
+                                xgap: 1,
+                                ygap: 1,
+                                hovertemplate: "<b>%{x}</b><br><b>%{y}</b><br>Correlation: %{z:.3f}<extra></extra>",
+                                colorbar: {
+                                    thickness: isMobile ? 14 : 22,
+                                    outlinewidth: 0,
+                                    tickfont: { color: "#dbeafe", size: isMobile ? 11 : 14 }
+                                }
+                            };
+                            /* ================================
+                               LAYOUT
+                            ================================ */
+                            const featureCount = xLabels.length;
+
+                            /* Dynamic bottom margin */
+                            const dynamicBottomMargin = Math.min(
+                                Math.max(featureCount * 7,
+                                    isMobile ? 140 : 220), 420);
+
+                            /* Dynamic left margin */
+                            const dynamicLeftMargin = Math.min(
+                                Math.max(featureCount * 5, 
+                                isMobile ? 100 : 180), 320);
+                            
+                            const layout = {
+                                autosize: true,
+                                height: calculateHeatmapHeight(),
+                                paper_bgcolor: "rgba(0,0,0,0)",
+                                plot_bgcolor: "rgba(0,0,0,0)",
+                                font: { family: "Inter, sans-serif", color: "#dbeafe", size: isMobile ? 18 : 30 },
+                                title: { text: "{{ c['title'] }}", x: 0.5, xanchor: "center", font: { size: isMobile ? 16 : 22, color: "#f8fafc" } },
+                                margin: {l: dynamicLeftMargin, r: isMobile ? 30 : 60, t: isMobile ? 80 : 110, b: dynamicBottomMargin, pad: 8},
+                                xaxis: { automargin: true, tickangle: -35, tickmode: "array", side: "bottom", tickfont: { size: isMobile ? 10 : 15, color: "#cbd5e1" }, gridcolor: "rgba(255,255,255,0.08)", zeroline: false },
+                                yaxis: {automargin: true, tickangle: -35, tickfont: {size: isMobile ? 10 : 15, color: "#cbd5e1"
+                                       }, gridcolor: "rgba(255,255,255,0.08)", zeroline: false}
+                            };
+                            /* ================================
+                               CONFIG
+                            ================================ */
+                            const config = { responsive: true, displayModeBar: false, scrollZoom: false, displaylogo: false };
+                            /* ================================
+                               INITIAL RENDER
+                            ================================ */
+                            Plotly.newPlot(divId, [trace], layout, config);
+                            /* ================================
+                               TRUE RESPONSIVE RESIZE
+                            ================================ */
+                            const resizeObserver = new ResizeObserver(() => {
+                                requestAnimationFrame(() => {
+                                    Plotly.relayout(divId, { height: calculateHeatmapHeight() });
+                                    Plotly.Plots.resize(chartEl);
+                                });
+                            });
+                            resizeObserver.observe(chartEl.parentElement);
+                        } catch (err) {
+                            console.error("Heatmap rendering error:", err);
+                            const div = document.getElementById("plotly-{{ loop.index0 }}");
+                            if (div) {
+                                div.innerHTML = '<p style="color:red;">Chart rendering gagal: ' + err.message + '</p>';
+                            }
+                        }
+                    })();
+                    </script>
+                    {% elif c['image'] and c['image']|length > 0 %}
+                        <img src="data:image/png;base64,{{ c['image'] }}"
+                             alt="{{ c['title'] }}"
+                             style="width:100%; border-radius:var(--radius); display:block;">
                     {% else %}
-                        <p style="color:var(--text-muted);">Chart unavailable.</p>
+                        <p style="color:var(--text-muted);">
+                            Chart tidak tersedia (type: {{ c['type'] | default('none') }})
+                        </p>
                     {% endif %}
                 </div>
                 {% endfor %}
@@ -246,7 +394,9 @@
                         <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
                         <tbody>
                         {% for k,v in tuner_summary.best_params.items() %}
-                        <tr><td>{{ k }}</td><td><code>{{ v }}</code></td></tr>
+                        <tr><td>{{ k }}</td><td><code>{% if v is float %}
+                            {{ "%.6f"|format(v) }}{% else %}{{ v }}
+                            {% endif %}</code></td></tr>
                         {% endfor %}
                         </tbody>
                     </table>
@@ -284,7 +434,7 @@
     </div>
 </div>
 
-<script src="{{ static_js }}/dashboard.js"></script>
+<script src="./assets/dashboard.js"></script>
 <script>
 // ── Chart.js Data Injection ──
 

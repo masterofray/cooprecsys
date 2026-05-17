@@ -235,12 +235,6 @@ body {
     gap: 16px;
 }
 
-.cards-row-3 {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 16px;
-}
-
 /* ── Scorecard ── */
 .scorecard {
     background: var(--card);
@@ -343,14 +337,6 @@ body {
     gap: 16px;
 }
 
-.chart-panel {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-lg);
-    padding: 20px;
-    position: relative;
-}
-
 .chart-panel-title {
     font-size: 0.85rem;
     font-weight: 600;
@@ -374,6 +360,67 @@ body {
 .chart-container canvas {
     width: 100% !important;
     height: 100% !important;
+}
+
+/* ============================================
+   PLOTLY RESPONSIVE DARK THEME FIX
+   ============================================ */
+
+.cards-row-3 {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(420px, 1fr));
+    gap: 20px;
+    align-items: start;
+}
+
+.chart-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px;
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+}
+
+.chart-panel.full {
+    grid-column: 1 / -1;
+}
+
+.plotly-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding-bottom: 24px;
+}
+
+.plotly-chart {
+    width: min(100%, 1400px);
+    min-height: 900px;
+    margin: 0 auto;
+    flex-shrink: 0;
+}
+
+@media (min-width: 1800px) {
+    .plotly-chart {
+        width: min(80vw, 1500px);}
+}
+
+@media (max-width: 1024px) {
+    .plotly-chart {min-height: 850px;}
+}
+
+@media (max-width: 768px) {
+    .cards-row-3 {grid-template-columns: 1fr;}
+    .chart-panel {padding: 14px;}
+    .plotly-chart {
+        width: 100%;
+        min-height: 650px;}
 }
 
 /* ── Stat Mini Cards ── */

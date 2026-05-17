@@ -155,6 +155,7 @@ class Visualizer:
         self._evals_result = evals_result
         self._X_test       = X_test
         self._metrics      = metrics
+        self._chartsdata   = list()
         self._b64_images:  Dict[str, str]  = dict()
         self._saved_paths: Dict[str, str]  = dict()
         logger.debug("Visualizer initialised.")
@@ -317,6 +318,17 @@ class Visualizer:
         )
         ax.set_title("Feature Correlation Matrix")
         self._record("feature_correlation", fig)
+        corr_matrix = corr.values.tolist()
+        corr_js     = np.nan_to_num(corr.values, nan = 0.0,
+                                    posinf = 0.0, neginf = 0.0).tolist()
+        chart_info  = {'title'  : 'Correlation Matrix',
+                       'type'   : 'heatmap_plotly',
+                       'data'   : {'z': corr_js,
+                                   'x': list(map(str, self.feature_names)),
+                                   'y': list(map(str, self.feature_names))},
+                        'image' : None,
+                        'full'  : False}
+        self._chartsdata.append(chart_info)
 
     def __call__(self) -> None:
         logger.info("Generating all visualisations.")
@@ -373,12 +385,8 @@ class Visualizer:
             ("feature_importance", "Feature Importance", False),
             ("learning_curves", "Learning Curves", False),
             ("prediction_distribution",
-             "Prediction Score Distribution",
-             False),
-            ("metrics_summary", "Metrics Summary", False),
-            ("feature_correlation",
-             "Feature Correlation Heatmap",
-             True)]
+             "Prediction Score Distribution", False),
+            ("metrics_summary", "Metrics Summary", False)]
 
         # =====================================================
         # Open the prediction data
@@ -399,7 +407,6 @@ class Visualizer:
         # =====================================================
         # Build charts safely
         # =====================================================
-        charts = list()
         try:
             logger.debug("Attempting to load charts from self._b64_images.")
             images = getattr(self, "_b64_images", None)
@@ -409,7 +416,7 @@ class Visualizer:
                 try:
                     img = images[key]
                     if img:
-                        charts.append(
+                        self._chartsdata.append(
                             {"title": title,
                              "image": img,
                              "full" : full})
@@ -420,12 +427,11 @@ class Visualizer:
                     logger.error("Chart key missing, skipped: %s",key)
         except Exception as exc:
             logger.error("Chart loading fallback activated: %s",str(exc))
-            charts = list()
             for key, title, full in chart_specs:
-                charts.append({"title": title,
-                               "image": None,
-                               "full" : full})
-        logger.debug("Final chart count prepared: %d",len(charts))
+                self._chartsdata.append({"title": title,
+                                         "image": None,
+                                         "full" : full})
+        logger.debug("Final chart count prepared: %d",len(self._chartsdata))
 
         # =====================================================
         # Build context Recsys
@@ -457,7 +463,7 @@ class Visualizer:
                                         "early_stopping_rounds",
                                         None)},
             "tuner_summary"     : tuner_summary,
-            "charts"            : charts,
+            "charts"            : self._chartsdata,
             "modelmetric"       : model_metric,
             "predictiondata"    : predictdata.to_dict(orient = 'records'),
             }

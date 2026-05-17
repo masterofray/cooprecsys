@@ -13,10 +13,25 @@ __created__    = "2026-05-10"
 
 import re
 from pathlib import Path
+from shutil import copy2
 from copy import deepcopy
 from typing import Optional
 from functools import lru_cache
 
+
+def FileCopier(Scrpath  : Path, 
+               Destdir  : Path,
+              ) -> Path:
+    srcp = Path(Scrpath)
+    dstd = Path(Destdir)
+    if not srcp.exists():
+        raise FileNotFoundError(f'File tidak ditemukan: {srcp}')
+    if not srcp.is_file():
+        raise ValueError(f"Bukan file: {srcp}")
+    dstd.mkdir(parents = True, exist_ok = True)
+    DestPath = dstd / srcp.name
+    copy2(srcp, DestPath)
+    return DestPath
 
 @lru_cache(maxsize = 128)
 def _cachedlost(str_dir   : Path, 
