@@ -44,6 +44,19 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+/* ============================================
+   GLOBAL OVERFLOW FIX
+   ============================================ */
+html,
+body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+body * {
+    min-width: 0;
+}
 html { scroll-behavior: smooth; }
 
 body {
@@ -363,16 +376,21 @@ body {
 }
 
 /* ============================================
-   PLOTLY RESPONSIVE DARK THEME FIX
+   PLOTLY RESPONSIVE DARK THEME
    ============================================ */
-
 .cards-row-3 {
     display: grid;
     grid-template-columns:
         repeat(auto-fit, minmax(420px, 1fr));
     gap: 20px;
     align-items: start;
+    width: 100%;
+    min-width: 0;
 }
+
+/* ============================================
+   CHART PANEL
+   ============================================ */
 
 .chart-panel {
     background: var(--card);
@@ -382,46 +400,102 @@ body {
     position: relative;
     width: 100%;
     min-width: 0;
+    overflow: hidden;
+}
+
+/* ============================================
+   HEATMAP SECTION
+   ============================================ */
+
+.heatmap-section {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    margin-top: 28px;
+}
+
+/* ============================================
+   HEATMAP PANEL
+   ============================================ */
+
+.heatmap-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow: visible;
 }
 
-.chart-panel.full {
-    grid-column: 1 / -1;
+/* ============================================
+   HEATMAP TITLE
+   ============================================ */
+
+.heatmap-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    text-align: center;
 }
+
+/* ============================================
+   PLOTLY WRAPPER
+   ============================================ */
 
 .plotly-wrapper {
+    position: relative;
     width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
-    overflow-y: visible;
-    padding-bottom: 24px;
+    overflow-y: hidden;
+    display: block;
+    padding-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
 }
+
+/* ============================================
+   PLOTLY CHART
+   ============================================ */
 
 .plotly-chart {
-    width: min(100%, 1400px);
-    min-height: 900px;
+    min-width: fit-content;
     margin: 0 auto;
-    flex-shrink: 0;
+    display: block;
 }
+
+/* ============================================
+   LARGE DESKTOP
+   ============================================ */
 
 @media (min-width: 1800px) {
-    .plotly-chart {
-        width: min(80vw, 1500px);}
+    .heatmap-panel {max-width: 1700px;}
 }
 
+/* ============================================
+   TABLET
+   ============================================ */
+
 @media (max-width: 1024px) {
-    .plotly-chart {min-height: 850px;}
+    .plotly-chart {min-height: 700px;}
 }
+
+/* ============================================
+   MOBILE
+   ============================================ */
 
 @media (max-width: 768px) {
     .cards-row-3 {grid-template-columns: 1fr;}
     .chart-panel {padding: 14px;}
-    .plotly-chart {
-        width: 100%;
-        min-height: 650px;}
+    .heatmap-panel {max-width: 100%;}
+    .plotly-wrapper {justify-content: flex-start;}
+    .plotly-chart {min-height: 550px;}
 }
+
+
 
 /* ── Stat Mini Cards ── */
 .stat-mini-col {
