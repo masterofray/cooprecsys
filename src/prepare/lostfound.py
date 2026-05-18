@@ -77,15 +77,17 @@ def _cachedlost(str_dir   : Path,
             return best_other[1]
         return None
     else:
-        best  = None
         paths = dir_path.rglob("*") if recursive else dir_path.iterdir()
         for path in paths:
-            if path.is_file() and (key_pattern.search(path.name) or \
-            keyword_lower in path.name):
-                if best is None or path.suffix.lower() != ".json":
-                    best = deepcopy(path)
-                    break
-        return best
+            if not path.is_file():
+                continue
+            if not (key_pattern.search(path.name) or keyword_lower in path.name):
+                continue
+            if path.suffix.lower() == ".json":
+                continue
+            return deepcopy(path)
+        return None
+
 
 def latest_found(dir       : Path, 
                  keyword   : str  = "encoder",
@@ -95,6 +97,7 @@ def latest_found(dir       : Path,
     """Wrapper function that converts Path to string for caching"""
     filepath = _cachedlost(dir, keyword, recursive, Not4Json)
     return Path(filepath) if filepath else str()
+
 
 if __name__ == '__main__':
     test = Path.cwd().resolve().parents[2]
