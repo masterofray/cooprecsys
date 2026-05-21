@@ -45,9 +45,11 @@ DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
 def runcopy() -> None:
     cssfile = STATIC_DIR/'css'/'navy_pro.css'
-    jspath  = STATIC_DIR/'js'/'dashboard.js'
+    jsp1    = STATIC_DIR/'js'/'dashboard.js'
+    jsp2    = STATIC_DIR/'js'/'heatmaps.js'
+    jsp3    = STATIC_DIR/'js'/'unchange_js.zip'
     logo    = STATIC_DIR/'compute01.png'
-    files   = [cssfile, jspath, logo]
+    files   = [cssfile, jsp1, jsp2, jsp3, logo]
     dest    = OUTPUT_DIR/'assets'
     for item in files:
         _ = FileCopier(Scrpath = item, 
@@ -374,22 +376,10 @@ def build_context(json_path: str | Path) -> Dict[str, Any]:
 
 # HTML RENDERER
 #__________________________________________________________
-import ipdb
 def render_report(context: Dict[str, Any], output_path: str | Path) -> str:
     """Render dashboard HTML."""
     logger.debug("Entering render_report().")
     try:
-        #charts = context['charts']
-        #logger.debug(f"charts type: {type(charts)}")
-        #logger.debug(f"charts value: {charts}")
-        #
-        #for i, c in enumerate(charts):
-        #    logger.debug(f"chart[{i}] type: {type(c)}")
-        #    logger.debug(f"chart[{i}] value: {c}")
-        #
-        #ipdb.set_trace()
-        
-        
         env = get_env()
         logger.debug("Loading template=base.html.j2")
         template = env.get_template("base.html.j2")
@@ -419,13 +409,14 @@ def repot() -> str:
     try:
         OUTPUT_DIR.mkdir(exist_ok = True, parents = True)
         logger.debug("Output directory ensured=%s", OUTPUT_DIR)
-        output_path = OUTPUT_DIR / "report.html"
-        logger.debug("Output HTML path=%s", output_path)
-        context = build_context(DEFAULT_CONTEXT_PATH)
-        html = render_report(context = context, output_path = output_path)
+        datepf      = datetime.now().strftime("%Y%m%d")
+        output_path = OUTPUT_DIR / f"{datepf}_training_report.html"
+        context     = build_context(DEFAULT_CONTEXT_PATH)
+        html        = render_report(context = context, output_path = output_path)
         logger.debug("Writing rendered HTML to disk.")
-        with open(output_path, "w", encoding="utf-8") as f:
+        with output_path.open("w", encoding="utf-8") as f:
             f.write(html)
+        logger.debug("Output HTML path=%s .\n\n", output_path)
 
         runcopy()
         logger.info("Dashboard generated successfully.")

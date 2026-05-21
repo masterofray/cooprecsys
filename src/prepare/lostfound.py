@@ -18,6 +18,7 @@ from copy import deepcopy
 from typing import Optional
 from functools import lru_cache
 
+from .unzips import Unzip
 
 def FileCopier(Scrpath  : Path, 
                Destdir  : Path,
@@ -31,6 +32,8 @@ def FileCopier(Scrpath  : Path,
     dstd.mkdir(parents = True, exist_ok = True)
     DestPath = dstd / srcp.name
     copy2(srcp, DestPath)
+    if DestPath.ext == '.zip':
+        Unzip()
     return DestPath
 
 @lru_cache(maxsize = 128)

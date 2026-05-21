@@ -4,6 +4,9 @@ at 20251225
 email me : aryanto.dandan@gmail.com
 '''
 
+import os
+import zipfile
+
 def Unzip(Zips       : str,
           password   : str = None,
           DirExtract : str = '.',
@@ -38,3 +41,6 @@ def Unzip(Zips       : str,
 
     finally:
         return Hasil
+        
+if __name__ == '__main__':
+    pass

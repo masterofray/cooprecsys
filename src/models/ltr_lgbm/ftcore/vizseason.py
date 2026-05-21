@@ -196,10 +196,11 @@ class Visualizer:
         logger.debug("Plotting feature importance (type=%s, top_n=%d).",
                      importance_type, top_n)
         imp      = self._model.feature_importance(importance_type = importance_type)
-        names    = self._model.feature_name()
-        dataplot = (pd.DataFrame({"Feature": names, "Importance": imp})
-                   .sort_values("Importance", ascending=False)
-                   .head(top_n))
+        names    = self.feature_names #self._model.feature_name()
+        dataplot = pd.DataFrame({"Feature": names, "Importance": imp})\
+                   .sort_values("Importance", ascending = False)\
+                   .head(top_n)
+        #set_trace()
         fig, ax  = plt.subplots(figsize=(11, max(5, top_n * 0.35)))
         sns.barplot(
             data    = dataplot,
@@ -212,7 +213,17 @@ class Visualizer:
         ax.set_title(f"Feature Importance — {importance_type.capitalize()} (Top {top_n})")
         ax.set_xlabel(f"Importance ({importance_type})")
         ax.set_ylabel("")
-        self._record("feature_importance", fig)
+        
+        datapltlist = np.nan_to_num(dataplot["Importance"], nan = 0.0,
+                                    posinf = 0.0, neginf = 0.0).tolist()
+        chart_info  = {'title'   : f'Feature Importance ({importance_type})',
+                       'type'    : 'bar_chart_js',
+                       'data'    : {'labels': dataplot["Feature"].tolist(),
+                                    'values': datapltlist},
+                       'image'   : None,
+                       'full'    : False}
+        self._chartsdata.append(chart_info)
+        #self._record("feature_importance", fig)
 
 
     def plot_prediction_distribution(self) -> None:
@@ -318,7 +329,6 @@ class Visualizer:
         )
         ax.set_title("Feature Correlation Matrix")
         self._record("feature_correlation", fig)
-        corr_matrix = corr.values.tolist()
         corr_js     = np.nan_to_num(corr.values, nan = 0.0,
                                     posinf = 0.0, neginf = 0.0).tolist()
         chart_info  = {'title'  : 'Correlation Matrix',
@@ -418,6 +428,7 @@ class Visualizer:
                     if img:
                         self._chartsdata.append(
                             {"title": title,
+                             'type' : image_chart,
                              "image": img,
                              "full" : full})
                         logger.debug("Chart loaded: %s",key)

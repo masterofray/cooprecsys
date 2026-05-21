@@ -378,6 +378,13 @@ body {
 /* ============================================
    PLOTLY RESPONSIVE DARK THEME
    ============================================ */
+.chartjs-wrapper {
+  position: relative;
+  width: 100%;
+  height: 700px;
+  min-height: 700px;
+}
+
 .cards-row-3 {
     display: grid;
     grid-template-columns:
