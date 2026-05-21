@@ -43,14 +43,15 @@ OUTPUT_DIR   = (LocDir.parents[4] / rpath).parents[0]
 DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
 
-def runcopy() -> None:
-    cssfile = STATIC_DIR/'css'/'navy_pro.css'
-    jsp1    = STATIC_DIR/'js'/'dashboard.js'
-    jsp2    = STATIC_DIR/'js'/'heatmaps.js'
-    jsp3    = STATIC_DIR/'js'/'unchange_js.zip'
-    logo    = STATIC_DIR/'compute01.png'
-    files   = [cssfile, jsp1, jsp2, jsp3, logo]
-    dest    = OUTPUT_DIR/'assets'
+def runcopy(dest : Path = None) -> None:
+    files = [STATIC_DIR / 'compute01.png']
+    css_dir = STATIC_DIR / 'css'
+    if css_dir.exists():
+        files.extend([item for item in css_dir.glob('*') if item.is_file()])
+    js_dir = STATIC_DIR / 'js'
+    if js_dir.exists():
+        files.extend([item for item in js_dir.glob('*') if item.is_file()])
+    dest = OUTPUT_DIR / 'assets' if dest is None else Path(dest).resolve()
     for item in files:
         _ = FileCopier(Scrpath = item, 
                        Destdir = dest)

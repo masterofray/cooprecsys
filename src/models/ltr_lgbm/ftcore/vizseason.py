@@ -210,16 +210,17 @@ class Visualizer:
             palette = "Blues_r",
             legend  = False,
             ax      = ax)
-        ax.set_title(f"Feature Importance — {importance_type.capitalize()} (Top {top_n})")
+        ax.set_title(f"Feature Importance - {importance_type.capitalize()} (Top {top_n})")
         ax.set_xlabel(f"Importance ({importance_type})")
         ax.set_ylabel("")
         
+        topIM       = _cfg.getint('FEATURES', 'top_importances')
         datapltlist = np.nan_to_num(dataplot["Importance"], nan = 0.0,
                                     posinf = 0.0, neginf = 0.0).tolist()
-        chart_info  = {'title'   : f'Feature Importance ({importance_type})',
+        chart_info  = {'title'   : f'Top {topIM} of Feature Importance by {importance_type.upper()}',
                        'type'    : 'bar_chart_js',
-                       'data'    : {'labels': dataplot["Feature"].tolist(),
-                                    'values': datapltlist},
+                       'data'    : {'labels': dataplot["Feature"].tolist()[:topIM],
+                                    'values': datapltlist[:topIM]},
                        'image'   : None,
                        'full'    : False}
         self._chartsdata.append(chart_info)

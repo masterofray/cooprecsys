@@ -1,10 +1,10 @@
 /* ============================================
    LTR Dashboard - Navy Pro Theme
-   Matches dasboard_template.jpg layout
+   Optimized for expanded bar chart width & height
    ============================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css');
+@import url('./fontawesome_6.5.1_all.css');
 
 :root {
     --bg-deep: #060e1a;
@@ -44,6 +44,7 @@
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+
 /* ============================================
    GLOBAL OVERFLOW FIX
    ============================================ */
@@ -376,13 +377,16 @@ body {
 }
 
 /* ============================================
-   PLOTLY RESPONSIVE DARK THEME
+   CHART.JS WRAPPER CONFIGURATION
    ============================================ */
 .chartjs-wrapper {
   position: relative;
-  width: 100%;
-  height: 700px;
-  min-height: 700px;
+  width: 90%;               /* DIUBAH: Diperlebar dari 70% ke 90% sesuai tanda garis hijau */
+  max-width: 1600px;        /* Dioptimalkan agar seimbang di monitor lebar */
+  margin: 0 auto;           /* Menjaga keseimbangan posisi kanan-kiri chart di dalam frame */
+  height: 880px;            /* DIUBAH: Ditingkatkan ~25% dari 700px asli agar jarak vertikal label longgar */
+  min-height: 880px;
+  transition: var(--transition);
 }
 
 .cards-row-3 {
@@ -396,16 +400,15 @@ body {
 }
 
 /* ============================================
-   CHART PANEL
+   CHART PANEL (FRAME BELAKANG)
    ============================================ */
-
 .chart-panel {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 18px;
-    padding: 20px;
+    padding: 24px;            /* Sedikit disesuaikan untuk whitespace ideal */
     position: relative;
-    width: 100%;
+    width: 100%;              /* DIUBAH: Memastikan frame luar sebesar kotak merah (full width) */
     min-width: 0;
     overflow: hidden;
 }
@@ -483,26 +486,31 @@ body {
 }
 
 /* ============================================
-   TABLET
+   TABLET RESPONSIVE REVERT
    ============================================ */
-
-@media (max-width: 1024px) {
-    .plotly-chart {min-height: 700px;}
+@media (max-width: 1120px) {
+    .chartjs-wrapper { 
+        width: 100%; 
+        height: 750px;
+        min-height: 750px;
+    }
 }
 
 /* ============================================
-   MOBILE
+   MOBILE RESPONSIVE REVERT
    ============================================ */
-
 @media (max-width: 768px) {
     .cards-row-3 {grid-template-columns: 1fr;}
     .chart-panel {padding: 14px;}
     .heatmap-panel {max-width: 100%;}
     .plotly-wrapper {justify-content: flex-start;}
     .plotly-chart {min-height: 550px;}
+    .chartjs-wrapper { 
+        width: 100%; 
+        height: 600px; 
+        min-height: 600px; 
+    }
 }
-
-
 
 /* ── Stat Mini Cards ── */
 .stat-mini-col {

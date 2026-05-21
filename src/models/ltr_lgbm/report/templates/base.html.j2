@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ page_title }}</title>
-<link rel="stylesheet" href="./assets/navy_pro.css">
+<link rel="stylesheet" href="./assets/reportbreak.css">
 <script src="./assets/chart.4.5.1.min.js"></script>
 <script src="./assets/plotly-2.35.2.min.js"></script>
 </head>
@@ -231,240 +231,49 @@
             {% endif %}
             {% endfor %}
           </div>
+
           {% for c in charts %}
+
+            <!-- Correlation heatmap plot -->
             {% if c['type'] == 'heatmap_plotly' %}
-              <div class="heatmap-section">
-              <div class="chart-panel heatmap-panel">
-                <h3 class="heatmap-title">
+              <div class  = "heatmap-section">
+              <div class  = "chart-panel heatmap-panel">
+                <h3 class = "heatmap-title">
                   {{ c['title'] }}
                 </h3>
-                <div class="plotly-wrapper">
-                  <!-- Kita tambahkan class penanda 'js-heatmap-render' dan mengalirkan data lewat atribut data-* -->
+                <div class = "plotly-wrapper">
+                  <!-- class penanda 'js-heatmap-render' dan dataflow bypass data atribute-* -->
                   <div 
-                    id="plotly-{{ loop.index0 }}" 
-                    class="plotly-chart js-heatmap-render"
-                    data-title="{{ c['title'] }}"
-                    data-z="{{ c['data']['z'] | tojson | forceescape }}"
-                    data-x="{{ c['data']['x'] | tojson | forceescape }}"
-                    data-y="{{ c['data']['y'] | tojson | forceescape }}">
+                    id         = "plotly-{{ loop.index0 }}" 
+                    class      = "plotly-chart js-heatmap-render"
+                    data-title = "{{ c['title'] }}"
+                    data-z     = "{{ c['data']['z'] | tojson | forceescape }}"
+                    data-x     = "{{ c['data']['x'] | tojson | forceescape }}"
+                    data-y     = "{{ c['data']['y'] | tojson | forceescape }}">
                   </div>
-                </div>
-              </div>
-              </div>
-              <script src="./assets/heatmaps.js"></script>
+                </div></div></div>
+              <script src = "./assets/heatmaps.js"></script>
             
+          <!-- Feature Importance part -->
           {% elif c['type'] == 'bar_chart_js' %}
-            <div class="chart-panel">
-
-              <h3 class="chart-title">
+            <div class  = "chart-panel">
+              <h3 class = "chart-title">
                 {{ c['title'] }}
               </h3>
-
               <div class="chartjs-wrapper">
-                <canvas id="chartjs-{{ loop.index0 }}"></canvas>
+                <!-- 
+                  Data disuntikkan di sini menggunakan atribut data-* 
+                  Gunakan |tojson|forceescape agar format JSON aman saat masuk ke atribut HTML
+                -->
+                <canvas 
+                  class       = "js-bar-chart" 
+                  id          = "chartjs-{{ loop.index0 }}"
+                  data-labels = "{{ c['data']['labels'] | tojson | forceescape }}"
+                  data-values = "{{ c['data']['values'] | tojson | forceescape }}">
+                </canvas>
               </div>
-
             </div>
-
-            <script>
-            (function () {
-
-              function renderBarChart() {
-
-                const canvasId = "chartjs-{{ loop.index0 }}";
-                const canvas = document.getElementById(canvasId);
-
-                if (!canvas) {
-                  console.error("Canvas not found:", canvasId);
-                  return;
-                }
-
-                if (typeof Chart === "undefined") {
-                  console.error("Chart.js not loaded");
-                  return;
-                }
-
-                try {
-
-                  // =========================
-                  // RAW DATA
-                  // =========================
-
-                  const rawLabels =
-                    {{ c['data']['labels'] | tojson }};
-
-                  const rawValues =
-                    {{ c['data']['values'] | tojson }};
-
-                  // =========================
-                  // NORMALIZE VALUES
-                  // =========================
-
-                  let labels = [];
-                  let values = [];
-
-                  // CASE:
-                  // values = [[label,val], [label,val]]
-
-                  if (
-                    Array.isArray(rawValues) &&
-                    rawValues.length > 0 &&
-                    Array.isArray(rawValues[0])
-                  ) {
-
-                    labels = rawValues.map(v => v[0]);
-
-                    values = rawValues.map(v => {
-                      const num = Number(v[1]);
-                      return isNaN(num) ? 0 : num;
-                    });
-
-                  }
-
-                  // CASE:
-                  // values = [1,2,3]
-
-                  else {
-
-                    labels = rawLabels;
-
-                    values = rawValues.map(v => {
-                      const num = Number(v);
-                      return isNaN(num) ? 0 : num;
-                    });
-                  }
-
-                  // =========================
-                  // VALIDATION
-                  // =========================
-
-                  if (!labels.length || !values.length) {
-
-                    canvas.parentElement.innerHTML =
-                      '<p style="color:red;">No chart data</p>';
-
-                    return;
-                  }
-
-                  // =========================
-                  // DESTROY OLD CHART
-                  // =========================
-
-                  const existingChart =
-                    Chart.getChart(canvas);
-
-                  if (existingChart) {
-                    existingChart.destroy();
-                  }
-
-                  // =========================
-                  // RENDER
-                  // =========================
-
-                  new Chart(canvas, {
-
-                    type: 'bar',
-
-                    data: {
-
-                      labels: labels,
-
-                      datasets: [{
-                        label: 'Importance',
-
-                        data: values,
-
-                        borderWidth: 1,
-
-                        borderRadius: 6,
-
-                        barThickness: 18
-                      }]
-                    },
-
-                    options: {
-
-                      indexAxis: 'y',
-
-                      responsive: true,
-
-                      maintainAspectRatio: false,
-
-                      animation: false,
-
-                      plugins: {
-
-                        legend: {
-                          display: false
-                        },
-
-                        tooltip: {
-                          enabled: true
-                        }
-                      },
-
-                      layout: {
-                        padding: {
-                          left: 10,
-                          right: 20,
-                          top: 10,
-                          bottom: 10
-                        }
-                      },
-
-                      scales: {
-
-                        x: {
-
-                          beginAtZero: true,
-
-                          ticks: {
-                            color: '#cbd5e1'
-                          },
-
-                          grid: {
-                            color: 'rgba(255,255,255,0.06)'
-                          }
-                        },
-
-                        y: {
-
-                          ticks: {
-
-                            color: '#cbd5e1',
-
-                            font: {
-                              size: 11
-                            }
-                          },
-
-                          grid: {
-                            display: false
-                          }
-                        }
-                      }
-                    }
-                  });
-
-                } catch (err) {
-
-                  console.error(
-                    "ChartJS render error:",
-                    err
-                  );
-
-                  canvas.parentElement.innerHTML =
-                    '<p style="color:red;">Failed render chart</p>';
-                }
-              }
-
-              window.addEventListener("load", function () {
-                setTimeout(renderBarChart, 150);
-              });
-
-            })();
-            </script>
-
+            <script src = "./assets/fbarplot.js"></script>
             {% endif %}
             
           {% endfor %}

@@ -12,13 +12,13 @@ __created__    = "2026-05-10"
 
 
 import re
-from pathlib import Path
-from shutil import copy2
-from copy import deepcopy
-from typing import Optional
+from pathlib   import Path
+from shutil    import copy2
+from copy      import deepcopy
+from typing    import Optional
 from functools import lru_cache
+from .unzips   import Unzip
 
-from .unzips import Unzip
 
 def FileCopier(Scrpath  : Path, 
                Destdir  : Path,
@@ -32,8 +32,11 @@ def FileCopier(Scrpath  : Path,
     dstd.mkdir(parents = True, exist_ok = True)
     DestPath = dstd / srcp.name
     copy2(srcp, DestPath)
-    if DestPath.ext == '.zip':
-        Unzip()
+    if DestPath.suffix == '.zip':
+        pdir = DestPath.resolve().parent
+        Success = Unzip(Zips = DestPath, DirExtract = pdir)
+        if Success:
+            DestPath.unlink()
     return DestPath
 
 @lru_cache(maxsize = 128)
