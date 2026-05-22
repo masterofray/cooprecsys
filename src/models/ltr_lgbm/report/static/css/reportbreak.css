@@ -381,11 +381,11 @@ body {
    ============================================ */
 .chartjs-wrapper {
   position: relative;
-  width: 90%;               /* DIUBAH: Diperlebar dari 70% ke 90% sesuai tanda garis hijau */
-  max-width: 1600px;        /* Dioptimalkan agar seimbang di monitor lebar */
-  margin: 0 auto;           /* Menjaga keseimbangan posisi kanan-kiri chart di dalam frame */
-  height: 880px;            /* DIUBAH: Ditingkatkan ~25% dari 700px asli agar jarak vertikal label longgar */
-  min-height: 880px;
+  width: 90%;          /* DIUBAH: Diperlebar dari 70% ke 90% sesuai tanda garis hijau */
+  max-width: 1600px;   /* Dioptimalkan agar seimbang di monitor lebar */
+  margin: 0 auto;      /* Menjaga keseimbangan posisi kanan-kiri chart di dalam frame */
+  height: auto;        /* 880px DIUBAH: Ditingkatkan ~25% dari 700px asli agar jarak vertikal label longgar */
+  min-height: auto;
   transition: var(--transition);
 }
 
@@ -472,7 +472,7 @@ body {
    ============================================ */
 
 .plotly-chart {
-    min-width: fit-content;
+    width: 100%;
     margin: 0 auto;
     display: block;
 }

@@ -169,7 +169,27 @@ function initializeAllHeatmaps() {
 }
 
 // Menjalankan fungsi dengan mekanisme penundaan (setTimeout) pasca layout window selesai dimuat sempurna
-window.addEventListener("load", function () {
-  console.log("EVENT: Window 'load' terpicu. Mempersiapkan delay penyeimbangan layout (200ms)...");
-  setTimeout(initializeAllHeatmaps, 200);
+// IMPLEMENTASI PRODUCTION-GRADE
+window.addEventListener("DOMContentLoaded", function () {
+  console.log("EVENT: DOMContentLoaded. Menginisialisasi rendering dan ResizeObserver.");
+  
+  // 1. Jalankan inisialisasi awal
+  initializeAllHeatmaps();
+
+  // 2. Pasang ResizeObserver untuk stabilitas dimensi responsif
+  const resizeObserver = new ResizeObserver(entries => {
+    // Gunakan requestAnimationFrame untuk mencegah ResizeObserver loop error
+    window.requestAnimationFrame(() => {
+      for (let entry of entries) {
+        if (entry.target.id) {
+          // Memaksa Plotly merekonstruksi ukuran saat kontainer grid/flex benar-benar berubah
+          Plotly.Plots.resize(entry.target.id);
+        }}
+    });
+  });
+
+  // Observasi semua elemen heatmap
+  document.querySelectorAll(".js-heatmap-render").forEach(el => {
+    resizeObserver.observe(el);
+  });
 });

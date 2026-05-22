@@ -36,7 +36,7 @@ function initBarCharts() {
 
         // Step C: Render menggunakan Chart.js
         renderChartOnCanvas(canvas, processedData);
-        
+        console.log("[Init] Berhasil render dengan Chart.js");
         console.groupEnd();
     });
 }
@@ -86,7 +86,6 @@ function normalizeChartData(rawLabels, rawValues) {
     // CASE 1: values = [[label,val], [label,val]]
     if (Array.isArray(rawValues) && rawValues.length > 0 && Array.isArray(rawValues[0])) {
         console.log("[Data Flow - 2] Terdeteksi format Nested Array [[label, value], ...]");
-        
         labels = rawValues.map(v => v[0]);
         values = rawValues.map(v => {
             const num = Number(v[1]);
@@ -96,7 +95,6 @@ function normalizeChartData(rawLabels, rawValues) {
     // CASE 2: values = [1,2,3] (Simple Array)
     else {
         console.log("[Data Flow - 2] Terdeteksi format Simple Array (labels dan values terpisah).");
-        
         labels = rawLabels;
         values = rawValues.map(v => {
             const num = Number(v);
@@ -104,16 +102,15 @@ function normalizeChartData(rawLabels, rawValues) {
         });
     }
 
-    console.log(`[Data Flow - 2] Normalisasi selesai.`);
+    console.log("[Data Flow - 2] Normalisasi selesai.");
     console.log(`  -> Final Labels (${labels?.length || 0} items):`, labels);
     console.log(`  -> Final Values (${values?.length || 0} items):`, values);
 
     // Validasi akhir sebelum masuk ke Chart.js
+    // Check data apakah empty atau tidak!
     if (!labels || !labels.length || !values || !values.length) {
         console.warn("[Data Validation] Peringatan: Array labels atau values kosong!");
-        return null;
-    }
-
+    return null;}
     return { labels, values };
 }
 
@@ -137,6 +134,24 @@ function renderChartOnCanvas(canvas, data) {
     }
 
     console.log(`[Render] Mengeksekusi 'new Chart()' ...`);
+    // 1. HITUNG TINGGI CONTAINER SECARA DINAMIS
+    const barHeight = 22;       // Ukuran batang bar (px)
+    const barSpacing = 16;      // Jarak spasi vertikal antar bar (px)
+    const paddingTotal = 60;    // Alokasi space untuk sumbu X (Top & Bottom Padding)
+    
+    // Formula: (Jumlah Data x Jarak Total Per Bar) + Padding Sumbu
+    const calculatedHeight = (data.labels.length * (barHeight + barSpacing)) + paddingTotal;
+
+    // 2. TERAPKAN TINGGI LANGSUNG KE PARENT WRAPPER & CANVAS
+    const wrapper = canvas.parentElement;
+    if (wrapper) {
+        wrapper.style.height = `${calculatedHeight}px`;
+        wrapper.style.minHeight = `${calculatedHeight}px`;
+    }
+    canvas.style.height = `${calculatedHeight}px`;
+    
+    // 3. INITIALIZE CHART.JS
+    console.log("Begin initialized the Chart.js");
     try {
         new Chart(canvas, {
             type: 'bar',
@@ -146,41 +161,39 @@ function renderChartOnCanvas(canvas, data) {
                     label: 'Importance',
                     data: data.values,
                     borderWidth: 1,
-                    borderRadius: 6,
-                    barThickness: 20,
-                    maxBarThickness: 24,
-                    categoryPercentage: 0.85,
-                    barPercentage: 0.95,
+                    borderRadius: 4,
+                    barThickness: barHeight
                 }]
             },
-            options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: { enabled: true }
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false, // Wajib false agar mengikuti ukuran wrapper script
+            animation: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: true }
+            },
+            layout: {
+                padding: { left: 10, right: 25, top: 5, bottom: 5 }
+            },
+            scales: {
+            x: {
+                beginAtZero: true,
+                ticks: { 
+                    color: '#cbd5e1',
+                    font: { size: 14 } 
                 },
-                layout: {
-                    padding: { left: 10, right: 20, top: 10, bottom: 10 }
+                grid: { color: 'rgba(255,255,255,0.06)' }
+            },
+            y: {
+                ticks: {
+                    color: '#cbd5e1',
+                    font: { size: 14 },
+                    autoSkip: false // Pastikan label tidak ada yang disembunyikan
                 },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: { color: '#cbd5e1',
-                        font: { size: 14 } },
-                        grid: { color: 'rgba(255,255,255,0.06)' }
-                    },
-                    y: {
-                        ticks: {
-                            color: '#cbd5e1',
-                            font: { size: 14 }
-                        },
-                        grid: { display: false }
-                    }
-                }
-            }
+                grid: { display: false }
+                }}}
         });
         console.log(`[Render SUCCESS] Chart berhasil digambar di UI.`);
     } catch (err) {

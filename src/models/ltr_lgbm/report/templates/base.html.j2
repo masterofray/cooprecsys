@@ -297,21 +297,36 @@
                     <div class="scorecard-value">{{ "%.6f"|format(tuner_summary.best_value) }}</div>
                 </div></div>
             </div>
-            <div class="table-card" style="margin-top:16px;">
-                <div class="table-header"><h3>Best Parameters</h3></div>
-                <div class="table-scroll">
-                    <table class="data-table">
-                        <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
-                        <tbody>
-                        {% for k,v in tuner_summary.best_params.items() %}
-                        <tr><td>{{ k }}</td><td><code>{% if v is float %}
-                            {{ "%.6f"|format(v) }}{% else %}{{ v }}
-                            {% endif %}</code></td></tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+            
+            <!-- BEST PARAMETER SCORECARD -->
+            <link rel      = "stylesheet" href="./assets/paramscard.css">
+            <div class     = "table-card" style="margin-top:16px;">
+                <div class = "table-header">
+                <h3 style="font-size: 24px; margin-bottom: 12px;">
+                    Best Parameters
+                </h3></div>
+                <div class = "score-card-container">
+                {% for k, v in tuner_summary.best_params.items() %}
+                <div 
+                class="score-card"
+                data-parameter="{{ k }}"
+                data-value="{{ v }}">
+                <div class="score-value">
+                {% if v is float %}
+                    {{ "%.8f"|format(v) }}
+                {% else %}
+                    {{ v }}
+                {% endif %}
+                </div>
+                <div class="score-label">
+                    {{ k|replace('_', ' ')|title }}
+                </div>
+                </div>
+                {% endfor %}
+                <script src = "./assets/paramscard.js"></script>
                 </div>
             </div>
+
         </div>
         {% endif %}
     </div>
