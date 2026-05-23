@@ -11,6 +11,8 @@ __status__     = "Development"
 __created__    = "2026-05-02"
 
 from .ltrlgbm_example import maintest as lgbmtest
+from .ltrlgbm_inferencing import inference_test
 
 if __name__ == '__main__':
     lgbmtest()
+    inference_test()

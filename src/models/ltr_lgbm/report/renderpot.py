@@ -10,59 +10,426 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-01"
 
+
+"""
+Dynamic Recommendation Dashboard Renderer
+Enterprise-grade HTML dashboard generator for:
+- Recommendation Systems
+- Learning-to-Rank
+- Monitoring Reports
+- ML Evaluation Dashboards
+"""
+
 import os
 import sys
-from pathlib import Path
-from typing import Dict, Any, Optional
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+import json
+import math
+import pandas as pd
+from pathlib  import Path
+from datetime import datetime
+from typing   import Any, Dict, List, Optional
+from jinja2   import (Environment, FileSystemLoader,
+                     TemplateNotFound, select_autoescape)
+
+LocDir = Path(__file__).resolve()
+sys.path.append(str(LocDir.parents[3]))
+from configs import logger, _cfg
+from prepare import latest_found, FileCopier
+
+rpath        = _cfg.get('PATHS', 'html_report_path')
+TEMPLATE_DIR = LocDir.parent / "templates"
+STATIC_DIR   = LocDir.parent / "static"
+OUTPUT_DIR   = (LocDir.parents[4] / rpath).parents[0]
+DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
 
-BASE_DIR     = Path(__file__).resolve()
-TEMPLATE_DIR = BASE_DIR.parents[0] / "templates"
-STATIC_DIR   = BASE_DIR.parents[0] / "static"
-sys.path.append(str(BASE_DIR.parents[3]))
-from configs import logger
+def runcopy(dest : Path = None) -> None:
+    files = [STATIC_DIR / 'compute01.png']
+    css_dir = STATIC_DIR / 'css'
+    if css_dir.exists():
+        files.extend([item for item in css_dir.glob('*') if item.is_file()])
+    js_dir = STATIC_DIR / 'js'
+    if js_dir.exists():
+        files.extend([item for item in js_dir.glob('*') if item.is_file()])
+    dest = OUTPUT_DIR / 'assets' if dest is None else Path(dest).resolve()
+    for item in files:
+        _ = FileCopier(Scrpath = item, 
+                       Destdir = dest)
 
 
-# _____________________________________________________
-# Build compact Helper function
-# _____________________________________________________
-
+# JINJA ENVIRONMENT
+#__________________________________________________________
 def get_env() -> Environment:
-    return Environment(
-        loader        = FileSystemLoader(TEMPLATE_DIR),
-        autoescape    = select_autoescape(["html", "xml"]),
-        trim_blocks   = True,
-        lstrip_blocks = True)
+    logger.debug("Initializing Jinja environment.")
+    try:
+        env = Environment(loader        = FileSystemLoader(TEMPLATE_DIR),
+                          autoescape    = select_autoescape(["html", "xml"]),
+                          trim_blocks   = True,
+                          lstrip_blocks = True)
+        logger.info("Jinja environment initialized successfully.")
+        return env
+    except Exception as exc:
+        logger.error("Failed initializing Jinja environment.", exc_info = True)
+        raise RuntimeError("Jinja environment initialization failed.") from exc
 
-def _static_prefix(directory: Optional[str | Path] = None) -> Dict[str, str]:
-    """Compute relative css/js paths from output HTML file.
+def static_prefix(output_path: Optional[str | Path] = None) -> Dict[str, str]:
+    """Generate relative static asset paths.
+    Returns will type as Dict[str, str] as 
+    Static asset mappings."""
+    logger.debug(
+    "Generating static asset prefix for output_path = %s", output_path)
+    try:
+        if output_path is None:
+            rel_static = Path("../static")
+        else:
+            output_dir = Path(output_path).resolve().parent
+            rel_static = Path(os.path.relpath(STATIC_DIR, output_dir))
+        paths = {"static_css" : (rel_static / "css").as_posix(),
+                 "static_js"  : (rel_static / "js").as_posix(),
+                 "static_img" : rel_static.as_posix()}
+        logger.debug("Static paths generated: %s",paths)
+        return paths
+    except Exception as exc:
+        logger.error("Failed generating static prefixes.", exc_info = True)
+        raise RuntimeError("Static asset prefix generation failed."
+        ) from exc
+
+
+# LABEL BEAUTIFIER
+#__________________________________________________________
+def beautify_label(label: str) -> str:
+    logger.debug("Beautifying label: %s", label)
+    try:
+        label = label.replace("_", " ")
+        replacements = {"ndcg": "NDCG",
+                        "map" : "MAP",
+                        "mrr" : "MRR",
+                        "auc" : "AUC",
+                        "ctr" : "CTR",
+                        "gat" : "@"}
+        for old, new in replacements.items():
+            label = label.replace(old, new)
+        beautified = label.title()
+        logger.debug("Beautified label result: %s", beautified)
+        return beautified
+    except Exception as exc:
+        logger.error("Failed beautifying label = %s",
+            label, exc_info = True)
+        return str(label)
+
+
+# SAFE FLOAT FORMATTER
+#__________________________________________________________
+def safe_float(value: Any, precision: int = 4) -> str:
+    logger.debug("Formatting numeric value = %s", value)
+    try:
+        if isinstance(value, (int, float)):
+            if math.isnan(value):
+                logger.warning("NaN detected during float formatting.")
+                return "NaN"
+            return f"{value:.{precision}f}"
+        return str(value)
+    except Exception:
+        logger.warning("Failed formatting numeric value = %s", value)
+        return str(value)
+
+
+# GAUGE DETECTION
+#__________________________________________________________
+def detect_gauge_metric(metric_name: str) -> bool:
+    """Detect whether metric should become gauge widget."""
+    logger.debug("Detecting gauge metric for key = %s", metric_name)
+    metric_name = metric_name.lower()
+    keywords    = ["ndcg", "map", "mrr", "precision",
+                   "recall", "accuracy", "auc", "f1"]
+    result      = any(k in metric_name for k in keywords)
+    logger.debug("Gauge detection result=%s for metric = %s",
+                 result, metric_name)
+    return result
+
+
+# CONTEXT LOADER
+#__________________________________________________________
+def load_context(json_path: str | Path) -> Dict[str, Any]:
+    """Load dashboard context JSON."""
+    logger.debug("Entering load_context(json_path = %s)",json_path)
+    json_path = Path(json_path)
+    if not json_path.exists():
+        logger.error("Context JSON not found: %s", json_path)
+        raise FileNotFoundError(f"Context JSON missing: {json_path}")
+    try:
+        logger.debug("Opening JSON context file.")
+        with open(json_path, "r", encoding = "utf-8") as f:
+            context = json.load(f)
+        logger.info("Context JSON loaded successfully.")
+        logger.debug("Context keys: %s", list(context.keys()))
+        return context
+    except json.JSONDecodeError as exc:
+        logger.error("Invalid JSON structure detected.", exc_info = True)
+        raise ValueError(f"Malformed JSON: {exc}") from exc
+    except PermissionError as exc:
+        logger.error("Permission denied reading context JSON.", exc_info = True)
+        raise RuntimeError("Permission denied reading JSON.") from exc
+    except Exception as exc:
+        logger.error("Unexpected context loading failure.", exc_info = True)
+        raise RuntimeError("Failed loading dashboard context.") from exc
+
+
+# DATAFRAME RECONSTRUCTION
+#__________________________________________________________
+def load_prediction_dataframe(context: Dict[str, Any]) -> pd.DataFrame:
+    logger.debug("Entering load_prediction_dataframe().")
+    prediction_data = context.get("predictiondata")
+    if prediction_data is None:
+        logger.warning("'predictiondata' missing from context.")
+        return pd.DataFrame()
+    try:
+        logger.debug("Predictiondata type=%s", type(prediction_data))
+        if not isinstance(prediction_data, list):
+            raise ValueError("predictiondata must be list[dict].")
+        df = pd.DataFrame(prediction_data)
+        logger.info("Prediction dataframe reconstructed successfully.")
+        logger.debug("Prediction dataframe shape=%s", df.shape)
+        logger.debug("Prediction dataframe columns=%s", list(df.columns))
+        return df
+    except ValueError:
+        logger.error("Invalid predictiondata structure.", exc_info=True)
+        raise
+    except Exception as exc:
+        logger.error("Unexpected dataframe reconstruction failure.", exc_info=True)
+        raise RuntimeError("Prediction dataframe reconstruction failed.") from exc
+
+
+# SCORECARD GENERATOR
+#__________________________________________________________
+def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
-    logger.debug('Process in `_static_prefix`')
-    if directory is None:
-        rel_static = Path("static")
-    else:
-        output_dir = Path(directory).resolve().parent
-        rel_static = Path(os.path.relpath(STATIC_DIR, output_dir))
-    return {"static_css": (rel_static / "css").as_posix(),
-            "static_js" : (rel_static / "js").as_posix()}
+    Generate scorecards dynamically.
+    Args:
+        metrics:
+            Metrics dictionary.
+    Returns:
+        List[Dict[str, Any]]:
+            Scorecards list.
+    """
+    logger.debug("Generating scorecards from metrics.")
+    if not metrics:
+        logger.warning("Empty metrics dictionary detected.")
+        return list()
+    cards: List[Dict[str, Any]] = list()
+    color_cycle = ["blue", "green", "purple", "orange", "cyan", "red"]
+    try:
+        for idx, (metric_name, metric_value) in enumerate(metrics.items()):
+            logger.debug("Generating scorecard for metric=%s", metric_name)
+            cards.append({ "label" : beautify_label(metric_name),
+                           "value" : safe_float(metric_value),
+                           "sub"   : "Auto-generated metric",
+                           "color" : color_cycle[idx % len(color_cycle)],
+                           "icon"  : "fas fa-chart-line"})
+        logger.info("Generated %d scorecards.", len(cards))
+        return cards
+    except Exception as exc:
+        logger.error("Scorecard generation failed.", exc_info=True)
+        raise RuntimeError("Failed generating scorecards.") from exc
 
 
-# _____________________________________________________
-# Build main Function
-# _____________________________________________________
+# GAUGE GENERATOR
+#__________________________________________________________
+def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generate gauge widgets dynamically."""
+    logger.debug("Generating gauge widgets.")
+    gauges: List[Dict[str, Any]] = list()
+    try:
+        for metric_name, metric_value in metrics.items():
+            logger.debug("Evaluating metric=%s for gauge generation.", metric_name)
+            if not detect_gauge_metric(metric_name):
+                logger.debug("Metric=%s skipped from gauges.", metric_name)
+                continue
+            try:
+                percent = float(metric_value) * 100
+            except ValueError:
+                logger.warning("Gauge metric=%s not numeric.", metric_name)
+                continue
+            gauges.append({
+                "label": beautify_label(metric_name),
+                "value": metric_value,
+                "display": f"{percent:.2f}%",
+                "percent": round(percent, 2),
+            })
+        logger.info("Generated %d gauges.", len(gauges))
+        return gauges
+    except Exception as exc:
+        logger.error("Gauge generation failed.", exc_info=True)
+        raise RuntimeError("Failed generating gauges.") from exc
 
-def render_report(
-        context     : Dict[str, Any],
-        output_path : Optional[str | Path] = None,
-    ) -> str:
-    logger.debug('Begin to render Template Report.')
-    env      = get_env()
-    template = env.get_template("monitoring_report.html.j2")
-    context  = dict(context)
-    context.update(_static_prefix(output_path))
-    logger.debug('Template report already done, sent to vizseason.py!')
-    return template.render(**context)
 
-if __name__ == '__main__':
-    pass
+# MINI STAT GENERATOR
+#__________________________________________________________
+def generate_stat_minis(df: pd.DataFrame) -> List[Dict[str, Any]]:
+    """Generate mini statistics cards."""
+    logger.debug("Generating stat mini cards.")
+    if df.empty:
+        logger.warning("Prediction dataframe empty.")
+        return list()
+    stats: List[Dict[str, Any]] = list()
+    try:
+        candidate_columns = {"Users"      : "CustomerID",
+                             "Products"   : "ProductID",
+                             "Categories" : "CategoryID"}
+        for label, column in candidate_columns.items():
+            logger.debug("Evaluating stat column=%s", column)
+            if column not in df.columns:
+                logger.warning("Column=%s missing from dataframe.", column)
+                continue
+            stats.append({"label"   : label,
+                          "value"   : str(df[column].nunique()),
+                          "percent" : 100})
+        stats.append({"label"   : "Rows",
+                      "value"   : str(len(df)),
+                      "percent" : 100})
+        logger.info("Generated %d mini stat cards.", len(stats))
+        return stats
+    except Exception as exc:
+        logger.error("Mini stat generation failed.", exc_info=True)
+        raise RuntimeError("Failed generating mini stats.") from exc
+
+
+# CHART NORMALIZER
+#__________________________________________________________
+def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Normalize chart metadata."""
+    logger.debug("Normalizing chart metadata.")
+    if not charts:
+        logger.warning("No charts supplied.")
+        return list()
+    normalized: List[Dict[str, Any]] = list()
+    try:
+        for idx, chart in enumerate(charts):
+            logger.debug("Normalizing chart index=%d", idx)
+            if not isinstance(chart, dict):
+                logger.warning("Chart index=%d invalid type=%s", idx, type(chart))
+                continue
+            normalized.append({
+                "title": chart.get("title", "Untitled Chart"),
+                "image": chart.get("image"),
+                "type" : chart.get("type"),
+                "data" : chart.get("data"),
+                "full" : "importance" in chart.get("title", "").lower()})
+        logger.info("Normalized %d charts.", len(normalized))
+        return normalized
+    except Exception as exc:
+        logger.error("Chart normalization failed.", exc_info=True)
+        raise RuntimeError("Failed normalizing charts.") from exc
+
+
+# CONTEXT BUILDER
+#__________________________________________________________
+def build_context(json_path: str | Path) -> Dict[str, Any]:
+    """Build full dashboard rendering context."""
+    logger.debug("Entering build_context().")
+    try:
+        if Path(json_path).exists():
+            context = load_context(json_path)
+        else:
+            json_path = latest_found(dir  = LocDir.parents[4],
+                                keyword   = 'Recsys',
+                                recursive = True,
+                                Not4Json  = False)
+            context   = load_context(json_path)
+        logger.info(f'The path is {str(json_path)}.')
+        
+        metrics = context.get("metrics", dict())
+        logger.debug("Metrics count = %d", len(metrics))
+        prediction_df             = load_prediction_dataframe(context)
+        context["scorecards"]     = generate_scorecards(metrics)
+        context["gauges"]         = generate_gauges(metrics)
+        context["stat_minis"]     = generate_stat_minis(prediction_df)
+        context["charts"]         = normalize_charts(context.get("charts", []))
+        context["rankings"]       = prediction_df.to_dict(orient="records")
+        context["total_rankings"] = len(prediction_df)
+        context["bar_labels"]     = list(metrics.keys()) if metrics else []
+        #context["bar_values"]    = list(metrics.values()) if metrics else []
+        context["bar_data"]       = list(metrics.values()) if metrics else []
+
+        context.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        context.setdefault("page_title", "LTR Dashboard")
+        context.setdefault("subtitle", "Learning to Rank Monitoring")
+        context.setdefault("experiment_name", "Default Experiment")
+        context.setdefault("best_iteration", "N/A")
+        context.setdefault("overall_score", "0.0000")
+        
+        # Calculate overall score percent for main gauge
+        try:
+            overall_score_val = float(context["overall_score"])
+            context["overall_score_percent"] = round(overall_score_val * 100, 2)
+        except (ValueError, TypeError):
+            context["overall_score_percent"] = 0
+        
+        context.setdefault("tuner_summary", None)
+        context.setdefault("training_params", dict())
+        logger.info("Dashboard context built successfully.")
+        return context
+
+    except Exception as exc:
+        logger.error("Context building failed.", exc_info = True)
+        raise RuntimeError("Failed building dashboard context.") from exc
+
+
+# HTML RENDERER
+#__________________________________________________________
+def render_report(context: Dict[str, Any], output_path: str | Path) -> str:
+    """Render dashboard HTML."""
+    logger.debug("Entering render_report().")
+    try:
+        env = get_env()
+        logger.debug("Loading template=base.html.j2")
+        template = env.get_template("base.html.j2")
+        ctx = dict(context)
+        
+        logger.debug("Injecting static asset paths.")
+        ctx.update(static_prefix(output_path))
+        
+        logger.debug("Rendering HTML template.")
+        html = template.render(**ctx)
+        
+        logger.info("Dashboard rendered successfully.")
+        logger.debug("Rendered HTML size=%.2f KB", len(html.encode("utf-8")) / 1024)
+        return html
+
+    except TemplateNotFound as exc:
+        logger.error("Template base.html.j2 missing.", exc_info=True)
+        raise RuntimeError("Dashboard template missing.") from exc
+
+    except Exception as exc:
+        logger.error("Unexpected rendering failure.", exc_info=True)
+        raise RuntimeError("Dashboard rendering failed.") from exc
+
+def repot() -> str:
+    """Main dashboard generation pipeline."""
+    logger.info("Starting dashboard generation pipeline.")
+    try:
+        OUTPUT_DIR.mkdir(exist_ok = True, parents = True)
+        logger.debug("Output directory ensured=%s", OUTPUT_DIR)
+        datepf      = datetime.now().strftime("%Y%m%d")
+        output_path = OUTPUT_DIR / f"{datepf}_training_report.html"
+        context     = build_context(DEFAULT_CONTEXT_PATH)
+        html        = render_report(context = context, output_path = output_path)
+        logger.debug("Writing rendered HTML to disk.")
+        with output_path.open("w", encoding="utf-8") as f:
+            f.write(html)
+        logger.debug("Output HTML path=%s .\n\n", output_path)
+
+        runcopy()
+        logger.info("Dashboard generated successfully.")
+        logger.info("Dashboard path   = %s", output_path)
+        logger.info("Total rankings   = %d", context.get("total_rankings", 0))
+        logger.info("Total scorecards = %d", len(context.get("scorecards", [])))
+        logger.info("Total charts     = %d", len(context.get("charts", [])))
+        return output_path
+    except Exception as exc:
+        logger.error("Dashboard generation pipeline failed.", exc_info=True)
+        raise RuntimeError("Dashboard generation failed.") from exc
+
+
+if __name__ == "__main__":
+    repot()

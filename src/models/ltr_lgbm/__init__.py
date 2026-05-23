@@ -10,10 +10,11 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-30"
 
-from .ftcore   import BayesianTuner, MLflowMonitor, Visualizer
-from .inout    import LTRTrainer, LTRInference
-from .report   import render_report
-from .ltr_call import run_pipeline as lgbm_fit_transform
+from .ftcore      import BayesianTuner, MLflowMonitor, Visualizer
+from .inout       import LTRTrainer, LTRInference
+from .report      import repot as render_report
+from .ltr_call    import run_pipeline as lgbm_fit_transform
+from .ltr_predict import InferenceTest
 
 __all__ = ["BayesianTuner",
            "LTRTrainer",
@@ -21,5 +22,6 @@ __all__ = ["BayesianTuner",
            "Visualizer",
            "MLflowMonitor",
            "render_report",
+           'InferenceTest',
            "lgbm_fit_transform"]
 

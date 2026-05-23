@@ -90,46 +90,199 @@ jobs:
           echo "===== TEST FINISHED ====="
 
       # ------------------------------------------------------
-      # Debug generated outputs
+      # Upload Full Artifacts Directory
       # ------------------------------------------------------
-      - name: Debug Generated Files
+      - name: Upload Full Artifacts
         if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-artifacts
+          path: |
+            artifacts/
+            mlruns/
+          retention-days: 7
+          if-no-files-found: warn
 
+      # ------------------------------------------------------
+      # Install tree utility
+      # ------------------------------------------------------
+      - name: Install tree
         run: |
-          echo "===== MLFLOW FILES ====="
-          find mlruns || true
+          sudo apt-get update
+          sudo apt-get install -y tree
+      
+      # ------------------------------------------------------
+      # Debug artifact folder
+      # ------------------------------------------------------
+      - name: Debug Artifact Folder
+        run: |
+          echo "===== ARTIFACT TREE ====="
+      
+          if [ -d "artifacts" ]; then
+            tree artifacts
+          else
+            echo "artifacts folder NOT FOUND"
+          fi
+      
 
+  # ==========================================================
+  # COPYING THE FILES
+  # ==========================================================
+  merge-artifacts:
+    name: Merge Artifacts
+    runs-on: ubuntu-latest
+    needs: smoke-ltr
+
+    steps:
+  
+      # ------------------------------------------------------
+      # Install tree utility
+      # ------------------------------------------------------
+      - name: Install tree
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tree
+  
+      # ------------------------------------------------------
+      # Merge uploaded artifacts
+      # ------------------------------------------------------
+      - name: Merge All Artifacts
+        uses: actions/upload-artifact/merge@v4
+  
+        with:
+          name: all-artifacts
+          pattern: full-artifacts
+          separate-directories: false
+  
+      # ------------------------------------------------------
+      # Download merged artifacts for verification
+      # ------------------------------------------------------
+      - name: Download Merged Artifact
+        uses: actions/download-artifact@v4
+  
+        with:
+          name: all-artifacts
+          path: merged-debug/
+  
+      # ------------------------------------------------------
+      # Debug merged contents
+      # ------------------------------------------------------
+      - name: Debug Merged Artifact Tree
+        run: |
+          echo "===== MERGED TREE ====="
+          tree merged-debug
+  
           echo ""
-          echo "===== ARTIFACT FILES ====="
-          find artifacts || true
+          echo "===== SEARCH ENCODER ====="
+          find merged-debug -iname "*encoder*"
+  
+          echo ""
+          echo "===== SEARCH MODEL ====="
+          find merged-debug -iname "*model*"
+  
+          echo ""
+          echo "===== SEARCH CLOUDPICKLE ====="
+          find merged-debug -name "*.cloudpickle"
+  
+          echo ""
+          echo "===== SEARCH PARQUET ====="
+          find merged-debug -name "*.parquet"
 
-      # ------------------------------------------------------
-      # Upload MLflow outputs
-      # ------------------------------------------------------
-      - name: Upload MLflow Artifacts
-        if: always()
 
-        uses: actions/upload-artifact@v4
+  # ==========================================================
+  # LTR INFERENCE FALLBACK TEST
+  # ==========================================================
+  ltr-inference-fallback:
+    name: LTR Inference Fallback Test
+    runs-on: ubuntu-latest
+    needs: merge-artifacts
 
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          name: mlflow-runs
-          path: mlruns/
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install --quiet -r requirements.txt
+
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: all-artifacts
+          path: .
+          merge-multiple: true
+
+
+      # ------------------------------------------------------
+      # Install tree utility
+      # ------------------------------------------------------
+      - name: Install tree
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tree
+      
+      # ------------------------------------------------------
+      # Debug downloaded artifacts
+      # ------------------------------------------------------
+      - name: Debug Downloaded Artifacts
+        run: |
+          echo "===== CURRENT DIRECTORY ====="
+          pwd
+      
+          echo ""
+          echo "===== ROOT TREE ====="
+          tree -L 5
+      
+          echo ""
+          echo "===== ARTIFACT TREE ====="
+      
+          if [ -d "artifacts" ]; then
+            tree artifacts
+          else
+            echo "artifacts folder NOT FOUND"
+          fi
+      
+          echo ""
+          echo "===== SEARCH FOR PKL FILES ====="
+          find . -name "*.pkl"
+      
+          echo ""
+          echo "===== SEARCH FOR MODEL FILES ====="
+          find . -iname "*model*"
+      
+          echo ""
+          echo "===== SEARCH FOR ENCODER FILES ====="
+          find . -iname "*encoder*"
+      
+          echo ""
+          echo "===== SEARCH FOR ALL PARQUET ====="
+          find . -name "*.parquet"
+
+      - name: Set MLflow Tracking URI (if needed)
+        run: |
+          echo "MLFLOW_TRACKING_URI=file:./mlruns" >> $GITHUB_ENV
+
+      - name: Run Inference Fallback Test
+        run: |
+          echo "===== STARTING INFERENCE FALLBACK TEST ====="
+          python -m test.ltrlgbm_test.ltrlgbm_inferencing
+          echo "===== INFERENCE FALLBACK TEST FINISHED ====="
+
+      - name: Upload Ranking Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fallback-rankings
+          path: artifacts/*.parquet
           retention-days: 7
           if-no-files-found: warn
 
-      # ------------------------------------------------------
-      # Upload HTML reports
-      # ------------------------------------------------------
-      - name: Upload HTML Report
-        if: always()
-
-        uses: actions/upload-artifact@v4
-
-        with:
-          name: ltr-evaluation-report
-          path: artifacts/reports/*.html
-          retention-days: 7
-          if-no-files-found: warn
 
   # ==========================================================
   # SECURITY SCAN

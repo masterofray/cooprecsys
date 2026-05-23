@@ -36,9 +36,9 @@ import sys
 import duckdb
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from copy import deepcopy
 from pathlib import Path
+from tqdm.auto import tqdm
 from datetime import datetime
 from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -201,10 +201,12 @@ class DataProcessor:
                             split_label)
                 futures_map[future] = split_label
             pbar = tqdm(as_completed(futures_map),
-                total  = len(futures_map),
-                desc   = 'Parallel data prep',
-                unit   = 'split',
-                colour = '#06ba30')
+                total       = len(futures_map),
+                desc        = 'Parallel data prep',
+                unit        = 'split',
+                colour      = _cfg.get('tqdm', 'colour'),
+                ncols       = _cfg.getint('tqdm', 'ncols'),
+                bar_format  = _cfg.get('tqdm', 'BarFormats'))
             for future in pbar:
                 X, y, group, split = future.result()
                 results[split] = (X, y, group)
@@ -241,9 +243,11 @@ class DataProcessor:
             steps = [("train", train_df, "train"), ("test",  test_df,  "test")]
             for split_label, df, attr_prefix in tqdm(
                     steps,
-                    desc   = "Preparing splits", 
-                    unit   = "split", 
-                    colour = '#06ba30'):
+                    desc        = "Preparing splits", 
+                    unit        = "split",
+                    colour      = _cfg.get('tqdm', 'colour'),
+                    ncols       = _cfg.getint('tqdm', 'ncols'),
+                    bar_format  = _cfg.get('tqdm', 'BarFormats')):
                 X, y, group = self._duckdb_sort_and_extract(df, split_label)
                 setattr(self, f"X_{attr_prefix}", X)
                 setattr(self, f"y_{attr_prefix}", y)

@@ -48,7 +48,7 @@ sys.path.append(str(LocDir))
 
 from prepare import Dict2Json
 from configs import LTRConfig, logger, _cfg
-from models.ltr_lgbm.report import render_report
+from models.ltr_lgbm.report import repot
 
 # ---------------------------------------------------------------------------
 # Seaborn global theme
@@ -155,6 +155,7 @@ class Visualizer:
         self._evals_result = evals_result
         self._X_test       = X_test
         self._metrics      = metrics
+        self._chartsdata   = list()
         self._b64_images:  Dict[str, str]  = dict()
         self._saved_paths: Dict[str, str]  = dict()
         logger.debug("Visualizer initialised.")
@@ -195,10 +196,11 @@ class Visualizer:
         logger.debug("Plotting feature importance (type=%s, top_n=%d).",
                      importance_type, top_n)
         imp      = self._model.feature_importance(importance_type = importance_type)
-        names    = self._model.feature_name()
-        dataplot = (pd.DataFrame({"Feature": names, "Importance": imp})
-                   .sort_values("Importance", ascending=False)
-                   .head(top_n))
+        names    = self.feature_names #self._model.feature_name()
+        dataplot = pd.DataFrame({"Feature": names, "Importance": imp})\
+                   .sort_values("Importance", ascending = False)\
+                   .head(top_n)
+        #set_trace()
         fig, ax  = plt.subplots(figsize=(11, max(5, top_n * 0.35)))
         sns.barplot(
             data    = dataplot,
@@ -208,10 +210,21 @@ class Visualizer:
             palette = "Blues_r",
             legend  = False,
             ax      = ax)
-        ax.set_title(f"Feature Importance — {importance_type.capitalize()} (Top {top_n})")
+        ax.set_title(f"Feature Importance - {importance_type.capitalize()} (Top {top_n})")
         ax.set_xlabel(f"Importance ({importance_type})")
         ax.set_ylabel("")
-        self._record("feature_importance", fig)
+        
+        topIM       = _cfg.getint('FEATURES', 'top_importances')
+        datapltlist = np.nan_to_num(dataplot["Importance"], nan = 0.0,
+                                    posinf = 0.0, neginf = 0.0).tolist()
+        chart_info  = {'title'   : f'Top {topIM} of Feature Importance by {importance_type.upper()}',
+                       'type'    : 'bar_chart_js',
+                       'data'    : {'labels': dataplot["Feature"].tolist()[:topIM],
+                                    'values': datapltlist[:topIM]},
+                       'image'   : None,
+                       'full'    : False}
+        self._chartsdata.append(chart_info)
+        #self._record("feature_importance", fig)
 
 
     def plot_prediction_distribution(self) -> None:
@@ -317,6 +330,16 @@ class Visualizer:
         )
         ax.set_title("Feature Correlation Matrix")
         self._record("feature_correlation", fig)
+        corr_js     = np.nan_to_num(corr.values, nan = 0.0,
+                                    posinf = 0.0, neginf = 0.0).tolist()
+        chart_info  = {'title'  : 'Correlation Matrix',
+                       'type'   : 'heatmap_plotly',
+                       'data'   : {'z': corr_js,
+                                   'x': list(map(str, self.feature_names)),
+                                   'y': list(map(str, self.feature_names))},
+                        'image' : None,
+                        'full'  : False}
+        self._chartsdata.append(chart_info)
 
     def __call__(self) -> None:
         logger.info("Generating all visualisations.")
@@ -336,6 +359,7 @@ class Visualizer:
             self,
             preddata     : Optional[str | Path] = None,
             tuner_summary: Optional[Dict[str, Any]] = None,
+            model_metric : Dict = dict(),
         ) -> None:
         """
         Render a self-contained HTML monitoring report.
@@ -372,12 +396,8 @@ class Visualizer:
             ("feature_importance", "Feature Importance", False),
             ("learning_curves", "Learning Curves", False),
             ("prediction_distribution",
-             "Prediction Score Distribution",
-             False),
-            ("metrics_summary", "Metrics Summary", False),
-            ("feature_correlation",
-             "Feature Correlation Heatmap",
-             True)]
+             "Prediction Score Distribution", False),
+            ("metrics_summary", "Metrics Summary", False)]
 
         # =====================================================
         # Open the prediction data
@@ -393,12 +413,11 @@ class Visualizer:
         else:
             logger.error('Prediction data is not floud in {str(pred)}'
                          'We can not continue the progress to write HTML file.')
-            predictdata = pd.DataFrame([])
+            predictdata = pd.DataFrame(list())
 
         # =====================================================
         # Build charts safely
         # =====================================================
-        charts = list()
         try:
             logger.debug("Attempting to load charts from self._b64_images.")
             images = getattr(self, "_b64_images", None)
@@ -408,8 +427,9 @@ class Visualizer:
                 try:
                     img = images[key]
                     if img:
-                        charts.append(
+                        self._chartsdata.append(
                             {"title": title,
+                             'type' : image_chart,
                              "image": img,
                              "full" : full})
                         logger.debug("Chart loaded: %s",key)
@@ -419,66 +439,48 @@ class Visualizer:
                     logger.error("Chart key missing, skipped: %s",key)
         except Exception as exc:
             logger.error("Chart loading fallback activated: %s",str(exc))
-            charts = list()
             for key, title, full in chart_specs:
-                charts.append({"title": title,
-                               "image": None,
-                               "full" : full})
-        logger.debug("Final chart count prepared: %d",len(charts))
+                self._chartsdata.append({"title": title,
+                                         "image": None,
+                                         "full" : full})
+        logger.debug("Final chart count prepared: %d",len(self._chartsdata))
 
         # =====================================================
         # Build context Recsys
         # =====================================================
         try:
             contextRecsys = {
-            "page_title":
-                "LightGBM LTR Monitoring Report",
-            
-            "title":
-                "LightGBM LTR Monitoring Dashboard",
-            
-            "subtitle":
-                "Production Model Evaluation & Diagnostics",
-            
-            "experiment_name": getattr(
-                self._config.model,
-                "experiment_name",
-                "unknown_experiment"),
-            
-            "model_path": getattr(
-                self._config.model,
-                "model_path",
-                "unknown_model"),
-            
-            "best_iteration": getattr(
-                self._model,
-                "best_iteration",
-                None),
-            
-            "generated_at": datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"),
-            
-            "metrics": dict(sorted(getattr(self,
-                       "_metrics",{}).items()
-                       )),
-            
-            "training_params": {
-                **getattr(self._config.training,
-                    "params",{}),
-                "num_boost_round": getattr(
-                    self._config.training,
-                    "num_boost_round",
-                    None),
-                "early_stopping_rounds": getattr(
-                    self._config.training,
-                    "early_stopping_rounds",
-                    None)},
-            
-            "tuner_summary": tuner_summary,
-            "charts": charts,
-            "predictiondata": predictdata.to_dict(orient='records'),
+            "page_title"        : "LightGBM LTR Monitoring Report",
+            "title"             : "LightGBM LTR Monitoring Dashboard",
+            "subtitle"          : "Production Model Evaluation & Diagnostics",
+            "experiment_name"   : getattr(self._config.model,
+                                          "experiment_name",
+                                          "unknown_experiment"),
+            "model_path"        : getattr(self._config.model,
+                                          "model_path",
+                                          "unknown_model"),
+            "best_iteration"    : getattr(self._model,
+                                          "best_iteration",
+                                          None),
+            "generated_at"      : datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "metrics"           : dict(sorted(getattr(self,"_metrics",{}).items())),
+            "training_params"   : {**getattr(self._config.training,
+                                        "params",{}),
+                                    "num_boost_round": getattr(
+                                        self._config.training,
+                                        "num_boost_round",
+                                        None),
+                                    "early_stopping_rounds": getattr(
+                                        self._config.training,
+                                        "early_stopping_rounds",
+                                        None)},
+            "tuner_summary"     : tuner_summary,
+            "charts"            : self._chartsdata,
+            "modelmetric"       : model_metric,
+            "predictiondata"    : predictdata.to_dict(orient = 'records'),
             }
-            logger.debug("contextRecsys built for template report`s requirement successfully.")
+            logger.debug("contextRecsys built for template "
+            "report`s requirement successfully.")
         except Exception as arc:
             logger.exception("Failed building report contextRecsys.")
             raise RuntimeError("Unable to build report contextRecsys.") from arc
@@ -490,27 +492,13 @@ class Visualizer:
         try:
             logger.debug("Rendering report HTML.")
             Dict2Json(contextRecsys, str(output_path.parent / 'contextRecsys.json'))
-            html = render_report(context     = contextRecsys,
-                                 output_path = output_path)
-            #set_trace()
-            if not html or not html.strip():
+            htmlpath = repot()
+            if not htmlpath.exists():
                 raise ValueError("Rendered HTML is empty.")
-            logger.debug("HTML rendered successfully ""(%d chars).",len(html))
+            logger.debug("HTML rendered successfully ""(%s).",str(htmlpath))
         except Exception as arc:
             logger.error("Failed rendering HTML.")
             raise RuntimeError("Report rendering failed.") from arc
-
-        # =====================================================
-        # Save HTML
-        # =====================================================
-        try:
-            with open(output_path, "w", encoding = "utf-8") as f:
-                f.write(html)
-            logger.info("Monitoring report saved: %s", output_path)
-        except Exception as arc:
-            logger.exception("Failed saving HTML report.")
-            raise RuntimeError("Unable to save report.") from arc
-        logger.info("Done!\n`genreport()` completed successfully.")
 
 
 if __name__ == '__main__':

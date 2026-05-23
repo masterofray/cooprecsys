@@ -31,9 +31,12 @@ from copy      import deepcopy
 from typing    import Dict, List, Optional, Any, Union
 from sklearn.preprocessing import LabelEncoder
 
+from pdb import set_trace
+
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))
 from configs  import logger, _cfg
+from prepare  import latest_found
 
 
 class LabelEncoderManager(object):
@@ -95,10 +98,11 @@ class LabelEncoderManager(object):
 
     def fit(self) -> None:
         for item in tqdm(self.Column, 
-                         desc   = 'Fit encoder Labels',
-                         colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getint('tqdm', 'ncols'),
-                         unit   = 'Column',
+                         desc        = 'Fit encoder Labels',
+                         colour      = _cfg.get('tqdm', 'colour'),
+                         ncols       = _cfg.getint('tqdm', 'ncols'),
+                         bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                         unit        = 'Column',
                          mininterval = 0.1):
             Temp_enc = LabelEncoder()
             if item not in self.data.columns:
@@ -114,10 +118,11 @@ class LabelEncoderManager(object):
     def transform(self) -> None:
         '''Transform columns using fitted encoders.'''
         for item in tqdm(self.Column,
-                         desc   = 'Transform Labels in column',
-                         colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getint('tqdm', 'ncols'),
-                         unit   = 'Column',
+                         desc        = 'Transform Labels in column',
+                         colour      = _cfg.get('tqdm', 'colour'),
+                         ncols       = _cfg.getint('tqdm', 'ncols'),
+                         bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                         unit        = 'Column',
                          mininterval = 0.1):
             if item not in self.encoders:
                 logger.error(f"No encoder found for {item}.")
@@ -137,27 +142,36 @@ class LabelEncoderManager(object):
         self.fit()
         self.transform()
 
-    def inverse_transform(self) -> pd.DataFrame:
+    def inverse_transform(self,
+            data      : pd.DataFrame = pd.DataFrame([]),
+            removeEnc : bool = True,
+        ) -> pd.DataFrame:
+        if data.empty:
+            data = deepcopy(self.data)
         for item in tqdm(self.Column,
-                         desc   = 'Inverse the transformation Labels',
-                         colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getint('tqdm', 'ncols'),
-                         unit   = 'Column',
+                         desc        = 'Inverse the transformation Labels',
+                         colour      = _cfg.get('tqdm', 'colour'),
+                         ncols       = _cfg.getint('tqdm', 'ncols'),
+                         bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                         unit        = 'Column',
                          mininterval = 0.1):
             ecol = f"{item}_enc"
-            if ecol not in self.data.columns:
-                if item in self.encoders: logger.error(f"'{ecol}' not found in dataframe for '{item}'.")
+            if ecol not in data.columns:
+                if item in self.encoders:
+                    logger.error(f"'{ecol}' not found in dataframe for '{item}'.")
                 continue
             if item not in self.encoders:
                 logger.error(f"No encoder found for '{item}'.")
                 continue
             encoder         = self.encoders[item]
-            encoded_values  = self.data[ecol].values
+            encoded_values  = data[ecol].values
             max_idx         = len(encoder.classes_) - 1
             safe_values     = clip(encoded_values, 0, max_idx).astype(int)
             decoded_values  = encoder.inverse_transform(safe_values)
-            self.data[item] = decoded_values
-
+            data[item]      = decoded_values
+            if removeEnc:
+                data.drop([ecol], axis = 1, inplace = True)
+        return data
 
     def save(self, path: Optional[Path] = None) -> None:
         if path is None:
@@ -176,15 +190,19 @@ class LabelEncoderManager(object):
         logger.debug(f"Encoder JSON saved to: {json_path}")
 
 
-    def load(self, path: Optional[Path] = None) -> None:
+    def load(self, path: Optional[Path] = './') -> None:
         """Loads the most recent encoder file if path is not provided."""
-        if path is None:
-            files = sorted(self.EncDir.glob("*_LabelEncoderManager.cloudpickle"))
-            path  = files[-1] if files else self.EncDir / "LabelEncoderManager.cloudpickle"
+        if not Path(path).is_file():
+            path = latest_found(
+                        dir       = str(LocDir.parents[2]), 
+                        keyword   = 'encode', 
+                        recursive = True, 
+                        Not4Json  = True)
         path      = Path(path)
         if not path.exists():
             raise FileNotFoundError(f"Encoder file not found: {path}")
         logger.info(f"Loading encoders from: {path}")
+        #set_trace()
         with open(path, 'rb') as file:
             encoder_data     = cp.load(file)
         self.encoders        = encoder_data["encoders"]

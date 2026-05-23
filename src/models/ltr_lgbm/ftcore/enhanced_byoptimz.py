@@ -32,8 +32,8 @@ import re
 import mlflow
 import optuna
 import numpy as np
-from tqdm import tqdm
 import lightgbm as lgb
+from tqdm.auto       import tqdm
 from typing          import Any, Dict, Callable
 from optuna.pruners  import (BasePruner, 
                              HyperbandPruner, 
@@ -269,9 +269,13 @@ class BayesianTuner:
             early_stopping_rounds= min(trcfg.early_stopping_rounds, 50))
         self.study = self._build_study()
 
-        with tqdm(total = tcfg.n_trials,
-                  desc  = "Bayesian tuning",
-                  unit  = "trial",
+        with tqdm(total         = tcfg.n_trials,
+                  desc          = "Bayesian tuning",
+                  unit          = "trial",
+                  colour        = _cfg.get('tqdm', 'colour'),
+                  ncols         = _cfg.getint('tqdm', 'ncols'),
+                  bar_format    = _cfg.get('tqdm', 'BarFormats'),
+                  mininterval   = 0.1,
                   dynamic_ncols = True) as pbar:
             self.study.optimize(
                 objective,
@@ -288,19 +292,19 @@ class BayesianTuner:
         # Merge best trial params into base config
         self.best_params = {**base_params, **best.params}
         self._config.training.update_params(self.best_params)
-        logger.warning("Best params from Bayesian Optimization written back to config.training.params.")
+        logger.info("Best params from Bayesian Optimization "
+        "written back to config.training.params.")
         return self.best_params
 
     def summary(self) -> Dict[str, Any]:
         if self.study is None:
             return dict()
-        n_pruned = sum(
-            1 for t in self.study.trials
+        n_pruned = sum(1 for t in self.study.trials
             if t.state == optuna.trial.TrialState.PRUNED)
-        result = {"n_trials":   len(self.study.trials),
-                  "best_value": self.study.best_value,
-                  "best_params": self.study.best_params,
-                  "n_pruned":   n_pruned}
+        result = {"n_trials"    : len(self.study.trials),
+                  "best_value"  : self.study.best_value,
+                  "best_params" : self.study.best_params,
+                  "n_pruned"    : n_pruned}
         return result
 
 if __name__ == '__main__':

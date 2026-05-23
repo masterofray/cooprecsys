@@ -27,5 +27,9 @@ cloudpickle~=3.1.0
 # __ Experiment tracking ____________________
 mlflow>=2.11.0
 
+# __ Inference ______________________________
+faiss-cpu ~= 1.13.2
+annoy ~= 1.17.3
+
 # __ Cython _________________________________
 cython>=0.29

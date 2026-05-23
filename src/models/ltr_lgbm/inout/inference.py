@@ -26,10 +26,10 @@ import os
 import sys
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import lightgbm as lgb
 from pathlib import Path
 from copy import deepcopy
+from tqdm.auto import tqdm
 from typing import List, Optional
 
 LocDir = Path(__file__).resolve().parents[3]
@@ -160,7 +160,13 @@ class LTRInference:
         # Rank within each query group
         query_groups = predictdata[q_col].unique()
         ranked_parts: List[pd.DataFrame] = list()
-        for qid in tqdm(query_groups, desc="Ranking queries", unit="query"):
+        for qid in tqdm(query_groups,
+                        desc        = "Ranking queries", 
+                        unit        = "query",
+                        colour      = _cfg.get('tqdm', 'colour'),
+                        ncols       = _cfg.getint('tqdm', 'ncols'),
+                        bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                        mininterval = 0.1):
             mask      = work_df[q_col] == qid
             group_df  = deepcopy(work_df.loc[mask])
 

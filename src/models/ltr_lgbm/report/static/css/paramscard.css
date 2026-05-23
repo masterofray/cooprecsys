@@ -1,0 +1,62 @@
+/* Container untuk deretan card */
+/* untuk Best Parameter ScrCard */
+/* ____________________________ */
+
+
+.score-card-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+    padding: 16px 0;
+}
+
+/* Style utama untuk setiap card */
+.score-card {
+    border-radius: 8px;
+    padding: 10px 16px 10px 10px;
+    display: flex;
+    align-items: center;
+    color: white;
+    font-family: Arial, sans-serif;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+/* Efek sedikit terangkat saat di-hover */
+.score-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+/* Rotasi 5 warna berdasarkan urutan card */
+.score-card:nth-child(5n+1) { background-color: #FFA756; } /* Orange */
+.score-card:nth-child(5n+2) { background-color: #9B84EE; } /* Ungu */
+.score-card:nth-child(5n+3) { background-color: #FF7EE2; } /* Pink */
+.score-card:nth-child(5n+4) { background-color: #FF664C; } /* Merah Bata */
+.score-card:nth-child(5n+5) { background-color: #79C5FF; } /* Biru Muda */
+
+/* Kotak putih untuk Value (v) */
+.score-value {
+    background-color: white;
+    color: #000080;
+    font-size: 18px;
+    font-weight: bold;
+    padding: 8px 12px;
+    border-radius: 8px;
+    min-width: 40px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Teks untuk Nama Parameter (k) */
+.score-label {
+    flex-grow: 1;
+    margin-left: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 1.2;
+    word-break: break-word;
+}

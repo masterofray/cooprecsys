@@ -14,20 +14,38 @@ import os
 import re
 import sys
 import json
+import numpy  as np
 import pandas as pd
 from tqdm.auto       import tqdm
 from pathlib         import Path
 from copy            import deepcopy
-from typing          import Dict, List, Optional
+from typing          import Dict, List, Optional, Tuple
 from .encdec         import LabelEncoderManager
 from .date_processor import DateProcessor
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(LocDir)
 from configs import _cfg, logger
+from db      import duckdb_connection
 
 
-def load_encoders(encoder_path: Optional[Path] = None) -> LabelEncoderManager:
+def Inference_DataSplit(data     : pd.DataFrame,
+                        features : List[str],
+                        label    : str,
+                        query_id : str,
+                       ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    with duckdb_connection(':memory:') as con:
+        con.register_dataframe("datamentah", data)
+        RAW = con.query(f'SELECT * FROM datamentah ORDER BY "{query_id}"')
+    X     = RAW[features].to_numpy(dtype = np.float32)
+    y     = RAW[label].to_numpy(dtype = np.int32)
+    group = (RAW.groupby(query_id, sort = False)
+            .size()
+            .reindex(RAW[query_id].unique())
+            .to_numpy(dtype = np.int32))
+    return X, y, group
+
+def load_encoders(encoder_path: Optional[Path] = './') -> LabelEncoderManager:
     '''To make LabelEncoderManager with loaded encoders'''
     manager = LabelEncoderManager()
     manager.load(encoder_path)
@@ -117,10 +135,11 @@ def TrueString(data: pd.DataFrame,
     result = list()
     n = len(data)
     for item in tqdm(string_cols, 
-                 desc   = 'Detect columns',
-                 colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getint('tqdm', 'ncols'),
-                 unit   = 'Column',
+                 desc        = 'Check TRUE String',
+                 colour      = _cfg.get('tqdm', 'colour'),
+                 ncols       = _cfg.getint('tqdm', 'ncols'),
+                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                 unit        = 'Column',
                  mininterval = 0.5):
         col_lower = item.lower()
         if exclude_regex and exclude_regex.search(col_lower):

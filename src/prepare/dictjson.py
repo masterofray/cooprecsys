@@ -22,7 +22,7 @@ from configs import logger
 
 
 def Dict2Json(data       : Dict[str, Any],
-              filepath   : Optional[str] = None, 
+              filepath   : Optional[str] = None,
               pretty     : bool = True, 
               handle_nan : bool = True,
              ) -> Optional[str]:
@@ -40,6 +40,8 @@ def Dict2Json(data       : Dict[str, Any],
                 for k, v in data.items()}
     try:
         if filepath:
+            fp = Path(filepath).resolve().parent
+            fp.mkdir(parents = True, exist_ok = True)
             with open(filepath, 'w', encoding='utf-8') as files:
                 json.dump(data, files, indent = indent, ensure_ascii = False)
             logger.info(f"Successfully exported to {filepath}")
@@ -51,8 +53,7 @@ def Dict2Json(data       : Dict[str, Any],
     except TypeError as Arc:
         logger.error(f"Error: Cannot serialize - {Arc}, Will save as joblib.")
         newfilepath = Path(filepath).with_suffix(".joblib")
-        joblib.dump(data, str(newfilepath), compress=('lzma', 9))
-        return json.dumps(str(data))
+        return joblib.dump(data, str(newfilepath), compress=('lzma', 9))
 
 
 if __name__ == '__main__':

@@ -48,7 +48,16 @@ class DateProcessor(object):
         if data is not None:
             self.data = data
         self._result  = dict()
+        self._candfeat= list()
         logger.debug("DateProcessor initialized successfully")
+
+    @property
+    def candfeat(self):
+        self._candfeat = (self._result.get("date", list()) +
+                          self._result.get("time", list()) +
+                          self._result.get("datetime", list()) +
+                          self._result.get("unix", list()))
+        return self._candfeat
 
     @property
     def data(self) -> pd.DataFrame:
@@ -120,7 +129,7 @@ class DateProcessor(object):
             sample = series.dropna().head(30)
             if sample.empty:
                 return False
-            parsed = pd.to_datetime(sample, errors="coerce")
+            parsed = pd.to_datetime(sample, format='mixed', errors="coerce")
             score = parsed.notna().mean()
             return score >= 0.70
         except Exception:
@@ -139,10 +148,11 @@ class DateProcessor(object):
         unix_cols     : List[str] = list()
         Column = self.data.select_dtypes(include = ['object', 'string']).columns.tolist()
         for item in tqdm(Column,
-                         desc   = 'Detect columns',
-                         colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getint('tqdm', 'ncols'),
-                         unit   = 'Column',
+                         desc        = 'Detect Date Attribute',
+                         colour      = _cfg.get('tqdm', 'colour'),
+                         ncols       = _cfg.getint('tqdm', 'ncols'),
+                         bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                         unit        = 'Column',
                          mininterval = 0.1):
             try:
                 series = self.data[item]
@@ -179,10 +189,11 @@ class DateProcessor(object):
         logger.info("Converting unix columns")
         UnixColumn = self._result["unix"]
         for item in tqdm(UnixColumn, 
-                 desc   = 'Unix convert',
-                 colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getint('tqdm', 'ncols'),
-                 unit   = 'Column',
+                 desc        = 'Unix convert',
+                 colour      = _cfg.get('tqdm', 'colour'),
+                 ncols       = _cfg.getint('tqdm', 'ncols'),
+                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                 unit        = 'Column',
                  mininterval = 0.1):
             try:
                 num = pd.to_numeric(self.data[item], errors = "coerce")
@@ -207,10 +218,11 @@ class DateProcessor(object):
         logger.info("Processing date features")
         datecolumn = self._result["date"]
         for item in tqdm(datecolumn,
-                 desc   = 'Date Features Process',
-                 colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getint('tqdm', 'ncols'),
-                 unit   = 'Column',
+                 desc        = 'Date Features Process',
+                 colour      = _cfg.get('tqdm', 'colour'),
+                 ncols       = _cfg.getint('tqdm', 'ncols'),
+                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                 unit        = 'Column',
                  mininterval = 0.1):
             try:
                 dt = pd.to_datetime(self.data[item], errors="coerce")
@@ -241,10 +253,11 @@ class DateProcessor(object):
         logger.info("Processing time features")
         timecolumn = self._result["time"]
         for item in tqdm(timecolumn,
-                 desc   = 'Time Features Process',
-                 colour = _cfg.get('tqdm', 'colour'),
-                 ncols  = _cfg.getint('tqdm', 'ncols'),
-                 unit   = 'Column',
+                 desc        = 'Time Features Process',
+                 colour      = _cfg.get('tqdm', 'colour'),
+                 ncols       = _cfg.getint('tqdm', 'ncols'),
+                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                 unit        = 'Column',
                  mininterval = 0.1):
             try:
                 tm = pd.to_datetime(self.data[item], errors="coerce")
@@ -281,10 +294,11 @@ class DateProcessor(object):
         logger.info("Processing datetime features")
         datetimecol = list(set(self._result["datetime"] + self._result["unix"]))
         for item in tqdm(datetimecol,
-                         desc   = 'DateTime Features Process',
-                         colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getint('tqdm', 'ncols'),
-                         unit   = 'Column',
+                         desc        = 'DateTime Features Process',
+                         colour      = _cfg.get('tqdm', 'colour'),
+                         ncols       = _cfg.getint('tqdm', 'ncols'),
+                         bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                         unit        = 'Column',
                          mininterval = 0.1):
             try:
                 dt = pd.to_datetime(self.data[item], errors="coerce")
@@ -338,16 +352,13 @@ class DateProcessor(object):
     def process_duration_features(self) -> None:
         """Compute duration features using only detected date/time columns."""
         logger.debug("Processing duration features")
-        candidate_cols = (self._result.get("date", list()) +
-                          self._result.get("time", list()) +
-                          self._result.get("datetime", list()) +
-                          self._result.get("unix", list()))
-        pairs = self.detect_duration_pairs(candidate_cols)
+        pairs = self.detect_duration_pairs(self.candfeat)
         for mystart, myend in tqdm(pairs,
-                         desc   = 'Duration Features',
-                         colour = _cfg.get('tqdm', 'colour'),
-                         ncols  = _cfg.getint('tqdm', 'ncols'),
-                         unit   = 'Column',
+                         desc        = 'Duration Features',
+                         colour      = _cfg.get('tqdm', 'colour'),
+                         ncols       = _cfg.getint('tqdm', 'ncols'),
+                         bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                         unit        = 'Column',
                          mininterval = 0.1):
             try:
                 start = pd.to_datetime(self.data[mystart], errors="coerce")

@@ -25,15 +25,15 @@ evals_result, runtime) is stored on ``self`` for downstream consumers
 import os
 import sys
 import time
-import numpy as np
-from tqdm import tqdm
+import numpy    as np
 import lightgbm as lgb
-from pathlib import Path
-from typing import Any, Dict
+from pathlib    import Path
+from tqdm.auto  import tqdm
+from typing     import Any, Dict
 
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
-from configs import logger
+from configs import logger, _cfg
 
 
 class LTRTrainer:
@@ -125,9 +125,11 @@ class LTRTrainer:
             X_test,  y_test,  group_test)
 
         # Progress bar via tqdm callback
-        pbar = tqdm(total       = tcfg.num_boost_round,
-                    desc        = "Training rounds",
-                    unit        = "round",
+        pbar = tqdm(total  = tcfg.num_boost_round,
+                    desc   = "Training rounds",
+                    colour = _cfg.get('tqdm', 'colour'),
+                    ncols  = _cfg.getint('tqdm', 'ncols'),
+                    unit   = "round",
                     dynamic_ncols = True)
         _pbar_state: Dict[str, Any] = {"last_iter": 0}
 

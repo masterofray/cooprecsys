@@ -45,3 +45,5 @@ def DecoderPass(Enkripsi: str, password: str = None) -> str:
     Hasil = decrypted_data.decode()
     return Hasil
 
+if __name__ == '__main__':
+    pass

@@ -19,6 +19,7 @@ from .feat_utils     import (prepare_inference_data,
                              load_group_sizes, 
                              load_feature_columns, 
                              load_encoders,
+                             Inference_DataSplit,
                              TrueString)
 
 __all__ = [
