@@ -5,27 +5,15 @@
 // =========================================================
 
 
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("[Overview] Created by Aryanto");
-
-    // Double rAF: tunggu browser selesai layout (clientWidth/Height)
-    // sebelum Chart.js membaca dimensi canvas — wajib untuk container kecil.
-    requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-            initOverviewCharts();
-        });
-    });
-});
-
-
 // =========================================================
 // MAIN INIT
 // =========================================================
-function initOverviewCharts() {
-    initLineCharts();      // ← dulu initBarCharts, sekarang Line
-    initDonutCharts();
-    initGaugeCharts();
-    initMainGauge();
+function initOverviewCharts(container) {
+    if (!container) return;
+    initLineCharts(container);      //dulu initBarCharts, sekarang Line
+    initDonutCharts(container);
+    initGaugeCharts(container);
+    initMainGauge(container);
     console.log("[Overview] Semua chart berhasil dirender.");
 }
 
@@ -54,8 +42,8 @@ function calibrateCanvas(canvas) {
 // – tension 0.4  → garis lengkung (bukan sudut tajam)
 // – warna #38bdf8 → biru terang
 // =========================================================
-function initLineCharts() {
-    const charts = document.querySelectorAll(".js-bar-chart");
+function initLineCharts(container) {
+    const charts = container.querySelectorAll(".js-bar-chart");
     charts.forEach((canvas) => {
         let labels = [];
         let values = [];
@@ -111,9 +99,9 @@ function initLineCharts() {
 // =========================================================
 // DONUT CHART
 // =========================================================
-function initDonutCharts() {
+function initDonutCharts(container) {
     const donutColors = ["#2d7ff9", "#00d68f", "#ffb800", "#a855f7"];
-    document.querySelectorAll(".js-donut-chart").forEach((canvas) => {
+    container.querySelectorAll(".js-donut-chart").forEach((canvas) => {
         const percent    = Number(canvas.dataset.percent    || 0);
         const colorIndex = Number(canvas.dataset.colorIndex || 0);
         calibrateCanvas(canvas);
@@ -145,9 +133,9 @@ function initDonutCharts() {
 // =========================================================
 // GAUGE CHART  (½ lingkaran)
 // =========================================================
-function initGaugeCharts() {
+function initGaugeCharts(container) {
     const gaugeColors = ["#2d7ff9", "#00d68f", "#ffb800", "#ff4d6a", "#a855f7"];
-    document.querySelectorAll(".js-gauge-chart").forEach((canvas) => {
+    container.querySelectorAll(".js-gauge-chart").forEach((canvas) => {
         const percent    = Number(canvas.dataset.percent    || 0);
         const colorIndex = Number(canvas.dataset.colorIndex || 0);
         calibrateCanvas(canvas);
@@ -181,8 +169,8 @@ function initGaugeCharts() {
 // =========================================================
 // MAIN GAUGE
 // =========================================================
-function initMainGauge() {
-    const canvas = document.querySelector(".js-main-gauge");
+function initMainGauge(container) {
+    const canvas = container.querySelector(".js-main-gauge");
     if (!canvas) { return; }
     const percent = Number(canvas.dataset.percent || 0);
     calibrateCanvas(canvas);
@@ -205,5 +193,13 @@ function initMainGauge() {
             plugins             : { legend: { display: false } }
         }
     });
-    console.log("[MainGauge] Render selesai.");
-}
+    console.log("[MainGauge] Render selesai."); }
+
+export default function initOverview(container) {
+    console.log("[Overview] Initialized Module");
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            initOverviewCharts(container);
+        });
+    }); }
+

@@ -200,5 +200,12 @@
 </div>
 </div>
 
-<script src="./assets/js/overview.js"></script>
 </div>
+<script type="module">
+    import initOverview from "./assets/js/overview.js";
+    document.addEventListener("DOMContentLoaded", () => {
+        const container = document.getElementById("page-overview");
+        if (container) {initOverview(container);
+        }
+    });
+</script>

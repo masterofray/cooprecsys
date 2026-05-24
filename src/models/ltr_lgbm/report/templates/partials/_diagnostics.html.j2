@@ -2,7 +2,7 @@
    PARTIAL: _diagnostics.html.j2
    DESKRIPSI: Tempat penampung ChartJS, Plotly Engine, Base64 Images, dan Optuna Tuner
    ========================================================================= #}
-<div id="diagnostics" class="page-content">
+<div id="page-diagnostics" class="page-content">
 
     <div class="section">
     <div class="section-title">
@@ -119,9 +119,22 @@
             </div></div>
             {% endfor %}
         </div></div></div>
-        <script src="./assets/js/paramscard.js"></script>
     {% endif %}
 
-    <script src="./assets/js/heatmaps.js"></script>
-    <script src="./assets/js/fbarplot.js"></script>
 </div>
+<script type="module">
+    import { initHeatmaps } from "./assets/js/heatmaps.js";
+    import { initBarCharts } from "./assets/js/fbarplot.js";
+    import { initParamsCards } from "./assets/js/paramscard.js";
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const diagnosticsContainer = document.getElementById("page-diagnostics");
+        if (!diagnosticsContainer) {
+            console.warn("[Diagnostics] Container tidak ditemukan.");
+            return;}
+        console.log("[Diagnostics] Initializing scoped modules.");
+        initHeatmaps(diagnosticsContainer);
+        initBarCharts(diagnosticsContainer);
+        initParamsCards(diagnosticsContainer);
+    });
+</script>

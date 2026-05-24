@@ -11,17 +11,12 @@
   - Menangani ekstraksi data dari DOM dan rendering Chart.js
  */
 
-document.addEventListener("DOMContentLoaded", () => {
-    console.log("[Init] DOM selesai dimuat. Memulai pipeline rendering chart...");
-    initBarCharts();
-});
-
 // ==========================================
 // 1. MAIN INITIALIZER
 // ==========================================
-function initBarCharts() {
+export function initBarCharts(container) {
     // Menarik semua canvas yang memiliki class js-bar-chart
-    const chartElements = document.querySelectorAll('.js-bar-chart');
+    const chartElements = container.querySelectorAll('.js-bar-chart');
     console.log(`[Init] Ditemukan ${chartElements.length} elemen chart yang siap diproses.`);
 
     chartElements.forEach((canvas, index) => {
