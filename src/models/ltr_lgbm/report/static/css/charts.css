@@ -1,0 +1,145 @@
+/* ============================================
+   charts.css - Chart.js & Stat Elements
+   ============================================
+* author     = "Aryanto"
+* copyright  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+* license    = "GNUPublic"
+* version    = "0.0.1"
+* email      = "aryanto.dandan@gmail.com"
+* status     = "Development"
+* created    = "2026-05-23"
+*/
+
+/* ── Control Panel (Charts + Stats) ── */
+.control-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 16px;
+}
+
+.chart-panel-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+}
+
+.chart-panel-value {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: var(--text);
+    margin-bottom: 16px;
+}
+
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 260px;
+}
+
+.chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* ── Chart.js Framework Base ── */
+.cards-row-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 20px;
+    align-items: start;
+    width: 100%;
+    min-width: 0;
+}
+
+.chart-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 24px;
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+.chartjs-wrapper {
+    position: relative;
+    width: 90%;
+    max-width: 1600px;
+    margin: 0 auto;
+    height: auto;
+    min-height: auto;
+    transition: var(--transition);
+}
+
+/* ── Stat Mini Cards ── */
+.stat-mini-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.stat-mini {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+
+.stat-mini-donut {
+    width: 52px; height: 52px;
+    flex-shrink: 0;
+}
+
+.stat-mini-donut canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.stat-mini-info { flex: 1; min-width: 0; }
+.stat-mini-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+.stat-mini-value { font-size: 1.15rem; font-weight: 700; color: var(--text); }
+
+/* ── Gauge Section ── */
+.gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+.gauge-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; text-align: center; }
+.gauge-chart { position: relative; width: 140px; height: 140px; margin: 0 auto 12px; }
+.gauge-chart canvas { width: 100% !important; height: 100% !important; }
+.gauge-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
+.gauge-value { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+
+.gauge-large-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; display: flex; align-items: center; justify-content: center; flex-direction: column; }
+.gauge-large { position: relative; width: 200px; height: 110px; margin-bottom: 12px; }
+.gauge-large canvas { width: 100% !important; height: 100% !important; }
+.gauge-large-label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
+.gauge-large-value { font-size: 1.8rem; font-weight: 800; color: var(--text); }
+
+/* ── Chart.js Responsive Rules ── */
+@media (max-width: 1120px) {
+    .chartjs-wrapper { 
+        width: 100%; 
+        height: 750px;
+        min-height: 750px;
+    }
+}
+
+@media (max-width: 1024px) {
+    .control-grid { grid-template-columns: 1fr; }
+    .stat-mini-col { flex-direction: row; flex-wrap: wrap; }
+    .stat-mini { flex: 1; min-width: 200px; }
+}
+
+@media (max-width: 768px) {
+    .cards-row-3 { grid-template-columns: 1fr; }
+    .chart-panel { padding: 14px; }
+    .gauge-grid { grid-template-columns: 1fr 1fr; }
+    .chartjs-wrapper { 
+        width: 100%; 
+        height: 600px; 
+        min-height: 600px; 
+    }
+}
