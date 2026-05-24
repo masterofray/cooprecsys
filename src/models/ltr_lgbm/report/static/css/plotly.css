@@ -10,35 +10,23 @@
 * created    = "2026-05-23"
 */
 
-/* ── Heatmap General Wrapper ── */
-.heatmap-section {
-    position: relative;
-    width: 100%;
-    max-width: 100%;
-    min-width: 0;
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    margin-top: 28px;
-}
 
-.heatmap-panel {
+#page-diagnostic .diagnostic-plotly-panel {
     width: 100%;
     max-width: 100%;
     min-width: 0;
     overflow: visible;
-}
+    }
 
-.heatmap-title {
+#page-diagnostic .diagnostic-title {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-secondary);
     margin-bottom: 16px;
     text-align: center;
-}
+    }
 
-/* ── Plotly Core Canvas ── */
-.plotly-wrapper {
+#page-diagnostic .plotly-container {
     position: relative;
     width: 100%;
     max-width: 100%;
@@ -48,21 +36,24 @@
     display: block;
     padding-bottom: 16px;
     -webkit-overflow-scrolling: touch;
-}
+    }
 
-.plotly-chart {
+#page-diagnostic .plotly-chart {
     width: 100%;
+    min-height: 700px;
     margin: 0 auto;
     display: block;
-}
+    }
+
 
 /* ── Plotly Responsive Rules ── */
 @media (min-width: 1800px) {
-    .heatmap-panel { max-width: 1700px; }
-}
+    #page-diagnostic .diagnostic-plotly-panel {
+    max-width: 1700px;}}
 
 @media (max-width: 768px) {
-    .heatmap-panel { max-width: 100%; }
-    .plotly-wrapper { justify-content: flex-start; }
-    .plotly-chart { min-height: 550px; }
-}
+    #page-diagnostic .plotly-container {
+    overflow-x: auto;}
+    #page-diagnostic .plotly-chart {
+    min-height: 550px;}
+    }

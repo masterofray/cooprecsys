@@ -36,38 +36,50 @@
         <span>Interactive Feature Diagnostics</span>
         </div>
         
-        <div class="cards-row-3">
+        <div class="diagnostic-grid">
         {% for c in charts | default([]) %}
-                
+
+        {# =======================================================
+           PLOTLY HEATMAP
+        ======================================================== #}
         {% if c['type'] == 'heatmap_plotly' %}
-        <div class="heatmap-section" style="width: 100%;">
-        <div class="chart-panel heatmap-panel">
-        <h3 class="heatmap-title">{{ c['title'] }}</h3>
-        <div class="plotly-wrapper">
-            <div 
-                id="plotly-{{ loop.index0 }}" 
+        <div class="diagnostic-panel diagnostic-plotly-panel">
+            <h3 class="diagnostic-title">
+            {{ c['title'] }}
+            </h3>
+            <div class="plotly-container">
+            <div
+                id="plotly-{{ loop.index0 }}"
                 class="plotly-chart js-heatmap-render"
                 data-title="{{ c['title'] }}"
                 data-z="{{ c['data']['z'] | tojson | forceescape }}"
                 data-x="{{ c['data']['x'] | tojson | forceescape }}"
                 data-y="{{ c['data']['y'] | tojson | forceescape }}">
             </div>
-        </div></div></div>
+            </div></div>
 
+        {# =======================================================
+           CHART.JS BAR CHART
+        ======================================================== #}
         {% elif c['type'] == 'bar_chart_js' %}
-        <div class="chart-panel">
-        <h3 class="chart-title">{{ c['title'] }}</h3>
-        <div class="chartjs-wrapper">
-            <canvas 
-                class="js-bar-chart" 
-                id="chartjs-{{ loop.index0 }}"
-                data-labels="{{ c['data']['labels'] | tojson | forceescape }}"
-                data-values="{{ c['data']['values'] | tojson | forceescape }}">
-            </canvas>
-        </div></div>
+        <div class="diagnostic-panel diagnostic-chartjs-panel">
+            <h3 class="diagnostic-title">
+            {{ c['title'] }}
+            </h3>
+            <div class="chartjs-container">
+            <div class="chartjs-wrapper">
+                <canvas
+                    class="js-bar-chart"
+                    id="chartjs-{{ loop.index0 }}"
+                    data-labels="{{ c['data']['labels'] | tojson | forceescape }}"
+                    data-values="{{ c['data']['values'] | tojson | forceescape }}">
+                </canvas>
+            </div>
+            </div></div>
         {% endif %}
+    {% endfor %}
 
-    {% endfor %}</div></div>
+    </div></div>
 
 
 
