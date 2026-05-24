@@ -4,10 +4,11 @@
 * author     = "Aryanto"
 * copyright  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
 * license    = "GNUPublic"
-* version    = "0.0.1"
+* version    = "0.0.2"
 * email      = "aryanto.dandan@gmail.com"
 * status     = "Development"
 * created    = "2026-05-23"
+* modified   = "2026-05-24" — fix canvas sizing agar donut & gauge tampil
 */
 
 /* ── Control Panel (Charts + Stats) ── */
@@ -37,9 +38,9 @@
     height: 260px;
 }
 
+/* Canvas di dalam chart-container: biarkan Chart.js kelola ukurannya */
 .chart-container canvas {
-    width: 100% !important;
-    height: 100% !important;
+    display: block;
 }
 
 /* ── Chart.js Framework Base ── */
@@ -90,38 +91,107 @@
     gap: 14px;
 }
 
+/*
+ * FIX: Donut canvas butuh container yang position:relative dengan ukuran
+ * eksplisit agar Chart.js bisa baca clientWidth/clientHeight dengan benar.
+ * Jangan pakai width/height !important pada canvas — itu mencegah Chart.js
+ * meng-override inline style untuk hi-DPI scaling.
+ */
 .stat-mini-donut {
-    width: 52px; height: 52px;
+    width: 52px;
+    height: 52px;
     flex-shrink: 0;
+    position: relative;           /* ← wajib: anchor bagi canvas absolute */
 }
 
 .stat-mini-donut canvas {
-    width: 100% !important;
-    height: 100% !important;
+    position: absolute;           /* ← fill container tanpa !important */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
 }
 
-.stat-mini-info { flex: 1; min-width: 0; }
+.stat-mini-info  { flex: 1; min-width: 0; }
 .stat-mini-label { font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
 .stat-mini-value { font-size: 1.15rem; font-weight: 700; color: var(--text); }
 
 /* ── Gauge Section ── */
-.gauge-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
-.gauge-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 20px; text-align: center; }
-.gauge-chart { position: relative; width: 140px; height: 140px; margin: 0 auto 12px; }
-.gauge-chart canvas { width: 100% !important; height: 100% !important; }
-.gauge-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
-.gauge-value { font-size: 1.3rem; font-weight: 800; color: var(--text); }
+.gauge-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
 
-.gauge-large-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 24px; display: flex; align-items: center; justify-content: center; flex-direction: column; }
-.gauge-large { position: relative; width: 200px; height: 110px; margin-bottom: 12px; }
-.gauge-large canvas { width: 100% !important; height: 100% !important; }
+.gauge-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    text-align: center;
+}
+
+/*
+ * FIX: Sama seperti donut — gunakan position:relative + canvas:absolute
+ * agar Chart.js membaca ukuran container yang benar (140×140px).
+ */
+.gauge-chart {
+    position: relative;           /* ← wajib */
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 12px;
+}
+
+.gauge-chart canvas {
+    position: absolute;           /* ← fill container */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.gauge-label { font-size: 0.8rem;  font-weight: 600; color: var(--text-secondary); margin-bottom: 2px; }
+.gauge-value { font-size: 1.3rem;  font-weight: 800; color: var(--text); }
+
+.gauge-large-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+/*
+ * FIX: Sama — gauge utama (½ lingkaran besar).
+ */
+.gauge-large {
+    position: relative;           /* ← wajib */
+    width: 200px;
+    height: 110px;
+    margin-bottom: 12px;
+}
+
+.gauge-large canvas {
+    position: absolute;           /* ← fill container */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
 .gauge-large-label { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); }
-.gauge-large-value { font-size: 1.8rem; font-weight: 800; color: var(--text); }
+.gauge-large-value { font-size: 1.8rem;  font-weight: 800; color: var(--text); }
 
 /* ── Chart.js Responsive Rules ── */
 @media (max-width: 1120px) {
-    .chartjs-wrapper { 
-        width: 100%; 
+    .chartjs-wrapper {
+        width: 100%;
         height: 750px;
         min-height: 750px;
     }
@@ -130,16 +200,16 @@
 @media (max-width: 1024px) {
     .control-grid { grid-template-columns: 1fr; }
     .stat-mini-col { flex-direction: row; flex-wrap: wrap; }
-    .stat-mini { flex: 1; min-width: 200px; }
+    .stat-mini     { flex: 1; min-width: 200px; }
 }
 
 @media (max-width: 768px) {
-    .cards-row-3 { grid-template-columns: 1fr; }
-    .chart-panel { padding: 14px; }
-    .gauge-grid { grid-template-columns: 1fr 1fr; }
-    .chartjs-wrapper { 
-        width: 100%; 
-        height: 600px; 
-        min-height: 600px; 
+    .cards-row-3  { grid-template-columns: 1fr; }
+    .chart-panel  { padding: 14px; }
+    .gauge-grid   { grid-template-columns: 1fr 1fr; }
+    .chartjs-wrapper {
+        width: 100%;
+        height: 600px;
+        min-height: 600px;
     }
 }

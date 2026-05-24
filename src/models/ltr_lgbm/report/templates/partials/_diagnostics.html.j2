@@ -1,0 +1,127 @@
+{# =========================================================================
+   PARTIAL: _diagnostics.html.j2
+   DESKRIPSI: Tempat penampung ChartJS, Plotly Engine, Base64 Images, dan Optuna Tuner
+   ========================================================================= #}
+<div id="diagnostics" class="page-content">
+
+    <div class="section">
+    <div class="section-title">
+    <i class="fas fa-image"></i> <span>Static Visual Diagnostics</span>
+    </div>
+    <div class="cards-row-3">
+        {% for c in charts | default([]) %}
+        {% if c['type'] not in ['heatmap_plotly', 'bar_chart_js'] %}
+            <div class="chart-panel">
+            <h3 style="font-size:0.9rem; font-weight:600; 
+            color:var(--text-secondary); margin-bottom:12px;">
+            {{ c['title'] }}
+            </h3>
+            {% if c['image'] and c['image']|length > 0 %}
+                <img src="data:image/png;base64,{{ c['image'] }}"
+                alt="{{ c['title'] }}"
+                style="width:100%; border-radius:var(--radius); display:block;">
+            {% else %}
+                <p style="color:var(--text-muted);">
+                Chart tidak tersedia (type: {{ c['type'] | default('none') }})
+                </p>
+            {% endif %}</div>
+        {% endif %}{% endfor %}
+    </div></div>
+
+
+
+    <div class="section">
+        <div class="section-title">
+        <i class="fas fa-chart-line"></i>
+        <span>Interactive Feature Diagnostics</span>
+        </div>
+        
+        <div class="cards-row-3">
+        {% for c in charts | default([]) %}
+                
+        {% if c['type'] == 'heatmap_plotly' %}
+        <div class="heatmap-section" style="width: 100%;">
+        <div class="chart-panel heatmap-panel">
+        <h3 class="heatmap-title">{{ c['title'] }}</h3>
+        <div class="plotly-wrapper">
+            <div 
+                id="plotly-{{ loop.index0 }}" 
+                class="plotly-chart js-heatmap-render"
+                data-title="{{ c['title'] }}"
+                data-z="{{ c['data']['z'] | tojson | forceescape }}"
+                data-x="{{ c['data']['x'] | tojson | forceescape }}"
+                data-y="{{ c['data']['y'] | tojson | forceescape }}">
+            </div>
+        </div></div></div>
+
+        {% elif c['type'] == 'bar_chart_js' %}
+        <div class="chart-panel">
+        <h3 class="chart-title">{{ c['title'] }}</h3>
+        <div class="chartjs-wrapper">
+            <canvas 
+                class="js-bar-chart" 
+                id="chartjs-{{ loop.index0 }}"
+                data-labels="{{ c['data']['labels'] | tojson | forceescape }}"
+                data-values="{{ c['data']['values'] | tojson | forceescape }}">
+            </canvas>
+        </div></div>
+        {% endif %}
+
+    {% endfor %}</div></div>
+
+
+
+    {% if tuner_summary %}
+    <div class="section" style="margin-top: 40px;">
+        <div class="section-title">
+        <i class="fas fa-flask"></i>
+        <span>Bayesian Tuning Hyperparameter Optimization</span>
+        </div>
+
+        <div class="cards-row">
+            <div class="scorecard blue">
+            <div class="scorecard-body">
+            <div class="scorecard-label">Total Trials Executed</div>
+            <div class="scorecard-value">{{ tuner_summary.n_trials }}</div>
+            </div></div>
+            
+            <div class="scorecard orange">
+            <div class="scorecard-body">
+            <div class="scorecard-label">Trials Pruned (Early Stopping)</div>
+            <div class="scorecard-value">{{ tuner_summary.n_pruned }}</div>
+            </div></div>
+            
+            <div class="scorecard green">
+            <div class="scorecard-body">
+            <div class="scorecard-label">Best Objective Score</div>
+            <div class="scorecard-value">{{ "%.6f"|format(tuner_summary.best_value) }}</div>
+            </div></div>
+        </div>
+
+
+        <link rel="stylesheet" href="./assets/css/paramscard.css">
+        <div class="table-card" style="margin-top:16px;">
+            <div class="table-header">
+            <h3 style="font-size: 1.1rem;">Optimal Parameter Combination</h3>
+            </div>
+            <div class="score-card-container" style="padding: 16px;">
+            {% for k, v in tuner_summary.best_params.items() %}
+            <div class="score-card" data-parameter="{{ k }}" data-value="{{ v }}">
+            <div class="score-value">
+                {% if v is float %}
+                    {{ "%.8f"|format(v) }}
+                {% else %}
+                    {{ v }}
+                {% endif %}
+            </div>
+            <div class="score-label">
+            {{ k|replace('_', ' ')|title }}
+            </div></div>
+            {% endfor %}
+        </div></div></div>
+        <script src="./assets/js/paramscard.js"></script>
+    {% endif %}
+
+    <script src="./assets/js/heatmaps.js"></script>
+    <script src="./assets/js/fbarplot.js"></script>
+</div>

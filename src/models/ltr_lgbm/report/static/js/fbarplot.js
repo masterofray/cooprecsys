@@ -1,6 +1,14 @@
-/**
- * barplot.js
- * Menangani ekstraksi data dari DOM dan rendering Chart.js
+/*
+* author     = "Aryanto"
+* copyright  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+* license    = "GNUPublic"
+* version    = "0.0.1"
+* email      = "aryanto.dandan@gmail.com"
+* status     = "Development"
+* created    = "2026-05-23"
+* About
+  - barplot.js
+  - Menangani ekstraksi data dari DOM dan rendering Chart.js
  */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -110,7 +118,8 @@ function normalizeChartData(rawLabels, rawValues) {
     // Check data apakah empty atau tidak!
     if (!labels || !labels.length || !values || !values.length) {
         console.warn("[Data Validation] Peringatan: Array labels atau values kosong!");
-    return null;}
+        return null;
+    }
     return { labels, values };
 }
 
@@ -134,6 +143,7 @@ function renderChartOnCanvas(canvas, data) {
     }
 
     console.log(`[Render] Mengeksekusi 'new Chart()' ...`);
+    
     // 1. HITUNG TINGGI CONTAINER SECARA DINAMIS
     const barHeight = 22;       // Ukuran batang bar (px)
     const barSpacing = 16;      // Jarak spasi vertikal antar bar (px)
@@ -150,7 +160,16 @@ function renderChartOnCanvas(canvas, data) {
     }
     canvas.style.height = `${calculatedHeight}px`;
     
-    // 3. INITIALIZE CHART.JS
+    // 3. DYNAMIC COLOR MAPPING UNTUK HIGHLIGHT TOP FEATURE
+    const dynamicBackgrounds = data.values.map((_, index) => 
+        index === 0 ? '#ed3761' : 'rgba(37, 137, 215, 0.8)' 
+    );
+    
+    const dynamicBorders = data.values.map((_, index) => 
+        index === 0 ? '#ff5c82' : 'rgba(54, 162, 235, 1)' 
+    );
+
+    // 4. INITIALIZE CHART.JS
     console.log("Begin initialized the Chart.js");
     try {
         new Chart(canvas, {
@@ -160,40 +179,44 @@ function renderChartOnCanvas(canvas, data) {
                 datasets: [{
                     label: 'Importance',
                     data: data.values,
+                    backgroundColor: dynamicBackgrounds,
+                    borderColor: dynamicBorders,
                     borderWidth: 1,
                     borderRadius: 4,
                     barThickness: barHeight
                 }]
             },
-        options: {
-            indexAxis: 'y',
-            responsive: true,
-            maintainAspectRatio: false, // Wajib false agar mengikuti ukuran wrapper script
-            animation: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: { enabled: true }
-            },
-            layout: {
-                padding: { left: 10, right: 25, top: 5, bottom: 5 }
-            },
-            scales: {
-            x: {
-                beginAtZero: true,
-                ticks: { 
-                    color: '#cbd5e1',
-                    font: { size: 14 } 
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                maintainAspectRatio: false, // Wajib false agar mengikuti ukuran wrapper script
+                animation: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { enabled: true }
                 },
-                grid: { color: 'rgba(255,255,255,0.06)' }
-            },
-            y: {
-                ticks: {
-                    color: '#cbd5e1',
-                    font: { size: 14 },
-                    autoSkip: false // Pastikan label tidak ada yang disembunyikan
+                layout: {
+                    padding: { left: 10, right: 25, top: 5, bottom: 5 }
                 },
-                grid: { display: false }
-                }}}
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        ticks: { 
+                            color: '#cbd5e1',
+                            font: { size: 14 } 
+                        },
+                        grid: { color: 'rgba(255,255,255,0.06)' }
+                    },
+                    y: {
+                        ticks: {
+                            color: '#cbd5e1',
+                            font: { size: 14 },
+                            autoSkip: false // Pastikan label tidak ada yang disembunyikan
+                        },
+                        grid: { display: false }
+                    }
+                }
+            }
         });
         console.log(`[Render SUCCESS] Chart berhasil digambar di UI.`);
     } catch (err) {

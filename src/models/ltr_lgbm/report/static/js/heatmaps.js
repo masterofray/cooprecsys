@@ -1,7 +1,16 @@
-/**
- * File: heatmaps.js
- * Manajemen visualisasi Heatmap Plotly dengan verbose debugging.
+/*
+* author     = "Aryanto"
+* copyright  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+* license    = "GNUPublic"
+* version    = "0.0.1"
+* email      = "aryanto.dandan@gmail.com"
+* status     = "Development"
+* created    = "2026-05-23"
+* About
+  - heatmaps.js
+  - Manajemen visualisasi Heatmap Plotly dengan verbose debugging.
  */
+
 
 function initializeAllHeatmaps() {
   console.group("=== [Heatmap Initialization Engine] ===");
