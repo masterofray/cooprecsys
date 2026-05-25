@@ -1,478 +1,111 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ page_title }}</title>
-<link rel="stylesheet" href="./assets/reportbreak.css">
-<script src="./assets/chart.4.5.1.min.js"></script>
-<script src="./assets/plotly-2.35.2.min.js"></script>
-</head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+    content="width=device-width, initial-scale=1.0">
+    <title>
+        {{ page_title }}
+        </title>
+    <link rel   = "stylesheet" href = "./assets/css/reportbreak.css">
+    <link rel   = "stylesheet" href = "./assets/css/charts.css">
+    <link rel   = "stylesheet" href = "./assets/css/plotly.css">
+    <script src = "./assets/js/chart.4.5.1.min.js"></script>
+    <script src = "./assets/js/plotly-2.35.2.min.js"></script>
+    <script src = "./assets/js/spa.js"></script>
+    </head>
+
 <body>
 
-<!-- ── Sidebar ── -->
+<!-- Sidebar Report Main -->
 <nav class="sidebar">
     <div class="sidebar-logo">
-        <img src="./assets/compute01.png" alt="LTR">
+    <img src="./assets/compute01.png" alt="LTR">
     </div>
 
     <div class="sidebar-nav">
-        <button class="sidebar-link active" onclick="switchPage('overview')" data-page="overview">
-            <i class="fas fa-th-large"></i><span>Overview</span>
+    <button class="sidebar-link active"
+        onclick="switchPage('overview')"
+        data-page="overview">
+        <i class="fas fa-th-large"></i>
+        <span>Overview</span>
         </button>
-        <button class="sidebar-link" onclick="switchPage('rankings')" data-page="rankings">
-            <i class="fas fa-list-ol"></i><span>Rankings</span>
+
+    <button class="sidebar-link"
+        onclick="switchPage('rankings')"
+        data-page="rankings">
+        <i class="fas fa-list-ol"></i>
+        <span>Rankings</span>
         </button>
-        <button class="sidebar-link" onclick="switchPage('diagnostics')" data-page="diagnostics">
-            <i class="fas fa-chart-line"></i><span>Diagnostics</span>
+    
+    <button class="sidebar-link"
+        onclick="switchPage('diagnostics')"
+        data-page="diagnostics">
+        <i class="fas fa-chart-line"></i>
+        <span>Diagnostics</span>
         </button>
-        <button class="sidebar-link" onclick="switchPage('config')" data-page="config">
-            <i class="fas fa-cog"></i><span>Config</span>
+    
+    <button class="sidebar-link"
+        onclick="switchPage('config')"
+        data-page="config">
+        <i class="fas fa-cog"></i>
+        <span>Config</span>
         </button>
     </div>
 
     <div class="sidebar-user">
-        <div class="sidebar-avatar">A</div>
-        <div class="sidebar-user-info">
-            <span class="sidebar-user-name">Halo, Aryanto</span>
-            <span class="sidebar-user-role">admin</span>
-        </div>
+    <div class="sidebar-avatar">A</div>
+    <div class="sidebar-user-info">
+    <span class="sidebar-user-name">Halo, Aryanto</span>
+    <span class="sidebar-user-role">admin</span>
+    </div>
     </div>
 </nav>
 
-<!-- ── Main Content ── -->
+
 <div class="main">
 
-    <div class="page-header">
-        <h1>My Dashboard</h1>
-        <p>LTR LightGBM Monitoring &mdash; {{ subtitle }}</p>
+<div class="page-header">
+    <h1>My Dashboard</h1>
+    <p>LTR LightGBM Monitoring &mdash; {{ subtitle }}</p>
     </div>
 
-    <!-- Page Tabs -->
-    <div class="page-tabs">
-        <button class="page-tab active" onclick="switchPage('overview')"><i class="fas fa-th-large"></i> Overview</button>
-        <button class="page-tab" onclick="switchPage('rankings')"><i class="fas fa-list-ol"></i> Rankings</button>
-        <button class="page-tab" onclick="switchPage('diagnostics')"><i class="fas fa-chart-line"></i> Diagnostics</button>
-        <button class="page-tab" onclick="switchPage('config')"><i class="fas fa-cog"></i> Config</button>
-    </div>
 
-    <!-- ═══ PAGE: OVERVIEW ═══ -->
-    <div id="page-overview" class="page-content active">
+<div class="page-tabs">
+    <button class="page-tab active"
+        onclick="switchPage('overview')">
+        <i class="fas fa-th-large"></i>
+        Overview</button>
+    
+    <button class="page-tab"
+        onclick="switchPage('rankings')">
+        <i class="fas fa-list-ol"></i>
+        Rankings</button>
 
-        <!-- Scorecard Section -->
-        <div class="section">
-            <div class="section-title"><i class="fas fa-tachometer-alt"></i> Scorecard</div>
-            <div class="cards-row">
-                {% for m in scorecards %}
-                <div class="scorecard animate-in {{ m.color }}">
-                    <div class="scorecard-icon">
-                        {% if m.icon_img %}
-                            <img src="{{ static_img }}/{{ m.icon_img }}" alt="{{ m.label }}">
-                        {% else %}
-                            <i class="{{ m.icon }}"></i>
-                        {% endif %}
-                    </div>
-                    <div class="scorecard-body">
-                        <div class="scorecard-label">{{ m.label }}</div>
-                        <div class="scorecard-value">{{ m.value }}</div>
-                        {% if m.sub %}<div class="scorecard-sub">{{ m.sub }}</div>{% endif %}
-                        {% if m.trend %}
-                        <div class="scorecard-trend {{ m.trend_dir }}">
-                            <i class="fas fa-arrow-{{ m.trend_dir }}"></i> {{ m.trend }}
-                        </div>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+    <button class="page-tab"
+        onclick="switchPage('diagnostics')">
+        <i class="fas fa-chart-line"></i>
+        Diagnostics</button>
 
-        <!-- Control Section -->
-        <div class="section">
-            <div class="section-title"><i class="fas fa-sliders-h"></i> Control</div>
-            <div class="control-grid">
-                <div class="chart-panel">
-                    <div class="chart-panel-title">Visitor Analytics</div>
-                    <div class="chart-panel-value">{{ total_rankings }} Predictions</div>
-                    <div class="chart-container">
-                        <canvas id="barChart"></canvas>
-                    </div>
-                </div>
-                <div class="stat-mini-col">
-                    {% for s in stat_minis %}
-                    <div class="stat-mini">
-                        <div class="stat-mini-donut">
-                            <canvas id="donut-{{ loop.index }}"></canvas>
-                        </div>
-                        <div class="stat-mini-info">
-                            <div class="stat-mini-label">{{ s.label }}</div>
-                            <div class="stat-mini-value">{{ s.value }}</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Gauge Section -->
-        <div class="section">
-            <div class="section-title"><i class="fas fa-gauge-high"></i> Gauge</div>
-            <div class="gauge-grid">
-                {% for g in gauges %}
-                <div class="gauge-card">
-                    <div class="gauge-chart">
-                        <canvas id="gauge-{{ loop.index }}"></canvas>
-                    </div>
-                    <div class="gauge-label">{{ g.label }}</div>
-                    <div class="gauge-value">{{ g.display }}</div>
-                </div>
-                {% endfor %}
-                <div class="gauge-large-card">
-                    <div class="gauge-large">
-                        <canvas id="gaugeMain"></canvas>
-                    </div>
-                    <div class="gauge-large-label">Overall Score</div>
-                    <div class="gauge-large-value">{{ overall_score }}</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Reports Section -->
-        <div class="section">
-            <div class="section-title"><i class="fas fa-file-alt"></i> Reports</div>
-            <div class="chart-panel" style="text-align:center;padding:40px;">
-                <i class="fas fa-chart-bar" style="font-size:2.5rem;color:var(--accent);margin-bottom:12px;display:block;"></i>
-                <div style="color:var(--text-secondary);font-size:0.9rem;">
-                    Generated at <strong>{{ generated_at }}</strong> &mdash;
-                    Experiment: <strong>{{ experiment_name }}</strong> &mdash;
-                    Best Iteration: <strong>{{ best_iteration }}</strong>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══ PAGE: RANKINGS ═══ -->
-    <div id="page-rankings" class="page-content">
-        <div class="section">
-            <div class="section-title"><i class="fas fa-list-ol"></i> Top {{ rankings|length }} Predictions (LTR LightGBM)</div>
-            <div class="table-card">
-                <div class="table-header">
-                    <h3>Ranking Results</h3>
-                    <span class="table-badge">rankings_top20.csv</span>
-                </div>
-                <div class="table-scroll">
-                    <table class="data-table">
-                        <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>CustomerID</th>
-                                <th>ProductPrice</th>
-                                <th>Discount</th>
-                                <th>CategoryID</th>
-                                <th>VitalityDays</th>
-                                <th>EmployeeAge</th>
-                                <th>YearsWorking</th>
-                                <th>Relevance</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                        {% for r in rankings %}
-                            <tr>
-                                <td>
-                                    {% if r.rank <= 3 %}
-                                    <span class="rank-badge rank-{{ r.rank }}">{{ r.rank }}</span>
-                                    {% else %}
-                                    <span class="rank-badge rank-default">{{ r.rank }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>{{ r.CustomerID }}</td>
-                                <td>{{ "%.2f"|format(r.ProductPrice) }}</td>
-                                <td>{{ "%.1f"|format(r.Discount) }}</td>
-                                <td>{{ r.CategoryID }}</td>
-                                <td>{{ "%.0f"|format(r.VitalityDays) }}</td>
-                                <td>{{ r.EmployeeAge }}</td>
-                                <td>{{ r.YearsWorking }}</td>
-                                <td>
-                                    <span class="relevance-bar" style="width:{{ (r.relevance_score * 100)|int }}px;"></span>
-                                    {{ "%.4f"|format(r.relevance_score) }}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══ PAGE: DIAGNOSTICS ═══ -->
-    <div id="page-diagnostics" class="page-content">
-        <div class="section">
-          <div class="section-title">
-            <i class="fas fa-chart-line"></i>
-            Visual Diagnostics
-          </div>
-          <div class="cards-row-3">
-            {% for c in charts %}
-            {% if c['type'] not in ['heatmap_plotly', 'bar_chart_js'] %}
-            <div class="chart-panel">
-              <h3 style="font-size:0.9rem;font-weight:600;color:var(--text-secondary);margin-bottom:12px;">
-                {{ c['title'] }}
-              </h3>
-              {% if c['image'] and c['image']|length > 0 %}
-              <img src="data:image/png;base64,{{ c['image'] }}" alt="{{ c['title'] }}" style="width:100%;border-radius:var(--radius);display:block;">
-              {% else %}
-              <p style="color:var(--text-muted);">
-                Chart tidak tersedia
-                (type: {{ c['type'] | default('none') }})
-              </p>
-              {% endif %}
-            </div>
-            {% endif %}
-            {% endfor %}
-          </div>
-
-          {% for c in charts %}
-
-            <!-- Correlation heatmap plot -->
-            {% if c['type'] == 'heatmap_plotly' %}
-              <div class  = "heatmap-section">
-              <div class  = "chart-panel heatmap-panel">
-                <h3 class = "heatmap-title">
-                  {{ c['title'] }}
-                </h3>
-                <div class = "plotly-wrapper">
-                  <!-- class penanda 'js-heatmap-render' dan dataflow bypass data atribute-* -->
-                  <div 
-                    id         = "plotly-{{ loop.index0 }}" 
-                    class      = "plotly-chart js-heatmap-render"
-                    data-title = "{{ c['title'] }}"
-                    data-z     = "{{ c['data']['z'] | tojson | forceescape }}"
-                    data-x     = "{{ c['data']['x'] | tojson | forceescape }}"
-                    data-y     = "{{ c['data']['y'] | tojson | forceescape }}">
-                  </div>
-                </div></div></div>
-              <script src = "./assets/heatmaps.js"></script>
-            
-          <!-- Feature Importance part -->
-          {% elif c['type'] == 'bar_chart_js' %}
-            <div class  = "chart-panel">
-              <h3 class = "chart-title">
-                {{ c['title'] }}
-              </h3>
-              <div class="chartjs-wrapper">
-                <!-- 
-                  Data disuntikkan di sini menggunakan atribut data-* 
-                  Gunakan |tojson|forceescape agar format JSON aman saat masuk ke atribut HTML
-                -->
-                <canvas 
-                  class       = "js-bar-chart" 
-                  id          = "chartjs-{{ loop.index0 }}"
-                  data-labels = "{{ c['data']['labels'] | tojson | forceescape }}"
-                  data-values = "{{ c['data']['values'] | tojson | forceescape }}">
-                </canvas>
-              </div>
-            </div>
-            <script src = "./assets/fbarplot.js"></script>
-            {% endif %}
-            
-          {% endfor %}
-        </div>
-
-
-        {% if tuner_summary %}
-        <div class="section">
-            <div class="section-title"><i class="fas fa-flask"></i> Bayesian Tuning</div>
-            <div class="cards-row">
-                <div class="scorecard blue"><div class="scorecard-body">
-                    <div class="scorecard-label">Trials</div>
-                    <div class="scorecard-value">{{ tuner_summary.n_trials }}</div>
-                </div></div>
-                <div class="scorecard orange"><div class="scorecard-body">
-                    <div class="scorecard-label">Pruned</div>
-                    <div class="scorecard-value">{{ tuner_summary.n_pruned }}</div>
-                </div></div>
-                <div class="scorecard green"><div class="scorecard-body">
-                    <div class="scorecard-label">Best Score</div>
-                    <div class="scorecard-value">{{ "%.6f"|format(tuner_summary.best_value) }}</div>
-                </div></div>
-            </div>
-            
-            <!-- BEST PARAMETER SCORECARD -->
-            <link rel      = "stylesheet" href="./assets/paramscard.css">
-            <div class     = "table-card" style="margin-top:16px;">
-                <div class = "table-header">
-                <h3 style="font-size: 24px; margin-bottom: 12px;">
-                    Best Parameters
-                </h3></div>
-                <div class = "score-card-container">
-                {% for k, v in tuner_summary.best_params.items() %}
-                <div 
-                class="score-card"
-                data-parameter="{{ k }}"
-                data-value="{{ v }}">
-                <div class="score-value">
-                {% if v is float %}
-                    {{ "%.8f"|format(v) }}
-                {% else %}
-                    {{ v }}
-                {% endif %}
-                </div>
-                <div class="score-label">
-                    {{ k|replace('_', ' ')|title }}
-                </div>
-                </div>
-                {% endfor %}
-                <script src = "./assets/paramscard.js"></script>
-                </div>
-            </div>
-
-        </div>
-        {% endif %}
-    </div>
-
-    <!-- ═══ PAGE: CONFIG ═══ -->
-    <div id="page-config" class="page-content">
-        <div class="section">
-            <div class="section-title"><i class="fas fa-cog"></i> Training Configuration</div>
-            <div class="table-card">
-                <div class="table-header">
-                    <h3>Model Parameters</h3>
-                    <span class="table-badge">LightGBM</span>
-                </div>
-                <div class="table-scroll">
-                    <table class="data-table">
-                        <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
-                        <tbody>
-                        {% for k,v in training_params.items() %}
-                        <tr><td>{{ k }}</td><td><code>{{ v }}</code></td></tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="footer">
-        Generated by <strong>Masterofray</strong> &mdash; {{ generated_at }}
-    </div>
+    <button class="page-tab"
+        onclick="switchPage('config')">
+        <i class="fas fa-cog"></i>
+        Config</button>
 </div>
 
-<script src="./assets/dashboard.js"></script>
-<script>
-// ── Chart.js Data Injection ──
 
-// Bar Chart - Visitor Analytics
-const barCtx = document.getElementById('barChart');
-if (barCtx) {
-    new Chart(barCtx, {
-        type: 'bar',
-        data: {
-            labels: {{ bar_labels | tojson }},
-            datasets: [{
-                label: 'Predictions',
-                data: {{ bar_data | tojson }},
-                backgroundColor: 'rgba(45, 127, 249, 0.6)',
-                borderColor: '#2d7ff9',
-                borderWidth: 1,
-                borderRadius: 6,
-                barPercentage: 0.7,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
-            scales: {
-                x: {
-                    grid: { color: 'rgba(26,51,88,0.5)' },
-                    ticks: { color: '#5a7aa0', font: { size: 10 } }
-                },
-                y: {
-                    grid: { color: 'rgba(26,51,88,0.5)' },
-                    ticks: { color: '#5a7aa0', font: { size: 10 } }
-                }
-            }
-        }
-    });
-}
+{# Halaman 1: Executive KPI Summary #}
+{% include "partials/_overview.html.j2" %}
 
-// Donut Charts
-const donutColors = ['#2d7ff9', '#00d68f', '#ffb800', '#a855f7'];
-{% for s in stat_minis %}
-(function() {
-    const c = document.getElementById('donut-{{ loop.index }}');
-    if (!c) return;
-    new Chart(c, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [{{ s.percent }}, 100 - {{ s.percent }}],
-                backgroundColor: [donutColors[{{ loop.index0 }} % 4], 'rgba(26,51,88,0.5)'],
-                borderWidth: 0,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '72%',
-            plugins: { legend: { display: false } },
-        }
-    });
-})();
-{% endfor %}
+{# Halaman 2: Tabular Rangking and Matriks Retensi #}
+{% include "partials/_rankings.html.j2" %}
 
-// Gauge Charts
-const gaugeColors = ['#2d7ff9', '#00d68f', '#ffb800', '#ff4d6a', '#a855f7'];
-{% for g in gauges %}
-(function() {
-    const c = document.getElementById('gauge-{{ loop.index }}');
-    if (!c) return;
-    new Chart(c, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [{{ g.percent }}, 100 - {{ g.percent }}],
-                backgroundColor: [gaugeColors[{{ loop.index0 }} % 5], 'rgba(26,51,88,0.4)'],
-                borderWidth: 0,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '75%',
-            rotation: -90,
-            circumference: 180,
-            plugins: { legend: { display: false } },
-        }
-    });
-})();
-{% endfor %}
+{# Halaman 3: Charts, Bar Plots, and Plotly Heatmaps #}
+{% include "partials/_diagnostics.html.j2" %}
 
-// Main Gauge
-(function() {
-    const c = document.getElementById('gaugeMain');
-    if (!c) return;
-    new Chart(c, {
-        type: 'doughnut',
-        data: {
-            datasets: [{
-                data: [{{ overall_score_percent }}, 100 - {{ overall_score_percent }}],
-                backgroundColor: ['#2d7ff9', 'rgba(26,51,88,0.4)'],
-                borderWidth: 0,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            cutout: '78%',
-            rotation: -90,
-            circumference: 180,
-            plugins: { legend: { display: false } },
-        }
-    });
-})();
-</script>
+{# Halaman 4: Pipeline Hyperparameters and Environment Config #}
+{% include "partials/_config.html.j2" %}
+
+</div>
 </body>
 </html>

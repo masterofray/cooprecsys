@@ -1,9 +1,18 @@
-/**
- * File: heatmaps.js
- * Manajemen visualisasi Heatmap Plotly dengan verbose debugging.
+/*
+* author     = "Aryanto"
+* copyright  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+* license    = "GNUPublic"
+* version    = "0.0.1"
+* email      = "aryanto.dandan@gmail.com"
+* status     = "Development"
+* created    = "2026-05-23"
+* About
+  - heatmaps.js
+  - Manajemen visualisasi Heatmap Plotly dengan verbose debugging.
  */
 
-function initializeAllHeatmaps() {
+
+function initializeAllHeatmaps(container) {
   console.group("=== [Heatmap Initialization Engine] ===");
   console.log("INFO: Memulai pemindaian elemen heatmap pada DOM...");
 
@@ -12,7 +21,7 @@ function initializeAllHeatmaps() {
     console.error("FATAL ERROR: Library Plotly tidak terdeteksi pada global scope (window.Plotly). Proses rendering dihentikan.");
     
     // Berikan fallback visual ke semua target elemen jika plotly absen
-    document.querySelectorAll(".js-heatmap-render").forEach(el => {
+    container.querySelectorAll(".js-heatmap-render").forEach(el => {
       el.innerHTML = '<p style="color:red; font-weight:bold;">Plotly library belum dimuat</p>';
     });
     console.groupEnd();
@@ -21,7 +30,7 @@ function initializeAllHeatmaps() {
   console.log("SUCCESS: Plotly library terdeteksi aman.");
 
   // 2. Ambil semua elemen chart yang membutuhkan rendering
-  const heatmapElements = document.querySelectorAll(".js-heatmap-render");
+  const heatmapElements = container.querySelectorAll(".js-heatmap-render");
   console.log(`INFO: Ditemukan ${heatmapElements.length} elemen dengan class '.js-heatmap-render'.`);
 
   // 3. Iterasi setiap elemen untuk ekstraksi data dan rendering
@@ -160,36 +169,26 @@ function initializeAllHeatmaps() {
       console.error(`[${divId}] RUNTIME ERROR pada proses render:`, err);
       chartEl.innerHTML = `<p style="color:red;">Gagal render chart: ${err.message}</p>`;
     }
-    
     console.groupEnd();
   });
-
   console.log("INFO: Semua antrean pemrosesan elemen heatmap selesai dieksekusi.");
   console.groupEnd();
 }
 
-// Menjalankan fungsi dengan mekanisme penundaan (setTimeout) pasca layout window selesai dimuat sempurna
-// IMPLEMENTASI PRODUCTION-GRADE
-window.addEventListener("DOMContentLoaded", function () {
-  console.log("EVENT: DOMContentLoaded. Menginisialisasi rendering dan ResizeObserver.");
-  
-  // 1. Jalankan inisialisasi awal
-  initializeAllHeatmaps();
 
-  // 2. Pasang ResizeObserver untuk stabilitas dimensi responsif
-  const resizeObserver = new ResizeObserver(entries => {
-    // Gunakan requestAnimationFrame untuk mencegah ResizeObserver loop error
-    window.requestAnimationFrame(() => {
-      for (let entry of entries) {
-        if (entry.target.id) {
-          // Memaksa Plotly merekonstruksi ukuran saat kontainer grid/flex benar-benar berubah
-          Plotly.Plots.resize(entry.target.id);
-        }}
+export function initHeatmaps(container) {
+    console.log("[Heatmaps] Scoped initialization dimulai.");
+    initializeAllHeatmaps(container);
+    const resizeObserver = new ResizeObserver(entries => {
+        window.requestAnimationFrame(() => {
+          for (let entry of entries) {
+            if (entry.target.id) {
+                Plotly.Plots.resize(entry.target.id);
+            }} });
     });
-  });
+    container.querySelectorAll(".js-heatmap-render").forEach(el => {
+        resizeObserver.observe(el);
+    console.log("[Heatmaps] Ok sudah done!");
+    });
 
-  // Observasi semua elemen heatmap
-  document.querySelectorAll(".js-heatmap-render").forEach(el => {
-    resizeObserver.observe(el);
-  });
-});
+}

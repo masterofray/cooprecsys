@@ -1,0 +1,211 @@
+{# =========================================================================
+   PARTIAL: _overview.html.j2
+   Variabel yang WAJIB ada di context (dari check.json / Python renderer):
+   * bar_labels, 
+   * bar_data, 
+   * total_rankings, 
+   * metrics, 
+   * overall_score,
+   * overall_score_percent, 
+   * generated_at, 
+   * experiment_name, 
+   * best_iteration
+   Variabel opsional (pakai | default jika kosong):
+   * scorecards, 
+   * stat_minis, 
+   * gauges, 
+   * static_img
+   ========================================================================= #}
+
+<div id="page-overview" class="page-content active">
+
+
+{# ─── SCORECARD (opsional) ─────────────────────────────────────────── #}
+{% if scorecards | default([]) %}
+<div class="section">
+<div class="section-title"><i class="fas fa-tachometer-alt"></i> Scorecard</div>
+<div class="cards-row">
+    {% for m in scorecards %}
+    <div class="scorecard animate-in {{ m.color | default('') }}">
+        <div class="scorecard-icon">
+            {% if m.icon_img | default('') %}
+            <img src="{{ static_img | default('') }}/{{ m.icon_img }}" alt="{{ m.label }}">
+            {% else %}
+            <i class="{{ m.icon | default('fas fa-circle') }}"></i>
+            {% endif %}
+        </div>
+        <div class="scorecard-body">
+            <div class="scorecard-label">{{ m.label }}</div>
+            <div class="scorecard-value">{{ m.value }}</div>
+            {% if m.sub    | default('') %}<div class="scorecard-sub">{{ m.sub }}</div>{% endif %}
+            {% if m.trend  | default('') %}
+            <div class="scorecard-trend {{ m.trend_dir | default('') }}">
+                <i class="fas fa-arrow-{{ m.trend_dir | default('right') }}"></i> {{ m.trend }}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+</div>
+{% endif %}
+
+
+{# ─── CONTROL (Line Chart + Donut Mini) ───────────────────────────── #}
+<div class="section">
+<div class="section-title"><i class="fas fa-sliders-h"></i> Control</div>
+<div class="control-grid">
+
+    {# ── LINE CHART
+       KEY FIX: pakai "bar_data" (bukan "bar_values") sesuai check.json  #}
+    <div class="chart-panel">
+        <div class="chart-panel-title">Visitor Analytics</div>
+        <div class="chart-panel-value">{{ total_rankings | default(0) }} Predictions</div>
+        <div class="chart-container">
+        <canvas
+            id          = "barChart"
+            class       = "js-bar-chart"
+            data-labels = '{{ bar_labels | default([]) | tojson | forceescape }}'
+            data-values = '{{ bar_data   | default([]) | tojson | forceescape }}'>
+        </canvas>
+        </div>
+    </div>
+
+    {# ── DONUT MINI COLUMN
+       Prioritas: stat_minis dari context → fallback dari metrics #}
+    {% set _stat_minis = stat_minis | default([]) %}
+    <div class="stat-mini-col">
+    {% if _stat_minis %}
+        {% for s in _stat_minis %}
+        <div class="stat-mini">
+            <div class="stat-mini-donut">
+                <canvas
+                    id               = "donut-{{ loop.index }}"
+                    class            = "js-donut-chart"
+                    data-percent     = "{{ s.value | string | replace('%','') | trim }}"
+                    data-color-index = "{{ loop.index0 }}">
+                </canvas>
+            </div>
+            <div class="stat-mini-info">
+                <div class="stat-mini-label">{{ s.label }}</div>
+                <div class="stat-mini-value">{{ s.value }}</div>
+            </div>
+        </div>
+        {% endfor %}
+    {% else %}
+        {# Fallback: bangun dari metrics yang PASTI ada di check.json #}
+        {% set _fb = [
+            {"label": "Test NDCG@10",  "pct": (metrics.test_ndcgat10  * 100) | round(2)},
+            {"label": "Test NDCG@5",   "pct": (metrics.test_ndcgat5   * 100) | round(2)},
+            {"label": "Train NDCG@10", "pct": (metrics.train_ndcgat10 * 100) | round(2)},
+            {"label": "Train NDCG@5",  "pct": (metrics.train_ndcgat5  * 100) | round(2)},
+        ] %}
+        {% for s in _fb %}
+        <div class="stat-mini">
+            <div class="stat-mini-donut">
+                <canvas
+                    id               = "donut-{{ loop.index }}"
+                    class            = "js-donut-chart"
+                    data-percent     = "{{ s.pct }}"
+                    data-color-index = "{{ loop.index0 }}">
+                </canvas>
+            </div>
+            <div class="stat-mini-info">
+                <div class="stat-mini-label">{{ s.label }}</div>
+                <div class="stat-mini-value">{{ s.pct }}%</div>
+            </div>
+        </div>
+        {% endfor %}
+    {% endif %}
+    </div>
+
+</div>
+</div>
+
+
+{# ─── GAUGE ────────────────────────────────────────────────────────── #}
+<div class="section">
+<div class="section-title"><i class="fas fa-gauge-high"></i> Gauge</div>
+<div class="gauge-grid">
+
+    {# Prioritas: gauges dari context → fallback dari metrics #}
+    {% set _gauges = gauges | default([]) %}
+    {% if _gauges %}
+        {% for g in _gauges %}
+        <div class="gauge-card">
+            <div class="gauge-chart">
+                <canvas
+                    id               = "gauge-{{ loop.index }}"
+                    class            = "js-gauge-chart"
+                    data-percent     = "{{ g.display | string | replace('%','') | trim }}"
+                    data-color-index = "{{ loop.index0 }}">
+                </canvas>
+            </div>
+            <div class="gauge-label">{{ g.label }}</div>
+            <div class="gauge-value">{{ g.display }}</div>
+        </div>
+        {% endfor %}
+    {% else %}
+        {# Fallback: 4 gauge dari metrics NDCG #}
+        {% set _fg = [
+            {"label": "Test Ndcgat10",  "pct": (metrics.test_ndcgat10  * 100) | round(2), "disp": "%.2f%%"|format(metrics.test_ndcgat10  * 100)},
+            {"label": "Test Ndcgat5",   "pct": (metrics.test_ndcgat5   * 100) | round(2), "disp": "%.2f%%"|format(metrics.test_ndcgat5   * 100)},
+            {"label": "Train Ndcgat10", "pct": (metrics.train_ndcgat10 * 100) | round(2), "disp": "%.2f%%"|format(metrics.train_ndcgat10 * 100)},
+            {"label": "Train Ndcgat5",  "pct": (metrics.train_ndcgat5  * 100) | round(2), "disp": "%.2f%%"|format(metrics.train_ndcgat5  * 100)},
+        ] %}
+        {% for g in _fg %}
+        <div class="gauge-card">
+            <div class="gauge-chart">
+                <canvas
+                    id               = "gauge-{{ loop.index }}"
+                    class            = "js-gauge-chart"
+                    data-percent     = "{{ g.pct }}"
+                    data-color-index = "{{ loop.index0 }}">
+                </canvas>
+            </div>
+            <div class="gauge-label">{{ g.label }}</div>
+            <div class="gauge-value">{{ g.disp }}</div>
+        </div>
+        {% endfor %}
+    {% endif %}
+
+    {# ── Main Gauge (Overall Score) ── #}
+    <div class="gauge-large-card">
+        <div class="gauge-large">
+            <canvas
+                id           = "gaugeMain"
+                class        = "js-main-gauge"
+                data-percent = "{{ overall_score_percent | default(0) }}">
+            </canvas>
+        </div>
+        <div class="gauge-large-label">Overall Score</div>
+        <div class="gauge-large-value">{{ overall_score | default('0.0000') }}</div>
+    </div>
+
+</div>
+</div>
+
+
+{# ─── REPORTS ──────────────────────────────────────────────────────── #}
+<div class="section">
+<div class="section-title"><i class="fas fa-file-alt"></i> Reports</div>
+<div class="chart-panel" style="text-align:center;padding:40px;">
+    <i class="fas fa-chart-bar"
+       style="font-size:2.5rem;color:var(--accent);margin-bottom:12px;display:block;"></i>
+    <div style="color:var(--text-secondary);font-size:0.9rem;">
+        Generated at <strong>{{ generated_at | default('-') }}</strong> &mdash;
+        Experiment: <strong>{{ experiment_name | default('-') }}</strong> &mdash;
+        Best Iteration: <strong>{{ best_iteration | default('-') }}</strong>
+    </div>
+</div>
+</div>
+
+</div>
+<script type="module">
+    import initOverview from "./assets/js/overview.js";
+    document.addEventListener("DOMContentLoaded", () => {
+        const container = document.getElementById("page-overview");
+        if (container) {initOverview(container);
+        }
+    });
+</script>

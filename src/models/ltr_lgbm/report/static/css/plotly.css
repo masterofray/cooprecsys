@@ -1,0 +1,59 @@
+/* ============================================
+   plotly.css - Plotly & Heatmap Wrapper
+   ============================================
+* author     = "Aryanto"
+* copyright  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+* license    = "GNUPublic"
+* version    = "0.0.1"
+* email      = "aryanto.dandan@gmail.com"
+* status     = "Development"
+* created    = "2026-05-23"
+*/
+
+
+#page-diagnostic .diagnostic-plotly-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: visible;
+    }
+
+#page-diagnostic .diagnostic-title {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+    text-align: center;
+    }
+
+#page-diagnostic .plotly-container {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    display: block;
+    padding-bottom: 16px;
+    -webkit-overflow-scrolling: touch;
+    }
+
+#page-diagnostic .plotly-chart {
+    width: 100%;
+    min-height: 700px;
+    margin: 0 auto;
+    display: block;
+    }
+
+
+/* ── Plotly Responsive Rules ── */
+@media (min-width: 1800px) {
+    #page-diagnostic .diagnostic-plotly-panel {
+    max-width: 1700px;}}
+
+@media (max-width: 768px) {
+    #page-diagnostic .plotly-container {
+    overflow-x: auto;}
+    #page-diagnostic .plotly-chart {
+    min-height: 550px;}
+    }
