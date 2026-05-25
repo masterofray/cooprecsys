@@ -76,6 +76,31 @@
                 </canvas>
             </div>
             </div></div>
+        
+        {# =======================================================
+           CHART.JS HISTOGRAM DISTRIBUTION
+        ======================================================== #}
+        {% elif c['type'] == 'histrelevance' %}
+        <link rel="stylesheet" href="./assets/css/histrelevance.css">
+        <div class="diagnostic-panel diagnostic-histrelevance-panel">
+            <h3 class="diagnostic-title">
+            {{ c['title'] }}</h3>
+            <div class="histrelevance-container">
+            <div class="histrelevance-wrapper">
+                <canvas
+                    class        = "js-histrelevance-chart"
+                    id           = "histrelevance-{{ loop.index0 }}"
+                    data-values  = "{{ c['data']['values'] | tojson | forceescape }}"
+                    data-bins    = "{{ c['data']['bins'] | tojson | forceescape }}"
+                    data-stats   = "{{ c['data']['stats'] | tojson | forceescape }}"
+                    data-x-label = "{{ c['data']['axis']['x_label'] }}"
+                    data-y-label = "{{ c['data']['axis']['y_label'] }}">
+                </canvas>
+            <div class="histrelevance-stats">
+            <pre>{{ c['data']['stats_text'] }}</pre>
+            </div></div></div>
+            </div>
+
         {% endif %}
     {% endfor %}
 
@@ -137,6 +162,7 @@
 <script type="module">
     import { initHeatmaps } from "./assets/js/heatmaps.js";
     import { initBarCharts } from "./assets/js/fbarplot.js";
+    import { initHistRelevance } from "./assets/js/histrelevance.js";
     import { initParamsCards } from "./assets/js/paramscard.js";
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -147,6 +173,7 @@
         console.log("[Diagnostics] Initializing scoped modules.");
         initHeatmaps(diagnosticsContainer);
         initBarCharts(diagnosticsContainer);
+        initHistRelevance(diagnosticsContainer);
         initParamsCards(diagnosticsContainer);
     });
 </script>

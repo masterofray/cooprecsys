@@ -196,11 +196,10 @@ class Visualizer:
         logger.debug("Plotting feature importance (type=%s, top_n=%d).",
                      importance_type, top_n)
         imp      = self._model.feature_importance(importance_type = importance_type)
-        names    = self.feature_names #self._model.feature_name()
+        names    = self.feature_names
         dataplot = pd.DataFrame({"Feature": names, "Importance": imp})\
                    .sort_values("Importance", ascending = False)\
                    .head(top_n)
-        #set_trace()
         fig, ax  = plt.subplots(figsize=(11, max(5, top_n * 0.35)))
         sns.barplot(
             data    = dataplot,
@@ -233,19 +232,36 @@ class Visualizer:
         preds = self._model.predict(self._X_test,
                 num_iteration = self._model.best_iteration or 0,)
         fig, ax = plt.subplots(figsize=(9, 5))
-        sns.histplot(preds, bins=60, kde=True, color="#4C72B0", ax=ax)
+        edges_scott = np.histogram_bin_edges(preds, bins='scott')
+        numbin = _cfg.getint('MODEL_LGBM', 'num_histbin')
+        if numbin >= len(edges_scott):
+            usebin = np.histogram_bin_edges(preds, bins = numbin)
+        else:
+            usebin = edges_scott
+        sns.histplot(preds, 
+                     bins  = usebin, 
+                     kde   = True, 
+                     color = "#4C72B0", 
+                     ax    = ax)
         ax.set_title("Relevance Score Distribution (Test Set)")
         ax.set_xlabel("Predicted Relevance Score")
         ax.set_ylabel("Count")
 
         # Annotate summary stats
+        summary_stats = {
+            'mean': float(np.mean(preds)),
+            'std' : float(np.std(preds)),
+            'min' : float(np.min(preds)),
+            'max' : float(np.max(preds)),
+            'n'   : int(len(preds))
+        }
         stats_text = (
-            f"mean={np.mean(preds):.4f}\n"
-            f"std={np.std(preds):.4f}\n"
-            f"min={np.min(preds):.4f}\n"
-            f"max={np.max(preds):.4f}")
-        ax.text(
-            0.97, 0.97, stats_text,
+            f"mean = {summary_stats['mean']:.4f}\n"
+            f"std = {summary_stats['std']:.4f}\n"
+            f"min = {summary_stats['min']:.4f}\n"
+            f"max = {summary_stats['max']:.4f}"
+        )
+        ax.text(0.97, 0.97, stats_text,
             transform   = ax.transAxes,
             va          = "top",
             ha          = "right",
@@ -253,6 +269,23 @@ class Visualizer:
             family      = "monospace",
             bbox        = dict(boxstyle="round", fc="white", ec="gray", alpha=0.8))
         self._record("prediction_distribution", fig)
+        
+        histpredc   = np.nan_to_num(preds, nan = 0.0,
+                                    posinf = 0.0, neginf = 0.0).tolist()
+        bins        = usebin.tolist()
+        #set_trace()
+        chart_info  = {'title'  : 'Histogram of test-set relevance scores',
+                       'type'   : 'histrelevance',
+                       'data'   : {'values' : histpredc,
+                                   'bins'   : bins,
+                                   'axis'   : {'x_label': 'Predicted Relevance Score',
+                                               'y_label': 'Count'},
+                                   'stats'     : summary_stats,
+                                   'stats_text': stats_text},
+                        'image' : None,
+                        'full'  : False}
+        self._chartsdata.append(chart_info)
+
 
     def plot_learning_curves(self) -> None:
         """Line chart of train/test NDCG over boosting rounds."""
@@ -291,14 +324,14 @@ class Visualizer:
             logger.warning("No metrics found for summary chart.")
             return None
         tempdata = pd.DataFrame(list(filtered.items()),
-                    columns=["Metric", "Value"],
+                    columns = ["Metric", "Value"],
                     ).sort_values("Value", ascending=True)
         fig, ax = plt.subplots(figsize=(9, max(3, len(tempdata) * 0.55)))
         bars = ax.barh(
             tempdata["Metric"], tempdata["Value"],
-            color   = "#55A868",
+            color     = "#55A868",
             edgecolor = "white",
-            height  = 0.6)
+            height    = 0.6)
         ax.bar_label(bars, fmt="%.4f", padding=4, fontsize=9)
         ax.set_title("Evaluation Metrics Summary")
         ax.set_xlabel("Value")
@@ -349,7 +382,6 @@ class Visualizer:
         self.plot_metrics_summary()
         self.plot_feature_correlation()
         logger.info("All visualisations complete.")
-
 
 
     # ------------------------------------------------------------------

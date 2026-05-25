@@ -1,0 +1,119 @@
+/* =========================================================
+   HIST RELEVANCE SECTION
+   Scoped ONLY for #page-diagnostics
+========================================================= */
+
+#page-diagnostics .histrelevance-container {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 18px 0 10px 0;
+    padding: 22px 20px;
+    border-radius: 22px;
+    background:
+        linear-gradient(
+            180deg,
+            rgba(12, 30, 68, 0.96) 0%,
+            rgba(8, 24, 58, 0.98) 100%
+        );
+    border: 1px solid rgba(120, 170, 255, 0.12);
+    box-shadow:
+        0 8px 28px rgba(0, 0, 0, 0.35),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    box-sizing: border-box;
+    }
+
+
+/* =========================================================
+   CHART AREA
+========================================================= */
+#page-diagnostics .histrelevance-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    /*height: clamp(720px, 72vw, 980px);*/
+    height: clamp(320px, 52vw, 540px);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    box-sizing: border-box;
+    }
+
+
+/* =========================================================
+   CANVAS
+========================================================= */
+#page-diagnostics .js-histrelevance-chart {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100%;
+    display: block;
+    box-sizing: border-box;
+    }
+
+
+/* =========================================================
+   STATS PANEL
+========================================================= */
+#page-diagnostics .histrelevance-stats {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    z-index: 12;
+    padding: 12px 14px;
+    border-radius: 14px;
+    background: rgba(8, 18, 40, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    backdrop-filter: blur(10px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+    pointer-events: none;
+    box-sizing: border-box;
+    }
+
+
+#page-diagnostics .histrelevance-stats pre {
+    margin: 0;
+    font-size: 0.84rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: rgba(240, 245, 255, 0.92);
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Monaco,
+        Consolas,
+        monospace;
+    }
+
+
+/* =========================================================
+   PANEL RESPONSIVE BEHAVIOR
+========================================================= */
+#page-diagnostics .diagnostic-histrelevance-panel {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    grid-column: 1 / -1;
+    box-sizing: border-box;
+    }
+
+
+/* =========================================================
+   MOBILE TUNING
+========================================================= */
+@media (max-width: 768px) {
+    #page-diagnostics .histrelevance-container {
+        padding: 16px 14px;
+        border-radius: 18px;}
+    #page-diagnostics .histrelevance-wrapper {height: 320px;}
+    #page-diagnostics .histrelevance-stats {padding: 12px;}
+    }
