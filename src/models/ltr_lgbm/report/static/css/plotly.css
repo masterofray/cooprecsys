@@ -11,14 +11,15 @@
 */
 
 
-#page-diagnostic .diagnostic-plotly-panel {
+#page-diagnostics .diagnostic-plotly-panel {
     width: 100%;
     max-width: 100%;
     min-width: 0;
     overflow: visible;
+    grid-column: 1 / -1;
     }
 
-#page-diagnostic .diagnostic-title {
+#page-diagnostics .diagnostic-title {
     font-size: 1rem;
     font-weight: 600;
     color: var(--text-secondary);
@@ -26,7 +27,7 @@
     text-align: center;
     }
 
-#page-diagnostic .plotly-container {
+#page-diagnostics .plotly-container {
     position: relative;
     width: 100%;
     max-width: 100%;
@@ -36,9 +37,15 @@
     display: block;
     padding-bottom: 16px;
     -webkit-overflow-scrolling: touch;
+    
+    background: linear-gradient(180deg, #132844 0%, #0B1C31 100%);
+    border: 1px solid rgba(90,140,220,0.25);
+    border-radius: 18px;
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+    padding: 18px;
     }
 
-#page-diagnostic .plotly-chart {
+#page-diagnostics .plotly-chart {
     width: 100%;
     min-height: 700px;
     margin: 0 auto;
@@ -48,12 +55,12 @@
 
 /* ── Plotly Responsive Rules ── */
 @media (min-width: 1800px) {
-    #page-diagnostic .diagnostic-plotly-panel {
+    #page-diagnostics .diagnostic-plotly-panel {
     max-width: 1700px;}}
 
 @media (max-width: 768px) {
-    #page-diagnostic .plotly-container {
+    #page-diagnostics .plotly-container {
     overflow-x: auto;}
-    #page-diagnostic .plotly-chart {
+    #page-diagnostics .plotly-chart {
     min-height: 550px;}
     }

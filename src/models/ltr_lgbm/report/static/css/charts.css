@@ -78,25 +78,26 @@
 /* =========================================
    DIAGNOSTIC PAGE
 ========================================= */
-#page-diagnostic .chartjs-container {
+#page-diagnostics .chartjs-container {
     width: 100%;
     height: 420px;
 }
 
-#page-diagnostic .chartjs-wrapper {
+#page-diagnostics .chartjs-wrapper {
     position: relative;
     width: 100%;
     height: 100%;
 }
 
-#page-diagnostic .diagnostic-grid {
+#page-diagnostics .diagnostic-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /*grid-template-columns: 1fr 1fr;*/
     gap: 20px;
     align-items: start;
+    grid-column: 1 / -1;
 }
 
-#page-diagnostic .diagnostic-panel {
+#page-diagnostics .diagnostic-panel {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 18px;
@@ -260,16 +261,16 @@
    DIAGNOSTIC MOBILE
 ======================================== */
 @media (max-width: 768px) {
-    #page-diagnostic .diagnostic-grid {
+    #page-diagnostics .diagnostic-grid {
         grid-template-columns: 1fr;}
-    #page-diagnostic .diagnostic-panel {
+    #page-diagnostics .diagnostic-panel {
         padding: 12px;}
-    #page-diagnostic .chartjs-container {
+    #page-diagnostics .chartjs-container {
         height: 420px;}
-    #page-diagnostic .chartjs-wrapper {
+    #page-diagnostics .chartjs-wrapper {
         width: 100%; height: 100%;}
-    #page-diagnostic .plotly-container {
+    #page-diagnostics .plotly-container {
         min-height: 500px; overflow-x: auto;}
-    #page-diagnostic .plotly-chart {
+    #page-diagnostics .plotly-chart {
         height: 500px;}
     }

@@ -1,0 +1,469 @@
+/* =========================================================
+   PAGE DIAGNOSTICS ONLY
+   SHAP WATERFALL
+   Fully Scoped
+========================================================= */
+
+/*
+    ASSESSMENT FIXES APPLIED
+    --------------------------------------------------------
+    1. min-width:0 ditambahkan pada seluruh flex/grid child
+       agar Plotly tidak menyebabkan horizontal overflow.
+
+    2. overflow:hidden dihindari pada parent panel
+       karena Plotly tooltip dan modebar sering terpotong.
+
+    3. plotly internal div dipaksa width:100%
+       agar responsive resize stabil.
+
+    4. contain/layout isolation dihindari
+       karena sering memutus resize Plotly.
+
+    5. table wrapper dipisahkan overflow-x dan overflow-y
+       supaya tooltip/table tidak terclip.
+
+    6. grid/flex nesting diperbaiki
+       agar tidak memicu width expansion.
+
+    7. word-break dan overflow-wrap diperbaiki
+       untuk feature name panjang.
+
+    8. tinggi panel Plotly tidak dipaksa fixed
+       karena JS sudah dynamic height.
+
+========================================================= */
+
+
+/* =========================================================
+   MAIN PANEL
+========================================================= */
+
+#page-diagnostics .diagnostic-shapwaterfall-panel {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    box-sizing: border-box;
+
+    background: linear-gradient(
+        180deg,
+        #132844 0%,
+        #0B1C31 100%
+    );
+
+    border: 1px solid rgba(90,140,220,0.25);
+
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+
+    border-radius: 18px;
+
+    padding: 18px;
+
+    grid-column: 1 / -1;
+
+    overflow: visible;
+}
+
+
+/* =========================================================
+   TITLE
+========================================================= */
+
+#page-diagnostics .diagnostic-shapwaterfall-panel .diagnostic-title {
+    margin-bottom: 18px;
+
+    color: #F4F7FF;
+
+    font-size: 1.05rem;
+
+    font-weight: 800;
+
+    line-height: 1.3;
+
+    word-break: break-word;
+}
+
+
+/* =========================================================
+   CONTAINER
+========================================================= */
+
+#page-diagnostics .shapwaterfall-container {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 18px;
+
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    box-sizing: border-box;
+
+    overflow: visible;
+}
+
+
+/* =========================================================
+   PLOTLY CHART CONTAINER
+========================================================= */
+
+#page-diagnostics .js-shap-waterfall-render {
+    position: relative;
+
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    box-sizing: border-box;
+
+    border-radius: 14px;
+
+    background: rgba(255,255,255,0.025);
+
+    border: 1px solid rgba(255,255,255,0.05);
+
+    overflow: visible;
+
+    padding: 8px;
+}
+
+
+/* =========================================================
+   PLOTLY INTERNAL FIXES
+========================================================= */
+
+#page-diagnostics .js-shap-waterfall-render .plot-container,
+#page-diagnostics .js-shap-waterfall-render .svg-container,
+#page-diagnostics .js-shap-waterfall-render .main-svg {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+}
+
+
+/* =========================================================
+   MODEBAR
+========================================================= */
+
+#page-diagnostics .js-shap-waterfall-render .modebar {
+    right: 10px !important;
+    top: 10px !important;
+}
+
+
+/* =========================================================
+   SUMMARY GRID
+========================================================= */
+
+#page-diagnostics .shapwaterfall-summary {
+    display: grid;
+
+    grid-template-columns:
+        repeat(auto-fit, minmax(180px, 1fr));
+
+    gap: 14px;
+
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    overflow: visible;
+}
+
+
+/* =========================================================
+   SUMMARY CARD
+========================================================= */
+
+#page-diagnostics .shap-summary-card {
+    position: relative;
+
+    display: flex;
+    flex-direction: column;
+
+    gap: 6px;
+
+    min-width: 0;
+
+    padding: 14px;
+
+    border-radius: 14px;
+
+    background: rgba(255,255,255,0.035);
+
+    border: 1px solid rgba(255,255,255,0.06);
+
+    box-sizing: border-box;
+
+    overflow: visible;
+}
+
+
+/* =========================================================
+   SUMMARY LABEL
+========================================================= */
+
+#page-diagnostics .shap-summary-label {
+    color: rgba(220,230,245,0.72);
+
+    font-size: 0.76rem;
+
+    font-weight: 700;
+
+    letter-spacing: 0.04em;
+
+    text-transform: uppercase;
+
+    line-height: 1.3;
+}
+
+
+/* =========================================================
+   SUMMARY VALUE
+========================================================= */
+
+#page-diagnostics .shap-summary-value {
+    color: #F5F8FF;
+
+    font-size: 1rem;
+
+    font-weight: 800;
+
+    line-height: 1.4;
+
+    overflow-wrap: anywhere;
+
+    word-break: break-word;
+}
+
+
+/* =========================================================
+   FEATURE TABLE WRAPPER
+========================================================= */
+
+#page-diagnostics .shapwaterfall-feature-table-wrapper {
+    position: relative;
+
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+
+    overflow-x: auto;
+    overflow-y: visible;
+
+    border-radius: 14px;
+
+    background: rgba(255,255,255,0.025);
+
+    border: 1px solid rgba(255,255,255,0.05);
+
+    box-sizing: border-box;
+}
+
+
+/* =========================================================
+   FEATURE TABLE
+========================================================= */
+
+#page-diagnostics .shapwaterfall-feature-table {
+    width: 100%;
+
+    min-width: 760px;
+
+    border-collapse: collapse;
+
+    table-layout: auto;
+}
+
+
+/* =========================================================
+   TABLE HEADER
+========================================================= */
+
+#page-diagnostics .shapwaterfall-feature-table thead tr {
+    background: rgba(255,255,255,0.045);
+}
+
+
+#page-diagnostics .shapwaterfall-feature-table th {
+    padding: 14px 16px;
+
+    text-align: left;
+
+    color: #DDE8F8;
+
+    font-size: 0.82rem;
+
+    font-weight: 800;
+
+    line-height: 1.3;
+
+    white-space: nowrap;
+
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+
+/* =========================================================
+   TABLE CELLS
+========================================================= */
+
+#page-diagnostics .shapwaterfall-feature-table td {
+    padding: 13px 16px;
+
+    color: rgba(240,245,255,0.92);
+
+    font-size: 0.83rem;
+
+    line-height: 1.45;
+
+    vertical-align: middle;
+
+    border-bottom: 1px solid rgba(255,255,255,0.045);
+
+    overflow-wrap: anywhere;
+
+    word-break: break-word;
+}
+
+
+/* =========================================================
+   TABLE ROW HOVER
+========================================================= */
+
+#page-diagnostics .shapwaterfall-feature-table tbody tr:hover {
+    background: rgba(255,255,255,0.03);
+}
+
+
+/* =========================================================
+   FEATURE NAME
+========================================================= */
+
+#page-diagnostics .shap-feature-name {
+    color: #F3F7FF;
+
+    font-weight: 700;
+}
+
+
+/* =========================================================
+   FEATURE VALUE
+========================================================= */
+
+#page-diagnostics .shap-feature-value {
+    color: rgba(220,230,245,0.88);
+
+    font-family:
+        ui-monospace,
+        SFMono-Regular,
+        Menlo,
+        Consolas,
+        monospace;
+}
+
+
+/* =========================================================
+   POSITIVE SHAP
+========================================================= */
+
+#page-diagnostics .shap-positive {
+    color: #FF9090;
+
+    font-weight: 800;
+}
+
+
+/* =========================================================
+   NEGATIVE SHAP
+========================================================= */
+
+#page-diagnostics .shap-negative {
+    color: #7FCBFF;
+
+    font-weight: 800;
+}
+
+
+/* =========================================================
+   ABS SHAP
+========================================================= */
+
+#page-diagnostics .shap-feature-abs {
+    color: #FFD76F;
+
+    font-weight: 800;
+}
+
+
+/* =========================================================
+   SCROLLBAR
+========================================================= */
+
+#page-diagnostics .shapwaterfall-feature-table-wrapper::-webkit-scrollbar {
+    height: 10px;
+}
+
+
+#page-diagnostics .shapwaterfall-feature-table-wrapper::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.04);
+
+    border-radius: 999px;
+}
+
+
+#page-diagnostics .shapwaterfall-feature-table-wrapper::-webkit-scrollbar-thumb {
+    background: rgba(130,170,255,0.28);
+
+    border-radius: 999px;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+========================================================= */
+
+@media (max-width: 960px) {
+
+    #page-diagnostics .diagnostic-shapwaterfall-panel {
+        padding: 14px;
+    }
+
+    #page-diagnostics .shapwaterfall-summary {
+        grid-template-columns:
+            repeat(auto-fit, minmax(160px, 1fr));
+    }
+
+    #page-diagnostics .js-shap-waterfall-render {
+        padding: 4px;
+    }
+}
+
+
+@media (max-width: 640px) {
+
+    #page-diagnostics .shapwaterfall-summary {
+        grid-template-columns: 1fr;
+    }
+
+    #page-diagnostics .shapwaterfall-feature-table {
+        min-width: 620px;
+    }
+
+    #page-diagnostics .shap-summary-value {
+        font-size: 0.92rem;
+    }
+
+    #page-diagnostics .shapwaterfall-feature-table th,
+    #page-diagnostics .shapwaterfall-feature-table td {
+        padding: 11px 12px;
+    }
+}

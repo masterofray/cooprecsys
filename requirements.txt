@@ -17,6 +17,7 @@ shap>=0.44.0
 # __ Visualisation __________________________
 matplotlib>=3.8.0
 seaborn>=0.12.0
+shap>=0.51.0
 
 # __ Support Libraries ______________________
 tqdm>=4.60
