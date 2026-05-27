@@ -32,12 +32,13 @@ export function initShapWaterfalls(container = document) {
             };
 
         // DATA EXTRACTION
-        const title = (chartEl.dataset.title || 'SHAP Waterfall');
-        const sampleIdx = Number(chartEl.dataset.sampleIdx ?? 0);
-        const baseValue = Number(safeParse(chartEl.dataset.baseValue, 0) );
+        const title      = (chartEl.dataset.title || 'SHAP Waterfall');
+        const sampleIdx  = Number(chartEl.dataset.sampleIdx ?? 0);
+        const baseValue  = Number(safeParse(chartEl.dataset.baseValue, 0) );
         const prediction = Number(safeParse(chartEl.dataset.prediction, 0) );
         const maxDisplay = Number(safeParse(chartEl.dataset.maxDisplay, 0) );
-        const features = safeParse(chartEl.dataset.features, []);
+        const subData    = safeParse(chartEl.dataset.subdata, []);
+        const features   = safeParse(chartEl.dataset.features, []);
         console.log(`[SHAP] Sample ${sampleIdx}`,
             {title, baseValue, prediction, maxDisplay,
              totalFeatures: features.length} );
@@ -79,6 +80,56 @@ export function initShapWaterfalls(container = document) {
             (a, b) => b.abs_shap - a.abs_shap).slice(0,
             maxDisplay > 0 ? maxDisplay : cleanedFeatures.length);
         console.log('[SHAP] Final cleaned features:', cleanedFeatures);
+
+        // SUBDATA TABLE RENDER
+        console.log('[SHAP TABLE] Raw SubData:', subData);
+        const tableContainer = chartEl
+            .closest('.diagnostic-shapwaterfall-panel')
+            ?.querySelector('.shapwaterfall-table');
+        if (!tableContainer) {
+            console.warn('[SHAP TABLE] Table container not found.');
+        } else {
+            if (!Array.isArray(subData) || subData.length === 0) {
+                console.warn('[SHAP TABLE] Empty SubData.');
+                tableContainer.innerHTML = `
+                    <div class="shapwaterfall-table-empty">
+                    No table data available.</div>`;
+            } else {
+                const limitedRows = subData.slice(0, 3);
+                console.log('[SHAP TABLE] Rendering rows:', limitedRows.length);
+                const columns = Object.keys(limitedRows[0] || {});
+                console.log('[SHAP TABLE] Columns:', columns);
+                const theadHTML = `
+                <thead>
+                    <tr>${columns.map(col => `<th>${col}</th>`).join('')}
+                    </tr></thead>`;
+                const tbodyHTML = `
+                    <tbody>
+                        ${limitedRows.map((row) => `
+                        <tr>
+                            ${columns.map((col) => {const value = row[col];
+                            if (typeof value === 'number') {
+                                const formatted = Number.isInteger(value)
+                                ? value : value.toFixed(6);
+                                return `<td>${formatted}</td>`; }
+                                return `<td>${value}</td>`;
+                            }).join('')}
+                        </tr>`).join('')}
+                    </tbody> `;
+                tableContainer.innerHTML = `
+                <div class="shapwaterfall-table-inner">
+                <div class="shapwaterfall-table-topbar">
+                <div class="shapwaterfall-table-title">
+                    Data Preview</div>
+                    </div>
+                <div class="shapwaterfall-table-scroll">
+                <table class="shapwaterfall-data-table">
+                    ${theadHTML}
+                    ${tbodyHTML}
+                    </table>
+                    </div></div>`;
+        console.log('[SHAP TABLE] Table successfully rendered.');
+        }}
 
         // BUILD WATERFALL ARRAYS
         const displayLabels = [];

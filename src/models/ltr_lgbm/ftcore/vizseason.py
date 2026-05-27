@@ -294,7 +294,6 @@ class Visualizer:
                        'type'    : 'bar_chart_js',
                        'data'    : {'labels': dataplot["Feature"].tolist()[:topIM],
                                     'values': datapltlist[:topIM]},
-                       'image'   : None,
                        'full'    : False}
         self._chartsdata.append(chart_info)
         self._record("feature_importance", fig)
@@ -351,7 +350,6 @@ class Visualizer:
                                                'y_label': 'Count'},
                                    'stats'     : summary_stats,
                                    'stats_text': stats_text},
-                        'image' : None,
                         'full'  : False}
         self._chartsdata.append(chart_info)
         self._record("prediction_distribution", fig)
@@ -419,7 +417,6 @@ class Visualizer:
                        "axis" : {"x_label" : "Boosting Round",
                                  "y_label" : "NDCG"},
                        "stats" : summary_stats},
-            "image" : None,
             "full"  : False}
         self._chartsdata.append(chart_info)
         self._record("learning_curves", fig)
@@ -482,7 +479,6 @@ class Visualizer:
                        'data'   : {'z': corr_js,
                                    'x': list(map(str, self.feature_names)),
                                    'y': list(map(str, self.feature_names))},
-                        'image' : None,
                         'full'  : False}
         self._chartsdata.append(chart_info)
 
@@ -565,7 +561,6 @@ class Visualizer:
                            "max_display" : int(max_display),
                            "features"    : rows,
                           },
-                "image" : None,
                 "full"  : False}
             self._chartsdata.append(chart_info)
 

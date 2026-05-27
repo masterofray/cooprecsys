@@ -104,6 +104,7 @@
             <h3 class="diagnostic-title">
             {{ c['title'] }}</h3>
         <div class="shapwaterfall-container">
+
             <!-- LEFT : CHART -->
             <div class="shapwaterfall-chart-wrapper">
             <div
@@ -114,7 +115,8 @@
                 data-base-value  = '{{ c["data"]["base_value"] | tojson | forceescape }}'
                 data-prediction  = '{{ c["data"]["prediction"] | tojson | forceescape }}'
                 data-max-display = '{{ c["data"]["max_display"] | tojson | forceescape }}'
-                data-features    = '{{ c["data"]["features"] | tojson | forceescape }}'>
+                data-features    = '{{ c["data"]["features"] | tojson | forceescape }}'
+                data-subdata     = '{{ c["data"]["SubData"] | tojson | forceescape }}'>
             </div></div>
 
             <!-- RIGHT : SUMMARY -->
@@ -144,6 +146,52 @@
                     <div class="shap-summary-value">
                     {{ c['data']['features'] | length }}</div>
                 </div></div>
+
+            <!-- BELOW : TABLE BEHAVIOUR -->
+            {% set subdata = c['data'].get('SubData', []) %}
+            {% if subdata and subdata | length > 0 %}
+            <div class="shapwaterfall-table">
+                <div class="shapwaterfall-table-header">
+                <div class="shapwaterfall-table-title">
+                    Data Preview</div>
+                <div class="shapwaterfall-table-meta">
+                    Showing
+                    {{ [subdata | length, 3] | min }}
+                    of
+                    {{ subdata | length }}
+                    rows
+                </div></div>
+
+                <div class="shapwaterfall-table-wrapper">
+                <table class="shapwaterfall-data-table">
+                    <thead>
+                        <tr>
+                        {% for col in subdata[0].keys() %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                        </tr>
+                    </thead>
+                        <tbody>
+                            {% for row in subdata[:3] %}
+                            <tr>
+                            {% for value in row.values() %}
+                            <td>
+                                {% if value is number %}
+                                    {% if value is integer %}
+                                        {{ value }}
+                                    {% else %}
+                                        {{ "%.6f"|format(value) }}
+                                    {% endif %}
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table></div>
+                </div>{% endif %}
             </div>
             </div>
 

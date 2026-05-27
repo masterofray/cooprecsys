@@ -347,7 +347,6 @@ def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 continue
             normalized.append({
                 "title": chart.get("title", "Untitled Chart"),
-                "image": chart.get("image"),
                 "type" : chart.get("type"),
                 "data" : chart.get("data"),
                 "full" : "importance" in chart.get("title", "").lower()})
