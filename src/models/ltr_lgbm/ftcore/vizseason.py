@@ -37,6 +37,7 @@ import pandas as pd
 import seaborn as sns
 import lightgbm as lgb
 from pathlib import Path
+from copy import deepcopy
 from functools import partial
 from datetime import datetime
 import matplotlib.pyplot as plt
@@ -170,6 +171,8 @@ class Visualizer:
         self._X_test       = X_test
         self._metrics      = metrics
         self._chartsdata   = list()
+        self._predictdata  = pd.DataFrame([])
+        self._SubjectID    = _cfg.get('SHAP', 'SubjectID')
         self._b64_images:  Dict[str, str]  = dict()
         self._saved_paths: Dict[str, str]  = dict()
         logger.debug("Visualizer initialised.")
@@ -193,6 +196,12 @@ class Visualizer:
         #with open(path, "rb") as f:
         #    self._b64_images[name] = base64.b64encode(f.read()).decode("utf-8")
         logger.info("Chart saved: %s", path)
+    
+    def _get_SubjectID(self, sample_idx : int) -> str:
+        value = self._predictdata.iloc[sample_idx][self._SubjectID]
+        if isinstance(value, (int, float)):
+            return str(int(value))
+        return str(value)
 
 
     # ------------------------------------------------------------------
@@ -434,13 +443,9 @@ class Visualizer:
         di HTML/Jinja2 + JavaScript.
         """
         sample_indices = cfglist(section = 'SHAP', option = 'rowID')
-        max_display    = _cfg.getint('SHAP', 'numfeats')
-        if isinstance(self._X_test, pd.DataFrame):
-            Columns = [str(c) for c in self._X_test.columns]
-        else:
-            Columns = [f"Feature_{i}" for i in range(self._X_test.shape[1])]
-
-        explainer = shap.TreeExplainer(
+        max_display    = min(_cfg.getint('SHAP', 'numfeats'), 15)
+        Columns        = deepcopy(self.feature_names)
+        explainer      = shap.TreeExplainer(
             model                 = self._model,
             data                  = self._X_test,
             feature_perturbation  = "interventional",
@@ -493,17 +498,19 @@ class Visualizer:
                     "shap_value"    : round(float(sval), 8),
                     "abs_shap"      : round(float(abs(sval)), 8)
                     })
-            rows = sorted(rows, key=lambda x: x["abs_shap"], reverse = True)
-            rows = rows[:max_display]
-
-            chart_info = {
+            rows        = sorted(rows, key = lambda x: x["abs_shap"], reverse = True)
+            rows        = rows[:max_display]
+            CustID      = self._get_SubjectID(sample_idx)
+            chart_info  = {
                 "title" : f"SHAP Waterfall (Row {sample_idx})",
                 "type"  : "shap_waterfall_js",
-                "data"  : {"sample_idx": int(sample_idx),
-                           "base_value": round(base_value, 8),
-                           "prediction": round(prediction, 8),
-                           "max_display": int(max_display),
-                           "features": rows
+                "data"  : {"sample_idx"  : int(sample_idx),
+                           'SubName'     : str(self._SubjectID),
+                           'SubValue'    : CustID,
+                           "base_value"  : round(base_value, 8),
+                           "prediction"  : round(prediction, 8),
+                           "max_display" : int(max_display),
+                           "features"    : rows,
                           },
                 "image" : None,
                 "full"  : False}
@@ -517,7 +524,6 @@ class Visualizer:
         self.plot_learning_curves()
         self.plot_metrics_summary()
         self.plot_feature_correlation()
-        self.shap_waterfall_chart()
         logger.info("All visualisations complete.")
 
 
@@ -574,15 +580,15 @@ class Visualizer:
         pred = Path(preddata)
         parq = _cfg.getboolean('INFERENCE', 'parquet')
         ext  = '.csv' if not parq else '.parquet'
-        if pred.exists():
-            if 'csv' in ext:
-                predictdata = pd.read_csv(str(pred))
-            else:
-                predictdata = pd.read_parquet(str(pred), engine = 'pyarrow')
+        msg  = 'Prediction data is not floud in {str(pred)}' \
+               'We can not continue the progress to write HTML file.'
+        assert pred.exists(), msg
+        if 'csv' in ext:
+            predictdata = pd.read_csv(str(pred))
         else:
-            logger.error('Prediction data is not floud in {str(pred)}'
-                         'We can not continue the progress to write HTML file.')
-            predictdata = pd.DataFrame(list())
+            predictdata = pd.read_parquet(str(pred), engine = 'pyarrow')
+        self._predictdata = deepcopy(predictdata)
+        self.shap_waterfall_chart()
 
         # =====================================================
         # Build charts safely

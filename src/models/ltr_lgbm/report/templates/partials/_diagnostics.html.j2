@@ -94,6 +94,7 @@
                 </div>
             </div></div>
 
+
         {# =======================================================
            SHAP WATERFALL CHART
           ======================================================== #}
@@ -103,6 +104,8 @@
             <h3 class="diagnostic-title">
             {{ c['title'] }}</h3>
         <div class="shapwaterfall-container">
+            <!-- LEFT : CHART -->
+            <div class="shapwaterfall-chart-wrapper">
             <div
                 id               = "shapwaterfall-{{ loop.index0 }}"
                 class            = "plotly-chart js-shap-waterfall-render"
@@ -112,68 +115,37 @@
                 data-prediction  = '{{ c["data"]["prediction"] | tojson | forceescape }}'
                 data-max-display = '{{ c["data"]["max_display"] | tojson | forceescape }}'
                 data-features    = '{{ c["data"]["features"] | tojson | forceescape }}'>
-            </div>
+            </div></div>
+
+            <!-- RIGHT : SUMMARY -->
             <div class="shapwaterfall-summary">
                 <div class="shap-summary-card">
-                    <div class="shap-summary-label">Sample Index</div>
+                    <div class="shap-summary-label">{{ c['data']['SubName'] | title }}</div>
                     <div class="shap-summary-value">
-                        {{ c['data']['sample_idx'] }}</div>
+                    {{ c['data']['SubValue'] }}</div>
                 </div>
                 <div class="shap-summary-card">
                     <div class="shap-summary-label">Base Value</div>
                     <div class="shap-summary-value">
-                        {{ "%.8f"|format(c['data']['base_value']) }}</div>
+                    {{ "%.8f"|format(c['data']['base_value']) }}</div>
                 </div>
                 <div class="shap-summary-card">
                     <div class="shap-summary-label">Prediction</div>
-                    <div class="shap-summary-value">
-                        {{ "%.8f"|format(c['data']['prediction']) }}</div>
+                    <div class="shap-summary-value prediction-positive">
+                    {{ "%.8f"|format(c['data']['prediction']) }}</div>
                 </div>
                 <div class="shap-summary-card">
                     <div class="shap-summary-label">Max Display</div>
                     <div class="shap-summary-value">
-                        {{ c['data']['max_display'] }}</div>
-                    </div>
+                    {{ c['data']['max_display'] }}</div>
+                </div>
                 <div class="shap-summary-card">
-                    <div class="shap-summary-label">Rendered Features</div>
+                    <div class="shap-summary-label">Rendered</div>
                     <div class="shap-summary-value">
-                        {{ c['data']['features'] | length }}</div>
+                    {{ c['data']['features'] | length }}</div>
                 </div></div>
-
-        {# --------------- FEATURE TABLE --------------- #}
-        <div class="shapwaterfall-feature-table-wrapper">
-        <table class="shapwaterfall-feature-table">
-            <thead>
-            <tr>
-                <th>Feature</th>
-                <th>Value</th>
-                <th>SHAP</th>
-                <th>|SHAP|</th>
-            </tr>
-            </thead>
-            
-            <tbody>
-            {% for feat in c['data']['features'] %}
-            <tr>
-                <td class="shap-feature-name">{{ feat['feature'] }}</td>
-                <td class="shap-feature-value">{{ feat['feature_value'] }}</td>
-                <td class="shap-feature-shap
-                    {% if feat['shap_value'] >= 0 %}
-                        shap-positive
-                    {% else %}
-                        shap-negative
-                    {% endif %}">
-                    {{ "%.8f"|format(feat['shap_value']) }}
-                </td>
-                <td class="shap-feature-abs">
-                {{ "%.8f"|format(feat['abs_shap']) }}</td>
-            </tr>
-            {% endfor %}
-            </tbody>
-            </table>
             </div>
             </div>
-        </div>
 
         {% endif %}
     {% endfor %}
@@ -238,7 +210,7 @@
     import { initBarCharts } from "./assets/js/fbarplot.js";
     import { initHistRelevance } from "./assets/js/histrelevance.js";
     import { initLearningCurves } from "./assets/js/learningcurve.js";
-    import { initLearningCurves } from "./assets/js/shapwaterfall.js";
+    import { initShapWaterfalls } from "./assets/js/shapwaterfall.js";
     import { initParamsCards } from "./assets/js/paramscard.js";
 
     document.addEventListener("DOMContentLoaded", () => {

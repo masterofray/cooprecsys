@@ -30,7 +30,8 @@ export function initShapWaterfalls(container = document) {
     // ========================================================
     // LOOP CHARTS
     // ========================================================
-
+    let resizeAttached = false;
+    
     charts.forEach((chartEl, chartIndex) => {
 
         try {
@@ -103,6 +104,17 @@ export function initShapWaterfalls(container = document) {
                 []
             );
 
+            console.log(
+                    `[SHAP] Sample ${sampleIdx}`,
+                    {
+                        title,
+                        baseValue,
+                        prediction,
+                        maxDisplay,
+                        totalFeatures: features.length
+                    }
+                );
+
             // ====================================================
             // VALIDATION
             // ====================================================
@@ -129,59 +141,105 @@ export function initShapWaterfalls(container = document) {
             // CLEAN FEATURES
             // ====================================================
 
-            const cleanedFeatures = features
-                .map((f) => {
+            let cleanedFeatures = features.map((f) => {
 
-                    const shapValue = Number(
-                        f.shap_value ?? 0
-                    );
+                const shapValue = Number(
+                    f.shap_value ?? 0
+                );
 
-                    const absShap = Number(
-                        f.abs_shap ?? Math.abs(shapValue)
-                    );
+                const absShap = Number(
+                    f.abs_shap ?? Math.abs(shapValue)
+                );
 
-                    return {
+                return {
 
-                        feature:
-                            String(
-                                f.feature ?? 'Unknown'
-                            ),
+                    feature: String(
+                        f.feature ?? 'Unknown'
+                    ),
 
-                        feature_value:
-                            f.feature_value ?? 'N/A',
+                    feature_value:
+                        f.feature_value ?? 'N/A',
 
-                        shap_value:
-                            Number.isFinite(shapValue)
-                                ? shapValue
-                                : 0,
+                    shap_value:
+                        Number.isFinite(shapValue)
+                            ? shapValue
+                            : 0,
 
-                        abs_shap:
-                            Number.isFinite(absShap)
-                                ? absShap
-                                : 0
-                    };
+                    abs_shap:
+                        Number.isFinite(absShap)
+                            ? absShap
+                            : 0
+                };
 
-                })
+            });
 
-                // sort ulang untuk safety
+            console.log(
+                '[SHAP] Raw cleaned features:',
+                cleanedFeatures
+            );
+
+            // ====================================================
+            // REMOVE DUPLICATE FEATURES
+            // Keep only highest absolute SHAP
+            // ====================================================
+
+            const uniqueMap = new Map();
+
+            cleanedFeatures.forEach((f) => {
+
+                if (!uniqueMap.has(f.feature)) {
+
+                    uniqueMap.set(f.feature, f);
+
+                    return;
+                }
+
+                const existing =
+                    uniqueMap.get(f.feature);
+
+                if (
+                    Math.abs(f.shap_value) >
+                    Math.abs(existing.shap_value)
+                ) {
+
+                    uniqueMap.set(f.feature, f);
+                }
+            });
+
+            cleanedFeatures =
+                Array.from(uniqueMap.values());
+
+            console.log(
+                '[SHAP] Unique features:',
+                cleanedFeatures 
+            );
+
+            // ====================================================
+            // SORT + LIMIT
+            // ====================================================
+
+            cleanedFeatures = cleanedFeatures
                 .sort(
                     (a, b) =>
                         b.abs_shap - a.abs_shap
                 )
-
-                // limit ulang untuk safety
                 .slice(
                     0,
                     maxDisplay > 0
                         ? maxDisplay
-                        : features.length
+                        : cleanedFeatures.length
                 );
+
+            console.log(
+                '[SHAP] Final cleaned features:',
+                cleanedFeatures
+            );
 
             // ====================================================
             // BUILD WATERFALL ARRAYS
             // ====================================================
 
-            const yLabels = [];
+            const displayLabels = [];
             const xValues = [];
             const customData = [];
 
@@ -194,15 +252,22 @@ export function initShapWaterfalls(container = document) {
                 const featureValue =
                     f.feature_value;
 
-                yLabels.push(
-                    `${f.feature}`
-                );
+                const fullFeature =
+                    String(f.feature);
+
+                const displayFeature =
+                    fullFeature.length > 32
+                        ? fullFeature.slice(0, 32) + '…'
+                        : fullFeature;
+
+                displayLabels.push(displayFeature);
 
                 xValues.push(
                     shapValue
                 );
 
                 customData.push([
+                    fullFeature,
                     featureValue,
                     shapValue,
                     f.abs_shap
@@ -223,7 +288,7 @@ export function initShapWaterfalls(container = document) {
                     () => 'relative'
                 ),
 
-                y: yLabels,
+                y: displayLabels,
 
                 x: xValues,
 
@@ -259,25 +324,33 @@ export function initShapWaterfalls(container = document) {
                 },
 
                 hovertemplate:
-                    '<b>%{y}</b><br>' +
-                    'Feature Value: %{customdata[0]}<br>' +
-                    'SHAP Value: %{customdata[1]:.8f}<br>' +
-                    '|SHAP|: %{customdata[2]:.8f}<extra></extra>',
+                    '<b>%{customdata[0]}</b><br>' +
+                    'Feature Value: %{customdata[1]}<br>' +
+                    'SHAP Value: %{customdata[2]:.8f}<br>' +
+                    '|SHAP|: %{customdata[3]:.8f}<extra></extra>',
 
                 text: xValues.map((v) => {
 
-                    const sign =
-                        v >= 0 ? '+' : '';
+                    const absValue = Math.abs(v);
 
-                    return (
-                        sign +
-                        v.toFixed(6)
-                    );
+                    // nilai kecil jangan terlalu panjang
+                    if (absValue < 0.01) {
+                        return v.toFixed(4);
+                    }
+
+                    return v.toFixed(5);
                 }),
 
                 textposition: 'outside',
+                cliponaxis: false,
+                constraintext: 'none',
+                textangle: 0,
+                
+                textfont: {
+                    size: 10,
+                    family: 'Inter, sans-serif'
+                },
 
-                cliponaxis: false
             };
 
             // ====================================================
@@ -285,8 +358,8 @@ export function initShapWaterfalls(container = document) {
             // ====================================================
 
             const dynamicHeight = Math.max(
-                420,
-                cleanedFeatures.length * 48
+                320,
+                cleanedFeatures.length * 36
             );
 
             // ====================================================
@@ -294,33 +367,16 @@ export function initShapWaterfalls(container = document) {
             // ====================================================
 
             const layout = {
-
-                title: {
-
-                    text:
-                        `${title}<br>` +
-                        `<span style="font-size:12px;">` +
-                        `Sample ${sampleIdx} ` +
-                        `| Base Value = ${baseValue.toFixed(8)} ` +
-                        `| Prediction = ${prediction.toFixed(8)}` +
-                        `</span>`,
-
-                    x: 0.02
-                },
-
                 template: 'plotly_dark',
 
                 height: dynamicHeight,
 
                 margin: {
-
-                    l: 220,
-
-                    r: 80,
-
-                    t: 90,
-
-                    b: 60
+                    l: 140,
+                    r: 70,
+                    t: 10,
+                    b: 50,
+                    pad: 2
                 },
 
                 paper_bgcolor:
@@ -378,8 +434,8 @@ export function initShapWaterfalls(container = document) {
 
                     autorange: 'reversed',
 
-                    automargin: true,
-
+                    automargin: false,
+                    ticklabelposition: 'outside',
                     tickfont: {
 
                         size: 11
@@ -392,59 +448,60 @@ export function initShapWaterfalls(container = document) {
             // ====================================================
 
             const config = {
-
                 responsive: true,
-
+                displayModeBar: false,
                 displaylogo: false,
-
-                scrollZoom: true,
-
-                doubleClick: 'reset',
-
-                modeBarButtonsToRemove: [
-
-                    'lasso2d',
-                    'select2d',
-                    'autoScale2d',
-
-                    'hoverClosestCartesian',
-                    'hoverCompareCartesian',
-
-                    'toggleSpikelines'
-                ]
+                scrollZoom: false
             };
 
             // ====================================================
             // RENDER
             // ====================================================
-
+            console.log(
+                `[SHAP] Rendering waterfall`,
+                {
+                    displayLabels,
+                    xValues
+                }
+            );
+                
+            console.log(
+                `[SHAP] Render sample ${sampleIdx}`,
+                {
+                    features: cleanedFeatures.length,
+                    labels: displayLabels.length,
+                    values: xValues.length
+                }
+            );
+                
             Plotly.newPlot(
                 chartEl,
                 [trace],
                 layout,
                 config
             );
+            
+            if (!resizeAttached) {
+
+                resizeAttached = true;
+
+                window.addEventListener('resize', () => {
+
+                if (!chartEl || !chartEl.offsetParent) {
+                    return;
+                }
+
+                console.log(
+                    `[SHAP] Window resize sample ${sampleIdx}`
+                );
+
+                Plotly.Plots.resize(chartEl);
+                });
+                }
 
             // ====================================================
             // RESIZE OBSERVER
             // ====================================================
-
-            if (
-                typeof ResizeObserver !== 'undefined'
-            ) {
-
-                const resizeObserver =
-                    new ResizeObserver(() => {
-
-                        Plotly.Plots.resize(
-                            chartEl
-                        );
-                    });
-
-                resizeObserver.observe(
-                    chartEl
-                );
-            }
 
             console.log(
                 `[SHAP] Successfully rendered sample ${sampleIdx}`
