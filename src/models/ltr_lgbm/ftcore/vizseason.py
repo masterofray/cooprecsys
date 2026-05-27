@@ -27,10 +27,12 @@ Design notes
 """
 
 import io
+import re
 import os
 import sys
 import shap
 import base64
+import random
 import matplotlib
 import numpy as np
 import pandas as pd
@@ -38,7 +40,6 @@ import seaborn as sns
 import lightgbm as lgb
 from pathlib import Path
 from copy import deepcopy
-from functools import partial
 from datetime import datetime
 import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Optional
@@ -48,7 +49,7 @@ matplotlib.use("Agg")
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
 
-from prepare import Dict2Json
+from prepare import Dict2Json, FLmiss
 from configs import LTRConfig, logger, _cfg
 from models.ltr_lgbm.report import repot
 
@@ -133,10 +134,13 @@ def _save_fig(fig: plt.Figure, path: str = './output.png') -> None:
     plt.close(fig)
     logger.debug("Figure saved: %s", path)
 
-def _cfglist(configs, section, option):
-    raw_value = configs.get(section, option)
+def cfglist(section:str, option:str, numeric = True):
+    raw_value = _cfg.get(section, option)
     clean     = raw_value.strip("[]")
-    return [int(x.strip()) for x in clean.split(",") if x.strip()]
+    if numeric:
+        return [int(x.strip()) for x in clean.split(",") if x.strip()]
+    else:
+        return [x.strip().strip("'\"") for x in clean.split(",") if x.strip()]
 
 def safe_array(arr):
     return np.nan_to_num(
@@ -145,7 +149,6 @@ def safe_array(arr):
         posinf = 0.0,
         neginf = 0.0)
 
-cfglist = partial(_cfglist, configs = _cfg)
 
 # ---------------------------------------------------------------------------
 # Main class
@@ -202,6 +205,54 @@ class Visualizer:
         if isinstance(value, (int, float)):
             return str(int(value))
         return str(value)
+
+    def _get_CustData(self, cust_id: Any) -> pd.DataFrame:
+        """
+        Retrieve filtered data for a specific customer with columns specified in config.
+        Falls back to random column selection prioritized by numeric/relevant keywords
+        (price, total, sum, count, etc.) if no requested columns are available.
+        Always drops the SubjectID column from the result.
+        """
+        final_cols: List[str] = list()
+        max_cols : int          = _cfg.getint('SHAP', 'MaxFeatTabel')
+        mask     : pd.Series    = self._predictdata[self._SubjectID].astype(str) == str(cust_id)
+        data_cust: pd.DataFrame = deepcopy(self._predictdata[mask])
+        if data_cust.empty:
+            raise ValueError(f"No data found for CustomerID '{cust_id}'.")
+        data_cust = data_cust.drop(columns = [self._SubjectID], errors = 'ignore')
+
+        try:
+            desired_cols = cfglist(section = 'SHAP', 
+                                   option  = 'FeatTableColumn', 
+                                   numeric = False)
+            assert isinstance(desired_cols, list), "cfglist did not return a list"
+            available_desired = [item for item in desired_cols if item in data_cust.columns]
+            final_cols        = available_desired[:max_cols]
+        except Exception as err:
+            raise RuntimeError(
+            f"Failed to read columns from config ['SHAP'] 'FeatTableColumn': {err}")
+
+        # Fallback: if no requested columns are available, pick randomly
+        # with priority given to numeric/relevant keywords
+        cfrandom = _cfg.getboolean('SHAP', 'UseRandomColumn')
+        if not final_cols or cfrandom :
+            all_cols: List[str]      = data_cust.columns.tolist()
+            if not all_cols:
+                raise ValueError("No feature columns remain after dropping SubjectID.")
+            priority_pattern: str    = (
+                r'price|total|sum|count|amount|qty|quantity|revenue|sales|'
+                r'profit|discount|fee|tax|cost|value|weight')
+            pattern: re.Pattern      = re.compile(priority_pattern, re.IGNORECASE)
+            priority_cols: List[str] = [c for c in all_cols if pattern.search(c)]
+            other_cols: List[str]    = [c for c in all_cols if not pattern.search(c)]
+            random.shuffle(priority_cols)
+            random.shuffle(other_cols)
+
+            # Combine priority first, then others; cap at max_cols
+            final_cols = (priority_cols + other_cols)[:max_cols]
+            assert final_cols, "Fallback random selection produced no columns."
+        dataCst = FLmiss(data = data_cust[final_cols])
+        return dataCst
 
 
     # ------------------------------------------------------------------
@@ -501,12 +552,14 @@ class Visualizer:
             rows        = sorted(rows, key = lambda x: x["abs_shap"], reverse = True)
             rows        = rows[:max_display]
             CustID      = self._get_SubjectID(sample_idx)
+            CustData    = self._get_CustData(CustID)
             chart_info  = {
                 "title" : f"SHAP Waterfall (Row {sample_idx})",
                 "type"  : "shap_waterfall_js",
                 "data"  : {"sample_idx"  : int(sample_idx),
                            'SubName'     : str(self._SubjectID),
                            'SubValue'    : CustID,
+                           'SubData'     : CustData.to_dict(orient = 'records'),
                            "base_value"  : round(base_value, 8),
                            "prediction"  : round(prediction, 8),
                            "max_display" : int(max_display),

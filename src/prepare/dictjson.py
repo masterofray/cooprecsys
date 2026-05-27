@@ -13,6 +13,7 @@ __created__    = "2026-05-07"
 import sys
 import json
 import joblib
+import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
 
@@ -54,6 +55,36 @@ def Dict2Json(data       : Dict[str, Any],
         logger.error(f"Error: Cannot serialize - {Arc}, Will save as joblib.")
         newfilepath = Path(filepath).with_suffix(".joblib")
         return joblib.dump(data, str(newfilepath), compress=('lzma', 9))
+
+
+def FLmiss(data         : pd.DataFrame, 
+           numeric_fill : int = 0, 
+           string_fill  : str = 'empty',
+          ) -> pd.DataFrame:
+    """
+    Fill missing values in a DataFrame.
+    - numeric columns → numeric_fill (default 0)
+    - categorical columns → numeric_fill (or string if 0 is not allowed)
+    - object/string columns → string_fill (default 'empty')
+    Returns a new DataFrame without NaN/None.
+    """
+    df_filled = data.copy()
+    for col in df_filled.columns:
+        # Numeric
+        if pd.api.types.is_numeric_dtype(df_filled[col]):
+            df_filled[col] = df_filled[col].fillna(numeric_fill)
+        
+        # Categorical
+        elif pd.api.types.is_categorical_dtype(df_filled[col]):
+            try:
+                df_filled[col] = df_filled[col].fillna(numeric_fill)
+            except (ValueError, TypeError):
+                df_filled[col] = df_filled[col].fillna(str(numeric_fill))
+        
+        # String, object, etc.
+        else:
+            df_filled[col] = df_filled[col].fillna(string_fill)
+    return df_filled
 
 
 if __name__ == '__main__':

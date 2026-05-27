@@ -11,6 +11,7 @@ __status__     = "Development"
 __created__    = "2026-05-23"
 
 import os
+import re
 import sys
 import json
 import math
@@ -237,32 +238,96 @@ def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
 # MINI STAT GENERATOR
 #__________________________________________________________
 def generate_stat_minis(df: pd.DataFrame) -> List[Dict[str, Any]]:
-    """Generate mini statistics cards."""
+    """Generate mini statistics cards using two‑tier regex column matching.
+    Phase 1 – Exact fullmatch (preferred identifiers).
+    Phase 2 – Partial search with relaxed word boundaries (semantic fallback).
+    All patterns are case‑insensitive.
+    """
     logger.debug("Generating stat mini cards.")
     if df.empty:
         logger.warning("Prediction dataframe empty.")
         return list()
+
     stats: List[Dict[str, Any]] = list()
     try:
-        candidate_columns = {"Users"      : "CustomerID",
-                             "Products"   : "ProductID",
-                             "Categories" : "CategoryID"}
-        for label, column in candidate_columns.items():
-            logger.debug("Evaluating stat column=%s", column)
-            if column not in df.columns:
-                logger.warning("Column=%s missing from dataframe.", column)
+        candidate_rules = {
+            "Users": {
+                "exact": [
+                    r"(?i)^customer_?id$",
+                    r"(?i)^user_?id$",
+                    r"(?i)^cust_?id$",
+                    r"(?i)^customer$",
+                    r"(?i)^user$",
+                ],
+                "partial": [
+                    r"(?i)(?:^|_)(customer|user|client|member|buyer)(?:$|_)",
+                    r"(?i)(customer|user|client)",
+                ],
+            },
+            "Products": {
+                "exact": [
+                    r"(?i)^product_?id$",
+                    r"(?i)^prod_?id$",
+                    r"(?i)^product$",
+                ],
+                "partial": [
+                    r"(?i)(?:^|_)(product|prod|item|sku)(?:$|_)",
+                    r"(?i)(product|prod|item)",
+                ],
+            },
+            "Categories": {
+                "exact": [
+                    r"(?i)^category_?id$",
+                    r"(?i)^cat_?id$",
+                    r"(?i)^category$",
+                ],
+                "partial": [
+                    r"(?i)(?:^|_)(category|department|cat|class|segment|group)(?:$|_)",
+                    r"(?i)(category|department|cat|class|segment)",
+                ],
+            }}
+        for label, rules in candidate_rules.items():
+            logger.debug("Evaluating stat label=%s", label)
+            matched_col = None
+
+            # Phase 1 – exact fullmatch
+            for pattern in rules["exact"]:
+                for col in df.columns:
+                    if re.fullmatch(pattern, str(col)):
+                        matched_col = col
+                        break
+                if matched_col:
+                    break
+
+            # Phase 2 – partial search (only if no exact match)
+            if matched_col is None:
+                logger.debug("No exact match for %s, trying partial patterns.", label)
+                for pattern in rules["partial"]:
+                    for col in df.columns:
+                        if re.search(pattern, str(col)):
+                            matched_col = col
+                            break
+                    if matched_col:
+                        break
+
+            if matched_col is None:
+                logger.warning(
+                    "No matching column for label=%s. Available columns: %s",
+                    label, list(df.columns))
                 continue
+            logger.debug("Using column=%s for label=%s", matched_col, label)
             stats.append({"label"   : label,
-                          "value"   : str(df[column].nunique()),
+                          "value"   : str(df[matched_col].nunique()),
                           "percent" : 100})
         stats.append({"label"   : "Rows",
                       "value"   : str(len(df)),
                       "percent" : 100})
         logger.info("Generated %d mini stat cards.", len(stats))
-        return stats
     except Exception as exc:
         logger.error("Mini stat generation failed.", exc_info=True)
         raise RuntimeError("Failed generating mini stats.") from exc
+    finally:
+        return stats
 
 
 # CHART NORMALIZER
