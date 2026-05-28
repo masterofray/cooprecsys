@@ -24,40 +24,48 @@
     </div>
 
     <div class="sidebar-nav">
-    <button class="sidebar-link active"
-        onclick="switchPage('overview')"
-        data-page="overview">
-        <i class="fas fa-th-large"></i>
+    <button class = "sidebar-link active"
+        onclick   = "switchPage('overview')"
+        data-page = "overview">
+        <img src  = "./assets/icon/overview.ico"
+             alt  = "Overview Icon"
+             class= "sidebar-icon">
         <span>Overview</span>
         </button>
 
-    <button class="sidebar-link"
-        onclick="switchPage('rankings')"
-        data-page="rankings">
-        <i class="fas fa-list-ol"></i>
+    <button class = "sidebar-link"
+        onclick   = "switchPage('rankings')"
+        data-page = "rankings">
+        <img src  = "./assets/icon/rankings.ico"
+             alt  = "Rankings Icon"
+             class= "sidebar-icon">
         <span>Rankings</span>
         </button>
     
-    <button class="sidebar-link"
-        onclick="switchPage('diagnostics')"
-        data-page="diagnostics">
-        <i class="fas fa-chart-line"></i>
+    <button class = "sidebar-link"
+        onclick   = "switchPage('diagnostics')"
+        data-page = "diagnostics">
+        <img src  = "./assets/icon/diagnostics.ico"
+             alt  = "Diagnostics Icon"
+             class= "sidebar-icon">
         <span>Diagnostics</span>
         </button>
     
-    <button class="sidebar-link"
-        onclick="switchPage('config')"
-        data-page="config">
-        <i class="fas fa-cog"></i>
+    <button class = "sidebar-link"
+        onclick   = "switchPage('config')"
+        data-page = "config">
+        <img src  = "./assets/icon/config.ico"
+             alt  = "Config Icon"
+             class= "sidebar-icon">
         <span>Config</span>
         </button>
     </div>
 
-    <div class="sidebar-user">
-    <div class="sidebar-avatar">{{ username[0]|upper }}</div>
-    <div class="sidebar-user-info">
-    <span class="sidebar-user-name">Halo, {{ username|capitalize }}</span>
-    <span class="sidebar-user-role">admin</span>
+    <div class  = "sidebar-user">
+    <div class  = "sidebar-avatar">{{ username[0]|upper }}</div>
+    <div class  = "sidebar-user-info">
+    <span class = "sidebar-user-name">Halo, {{ username|capitalize }}</span>
+    <span class = "sidebar-user-role">admin</span>
     </div>
     </div>
 </nav>
@@ -80,24 +88,32 @@
 
 
 <div class="page-tabs">
-    <button class="page-tab active"
-        onclick="switchPage('overview')">
-        <i class="fas fa-th-large"></i>
+    <button class = "page-tab active"
+        onclick   = "switchPage('overview')">
+        <img src  = "./assets/icon/overview.ico"
+             alt  = "Overview Icon"
+             class= "headtop-icon">
         Overview</button>
     
-    <button class="page-tab"
-        onclick="switchPage('rankings')">
-        <i class="fas fa-list-ol"></i>
+    <button class = "page-tab"
+        onclick   = "switchPage('rankings')">
+        <img src  = "./assets/icon/rankings.ico"
+             alt  = "Rankings Icon"
+             class= "headtop-icon">
         Rankings</button>
 
-    <button class="page-tab"
-        onclick="switchPage('diagnostics')">
-        <i class="fas fa-chart-line"></i>
+    <button class = "page-tab"
+        onclick   = "switchPage('diagnostics')">
+        <img src  = "./assets/icon/diagnostics.ico"
+             alt  = "Diagnostics Icon"
+             class= "headtop-icon">
         Diagnostics</button>
 
-    <button class="page-tab"
-        onclick="switchPage('config')">
-        <i class="fas fa-cog"></i>
+    <button class = "page-tab"
+        onclick   = "switchPage('config')">
+        <img src  = "./assets/icon/config.ico"
+             alt  = "Config Icon"
+             class= "headtop-icon">
         Config</button>
 </div>
 
