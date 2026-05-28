@@ -55,7 +55,7 @@ def runcopy(dest: Path = None) -> None:
     dest     = OUTPUT_DIR / 'assets' if dest is None else Path(dest).resolve()
     copy_map = {STATIC_DIR / 'compute01.png': dest}
     copy_map[IMG_DIR/'favicon.ico']   = dest
-    copy_map[IMG_DIR/'logo_redsquare.jpg'] = dest
+    copy_map[IMG_DIR/'logo_red.jpg'] = dest
     css_dir  = STATIC_DIR / 'css'
     if css_dir.exists():
         for item in css_dir.glob('*'):
