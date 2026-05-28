@@ -27,26 +27,29 @@ Design notes
 """
 
 import io
+import re
 import os
 import sys
+import shap
 import base64
+import random
 import matplotlib
 import numpy as np
 import pandas as pd
 import seaborn as sns
 import lightgbm as lgb
 from pathlib import Path
+from copy import deepcopy
 from datetime import datetime
 import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Optional
 from ipdb import set_trace
 
-
 matplotlib.use("Agg")
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
 
-from prepare import Dict2Json
+from prepare import Dict2Json, FLmiss
 from configs import LTRConfig, logger, _cfg
 from models.ltr_lgbm.report import repot
 
@@ -131,6 +134,21 @@ def _save_fig(fig: plt.Figure, path: str = './output.png') -> None:
     plt.close(fig)
     logger.debug("Figure saved: %s", path)
 
+def cfglist(section:str, option:str, numeric = True):
+    raw_value = _cfg.get(section, option)
+    clean     = raw_value.strip("[]")
+    if numeric:
+        return [int(x.strip()) for x in clean.split(",") if x.strip()]
+    else:
+        return [x.strip().strip("'\"") for x in clean.split(",") if x.strip()]
+
+def safe_array(arr):
+    return np.nan_to_num(
+        np.asarray(arr),
+        nan    = 0.0,
+        posinf = 0.0,
+        neginf = 0.0)
+
 
 # ---------------------------------------------------------------------------
 # Main class
@@ -156,6 +174,8 @@ class Visualizer:
         self._X_test       = X_test
         self._metrics      = metrics
         self._chartsdata   = list()
+        self._predictdata  = pd.DataFrame([])
+        self._SubjectID    = _cfg.get('SHAP', 'SubjectID')
         self._b64_images:  Dict[str, str]  = dict()
         self._saved_paths: Dict[str, str]  = dict()
         logger.debug("Visualizer initialised.")
@@ -176,9 +196,63 @@ class Visualizer:
         path = os.path.join(self.output_dir, f"{name}.png")
         _save_fig(fig, path)
         self._saved_paths[name] = path
-        with open(path, "rb") as f:
-            self._b64_images[name] = base64.b64encode(f.read()).decode("utf-8")
+        #with open(path, "rb") as f:
+        #    self._b64_images[name] = base64.b64encode(f.read()).decode("utf-8")
         logger.info("Chart saved: %s", path)
+    
+    def _get_SubjectID(self, sample_idx : int) -> str:
+        value = self._predictdata.iloc[sample_idx][self._SubjectID]
+        if isinstance(value, (int, float)):
+            return str(int(value))
+        return str(value)
+
+    def _get_CustData(self, cust_id: Any) -> pd.DataFrame:
+        """
+        Retrieve filtered data for a specific customer with columns specified in config.
+        Falls back to random column selection prioritized by numeric/relevant keywords
+        (price, total, sum, count, etc.) if no requested columns are available.
+        Always drops the SubjectID column from the result.
+        """
+        final_cols: List[str] = list()
+        max_cols : int          = _cfg.getint('SHAP', 'MaxFeatTabel')
+        mask     : pd.Series    = self._predictdata[self._SubjectID].astype(str) == str(cust_id)
+        data_cust: pd.DataFrame = deepcopy(self._predictdata[mask])
+        if data_cust.empty:
+            raise ValueError(f"No data found for CustomerID '{cust_id}'.")
+        data_cust = data_cust.drop(columns = [self._SubjectID], errors = 'ignore')
+
+        try:
+            desired_cols = cfglist(section = 'SHAP', 
+                                   option  = 'FeatTableColumn', 
+                                   numeric = False)
+            assert isinstance(desired_cols, list), "cfglist did not return a list"
+            available_desired = [item for item in desired_cols if item in data_cust.columns]
+            final_cols        = available_desired[:max_cols]
+        except Exception as err:
+            raise RuntimeError(
+            f"Failed to read columns from config ['SHAP'] 'FeatTableColumn': {err}")
+
+        # Fallback: if no requested columns are available, pick randomly
+        # with priority given to numeric/relevant keywords
+        cfrandom = _cfg.getboolean('SHAP', 'UseRandomColumn')
+        if not final_cols or cfrandom :
+            all_cols: List[str]      = data_cust.columns.tolist()
+            if not all_cols:
+                raise ValueError("No feature columns remain after dropping SubjectID.")
+            priority_pattern: str    = (
+                r'price|total|sum|count|amount|qty|quantity|revenue|sales|'
+                r'profit|discount|fee|tax|cost|value|weight')
+            pattern: re.Pattern      = re.compile(priority_pattern, re.IGNORECASE)
+            priority_cols: List[str] = [c for c in all_cols if pattern.search(c)]
+            other_cols: List[str]    = [c for c in all_cols if not pattern.search(c)]
+            random.shuffle(priority_cols)
+            random.shuffle(other_cols)
+
+            # Combine priority first, then others; cap at max_cols
+            final_cols = (priority_cols + other_cols)[:max_cols]
+            assert final_cols, "Fallback random selection produced no columns."
+        dataCst = FLmiss(data = data_cust[final_cols])
+        return dataCst
 
 
     # ------------------------------------------------------------------
@@ -196,11 +270,10 @@ class Visualizer:
         logger.debug("Plotting feature importance (type=%s, top_n=%d).",
                      importance_type, top_n)
         imp      = self._model.feature_importance(importance_type = importance_type)
-        names    = self.feature_names #self._model.feature_name()
+        names    = self.feature_names
         dataplot = pd.DataFrame({"Feature": names, "Importance": imp})\
                    .sort_values("Importance", ascending = False)\
                    .head(top_n)
-        #set_trace()
         fig, ax  = plt.subplots(figsize=(11, max(5, top_n * 0.35)))
         sns.barplot(
             data    = dataplot,
@@ -221,10 +294,9 @@ class Visualizer:
                        'type'    : 'bar_chart_js',
                        'data'    : {'labels': dataplot["Feature"].tolist()[:topIM],
                                     'values': datapltlist[:topIM]},
-                       'image'   : None,
                        'full'    : False}
         self._chartsdata.append(chart_info)
-        #self._record("feature_importance", fig)
+        self._record("feature_importance", fig)
 
 
     def plot_prediction_distribution(self) -> None:
@@ -233,42 +305,88 @@ class Visualizer:
         preds = self._model.predict(self._X_test,
                 num_iteration = self._model.best_iteration or 0,)
         fig, ax = plt.subplots(figsize=(9, 5))
-        sns.histplot(preds, bins=60, kde=True, color="#4C72B0", ax=ax)
+        edges_scott = np.histogram_bin_edges(preds, bins='scott')
+        numbin = _cfg.getint('MODEL_LGBM', 'num_histbin')
+        if numbin >= len(edges_scott):
+            usebin = np.histogram_bin_edges(preds, bins = numbin)
+        else:
+            usebin = edges_scott
+        sns.histplot(preds, 
+                     bins  = usebin, 
+                     kde   = True, 
+                     color = "#4C72B0", 
+                     ax    = ax)
         ax.set_title("Relevance Score Distribution (Test Set)")
         ax.set_xlabel("Predicted Relevance Score")
         ax.set_ylabel("Count")
-
-        # Annotate summary stats
+        summary_stats = {
+            'mean': float(np.mean(preds)),
+            'std' : float(np.std(preds)),
+            'min' : float(np.min(preds)),
+            'max' : float(np.max(preds)),
+            'n'   : int(len(preds))
+        }
         stats_text = (
-            f"mean={np.mean(preds):.4f}\n"
-            f"std={np.std(preds):.4f}\n"
-            f"min={np.min(preds):.4f}\n"
-            f"max={np.max(preds):.4f}")
-        ax.text(
-            0.97, 0.97, stats_text,
+            f"mean = {summary_stats['mean']:.4f}\n"
+            f"std = {summary_stats['std']:.4f}\n"
+            f"min = {summary_stats['min']:.4f}\n"
+            f"max = {summary_stats['max']:.4f}"
+        )
+        ax.text(0.97, 0.97, stats_text,
             transform   = ax.transAxes,
             va          = "top",
             ha          = "right",
             fontsize    = 10,
             family      = "monospace",
             bbox        = dict(boxstyle="round", fc="white", ec="gray", alpha=0.8))
+        histpredc   = np.nan_to_num(preds, nan = 0.0,
+                                    posinf = 0.0, neginf = 0.0).tolist()
+        bins        = usebin.tolist()
+        chart_info  = {'title'  : 'Histogram of test-set relevance scores',
+                       'type'   : 'histrelevance',
+                       'data'   : {'values' : histpredc,
+                                   'bins'   : bins,
+                                   'axis'   : {'x_label': 'Predicted Relevance Score',
+                                               'y_label': 'Count'},
+                                   'stats'     : summary_stats,
+                                   'stats_text': stats_text},
+                        'full'  : False}
+        self._chartsdata.append(chart_info)
         self._record("prediction_distribution", fig)
+
 
     def plot_learning_curves(self) -> None:
         """Line chart of train/test NDCG over boosting rounds."""
-        logger.debug("Plotting learning curves.")
-        fig, axes = plt.subplots(1, 1, figsize=(10, 5))
+        logger.debug("Preparing learning curves chart data.")
+        lines = list()
+        fig, axes = plt.subplots(1, 1, figsize = (10, 5))
         for split_name, metric_dict in self._evals_result.items():
             for metric_name, values in metric_dict.items():
-                label = f"{split_name} — {metric_name}"
-                linestyle = "-" if split_name == "train" else "--"
+                label     = f"{split_name} - {metric_name}"
+                linestyle = "solid" if split_name == "train" else "dash"
+                pltstyle  = "solid" if split_name == "train" else "dashed"
+                y_values  = [float(v) for v in values]
+                x_values  = list(range(len(y_values)))
+                lines.append({
+                    "label"      : label,
+                    "x"          : x_values,
+                    "y"          : y_values,
+                    "line_style" : linestyle,
+                    "metric"     : metric_name,
+                    "split"      : split_name,})
                 axes.plot(
                     values,
                     label     = label,
-                    linestyle = linestyle,
+                    linestyle = pltstyle,
                     linewidth = 1.8)
-        best_iter = self._model.best_iteration
-        if best_iter:
+
+        best_iter = getattr(self._model, "best_iteration", None)
+        best_iteration_info = None
+        if best_iter is not None:
+            best_iteration_info = {
+                "x"          : int(best_iter),
+                "line_style" : "dot",
+                "label"      : f"Best iteration ({best_iter})"}
             axes.axvline(
                 x         = best_iter,
                 color     = "red",
@@ -279,7 +397,30 @@ class Visualizer:
         axes.set_xlabel("Boosting Round")
         axes.set_ylabel("NDCG")
         axes.legend(loc="lower right", fontsize=9)
+    
+        summary_stats = dict()
+        for split_name, metric_dict in self._evals_result.items():
+            for metric_name, values in metric_dict.items():
+                arr = np.asarray(values, dtype=float)
+                summary_stats[
+                f"{split_name}_{metric_name}"] = {
+                    "min"  : float(arr.min()),
+                    "max"  : float(arr.max()),
+                    "last" : float(arr[-1]),
+                    "best" : float(arr.max())}
+    
+        chart_info = {
+            "title" : "Learning Curves (NDCG per Round)",
+            "type"  : "learning_curve",
+            "data"  : {"lines" : lines,
+                       "best_iteration"    : best_iteration_info,
+                       "axis" : {"x_label" : "Boosting Round",
+                                 "y_label" : "NDCG"},
+                       "stats" : summary_stats},
+            "full"  : False}
+        self._chartsdata.append(chart_info)
         self._record("learning_curves", fig)
+
 
     def plot_metrics_summary(self) -> None:
         """Horizontal bar chart summarising key evaluation metrics."""
@@ -291,19 +432,20 @@ class Visualizer:
             logger.warning("No metrics found for summary chart.")
             return None
         tempdata = pd.DataFrame(list(filtered.items()),
-                    columns=["Metric", "Value"],
+                    columns = ["Metric", "Value"],
                     ).sort_values("Value", ascending=True)
         fig, ax = plt.subplots(figsize=(9, max(3, len(tempdata) * 0.55)))
         bars = ax.barh(
             tempdata["Metric"], tempdata["Value"],
-            color   = "#55A868",
+            color     = "#55A868",
             edgecolor = "white",
-            height  = 0.6)
+            height    = 0.6)
         ax.bar_label(bars, fmt="%.4f", padding=4, fontsize=9)
         ax.set_title("Evaluation Metrics Summary")
         ax.set_xlabel("Value")
         ax.set_xlim(0, max(tempdata["Value"]) * 1.18)
         self._record("metrics_summary", fig)
+
 
     def plot_feature_correlation(self, sample_n: int = 5_000) -> None:
         """Heatmap of pairwise feature correlations on a random sample.
@@ -337,9 +479,91 @@ class Visualizer:
                        'data'   : {'z': corr_js,
                                    'x': list(map(str, self.feature_names)),
                                    'y': list(map(str, self.feature_names))},
-                        'image' : None,
                         'full'  : False}
         self._chartsdata.append(chart_info)
+
+
+    def shap_waterfall_chart(self):
+        """
+        Menambahkan beberapa SHAP waterfall chart
+        ke self._chartsdata agar dapat dirender
+        di HTML/Jinja2 + JavaScript.
+        """
+        sample_indices = cfglist(section = 'SHAP', option = 'rowID')
+        max_display    = min(_cfg.getint('SHAP', 'numfeats'), 15)
+        Columns        = deepcopy(self.feature_names)
+        explainer      = shap.TreeExplainer(
+            model                 = self._model,
+            data                  = self._X_test,
+            feature_perturbation  = "interventional",
+            model_output          = "raw",
+            approximate           = False)
+        shap_values = explainer(self._X_test, check_additivity = False)
+
+        for sample_idx in sample_indices:
+            if sample_idx < 0:
+                continue
+            if sample_idx >= len(self._X_test):
+                continue
+
+            sample = shap_values[sample_idx]
+            if len(sample.values.shape) > 1:
+                sample_values = sample.values[:, 1]
+            else:
+                sample_values = sample.values
+            shap_contribs = safe_array(sample_values).astype(float).tolist()
+
+            if isinstance(self._X_test, pd.DataFrame):
+                raw_feature_values = (self._X_test.iloc[sample_idx].values)
+            else:
+                raw_feature_values = self._X_test[sample_idx]
+            raw_feature_values = safe_array(raw_feature_values).tolist()
+            
+            feature_values = list()
+            for v in raw_feature_values:
+                if isinstance(v, (np.integer, int)):
+                    feature_values.append(int(v))
+                elif isinstance(v, (np.floating, float)):
+                    feature_values.append(float(v))
+                else:
+                    feature_values.append(str(v))
+
+            if np.isscalar(sample.base_values):
+                base_value = float(safe_array(sample.base_values))
+            else:
+                base_value = float(safe_array(sample.base_values[1]))
+            prediction = float(safe_array(base_value + np.sum(shap_contribs)))
+
+            rows = list()
+            for fname, fvalue, sval in zip(
+                Columns,
+                feature_values,
+                shap_contribs):
+                rows.append({
+                    "feature"       : str(fname),
+                    "feature_value" : fvalue,
+                    "shap_value"    : round(float(sval), 8),
+                    "abs_shap"      : round(float(abs(sval)), 8)
+                    })
+            rows        = sorted(rows, key = lambda x: x["abs_shap"], reverse = True)
+            rows        = rows[:max_display]
+            CustID      = self._get_SubjectID(sample_idx)
+            CustData    = self._get_CustData(CustID)
+            chart_info  = {
+                "title" : f"SHAP Waterfall (Row {sample_idx})",
+                "type"  : "shap_waterfall_js",
+                "data"  : {"sample_idx"  : int(sample_idx),
+                           'SubName'     : str(self._SubjectID),
+                           'SubValue'    : CustID,
+                           'SubData'     : CustData.to_dict(orient = 'records'),
+                           "base_value"  : round(base_value, 8),
+                           "prediction"  : round(prediction, 8),
+                           "max_display" : int(max_display),
+                           "features"    : rows,
+                          },
+                "full"  : False}
+            self._chartsdata.append(chart_info)
+
 
     def __call__(self) -> None:
         logger.info("Generating all visualisations.")
@@ -349,7 +573,6 @@ class Visualizer:
         self.plot_metrics_summary()
         self.plot_feature_correlation()
         logger.info("All visualisations complete.")
-
 
 
     # ------------------------------------------------------------------
@@ -405,45 +628,45 @@ class Visualizer:
         pred = Path(preddata)
         parq = _cfg.getboolean('INFERENCE', 'parquet')
         ext  = '.csv' if not parq else '.parquet'
-        if pred.exists():
-            if 'csv' in ext:
-                predictdata = pd.read_csv(str(pred))
-            else:
-                predictdata = pd.read_parquet(str(pred), engine = 'pyarrow')
+        msg  = 'Prediction data is not floud in {str(pred)}' \
+               'We can not continue the progress to write HTML file.'
+        assert pred.exists(), msg
+        if 'csv' in ext:
+            predictdata = pd.read_csv(str(pred))
         else:
-            logger.error('Prediction data is not floud in {str(pred)}'
-                         'We can not continue the progress to write HTML file.')
-            predictdata = pd.DataFrame(list())
+            predictdata = pd.read_parquet(str(pred), engine = 'pyarrow')
+        self._predictdata = deepcopy(predictdata)
+        self.shap_waterfall_chart()
 
         # =====================================================
         # Build charts safely
         # =====================================================
-        try:
-            logger.debug("Attempting to load charts from self._b64_images.")
-            images = getattr(self, "_b64_images", None)
-            if not isinstance(images, dict):
-                raise TypeError("_b64_images missing or not dict.")
-            for key, title, full in chart_specs:
-                try:
-                    img = images[key]
-                    if img:
-                        self._chartsdata.append(
-                            {"title": title,
-                             'type' : image_chart,
-                             "image": img,
-                             "full" : full})
-                        logger.debug("Chart loaded: %s",key)
-                    else:
-                        logger.debug("Chart empty, skipped: %s",key)
-                except KeyError:
-                    logger.error("Chart key missing, skipped: %s",key)
-        except Exception as exc:
-            logger.error("Chart loading fallback activated: %s",str(exc))
-            for key, title, full in chart_specs:
-                self._chartsdata.append({"title": title,
-                                         "image": None,
-                                         "full" : full})
-        logger.debug("Final chart count prepared: %d",len(self._chartsdata))
+        # try:
+        #     logger.debug("Attempting to load charts from self._b64_images.")
+        #     images = getattr(self, "_b64_images", None)
+        #     if not isinstance(images, dict):
+        #         raise TypeError("_b64_images missing or not dict.")
+        #     for key, title, full in chart_specs:
+        #         try:
+        #             img = images[key]
+        #             if img:
+        #                 self._chartsdata.append(
+        #                     {"title": title,
+        #                      'type' : image_chart,
+        #                      "image": img,
+        #                      "full" : full})
+        #                 logger.debug("Chart loaded: %s",key)
+        #             else:
+        #                 logger.debug("Chart empty, skipped: %s",key)
+        #         except KeyError:
+        #             logger.error("Chart key missing, skipped: %s",key)
+        # except Exception as exc:
+        #     logger.error("Chart loading fallback activated: %s",str(exc))
+        #     for key, title, full in chart_specs:
+        #         self._chartsdata.append({"title": title,
+        #                                  "image": None,
+        #                                  "full" : full})
+        # logger.debug("Final chart count prepared: %d",len(self._chartsdata))
 
         # =====================================================
         # Build context Recsys
@@ -477,6 +700,7 @@ class Visualizer:
             "tuner_summary"     : tuner_summary,
             "charts"            : self._chartsdata,
             "modelmetric"       : model_metric,
+            "username"          : _cfg.get('DEFAULT', 'Username'),
             "predictiondata"    : predictdata.to_dict(orient = 'records'),
             }
             logger.debug("contextRecsys built for template "

@@ -1,0 +1,58 @@
+/* =========================================================
+   Learning Curve Container
+   ========================================================= */
+#page-diagnostics .learningcurve-container {
+    position: relative;
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+    border-radius: 18px;
+    background: linear-gradient(180deg, #132844 0%, #0B1C31 100%);
+    border: 1px solid rgba(90,140,220,0.25);
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+    padding: 18px;
+    grid-column: 1 / -1;
+    }
+
+
+/* =========================================================
+   Plot Area
+   ========================================================= */
+#page-diagnostics .learningcurve-container
+.js-learningcurve-render {
+    width: 100% !important;
+    height: 620px;
+    min-width: 0;
+    }
+
+
+/* =========================================================
+   Plotly Internal
+   ========================================================= */
+#page-diagnostics .learningcurve-container
+.plot-container,
+#page-diagnostics .learningcurve-container
+.svg-container {width: 100% !important; max-width: 100% !important;}
+#page-diagnostics .learningcurve-panel {min-width: 0;}
+#page-diagnostics .learningcurve-container {min-width: 0;}
+#page-diagnostics .js-learningcurve-render {min-width: 0;}
+
+
+/* =========================================================
+   Responsive
+   ========================================================= */
+@media (max-width: 1200px) {
+    #page-diagnostics .learningcurve-container
+    .js-learningcurve-render {height: 540px;}
+    }
+
+@media (max-width: 768px) {
+    #page-diagnostics .learningcurve-container {padding: 10px;}
+    #page-diagnostics .learningcurve-container
+    .js-learningcurve-render {height: 420px;}
+    }
+
+@media (max-width: 576px) {
+    #page-diagnostics .learningcurve-container
+    .js-learningcurve-render {height: 340px;}
+    }

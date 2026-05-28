@@ -21,11 +21,14 @@ Enterprise-grade HTML dashboard generator for:
 """
 
 import os
+import re
 import sys
 import json
 import math
+import random
 import pandas as pd
 from pathlib  import Path
+from copy     import deepcopy
 from datetime import datetime
 from typing   import Any, Dict, List, Optional
 from jinja2   import (Environment, FileSystemLoader,
@@ -42,6 +45,7 @@ from prepare import latest_found, FileCopier
 
 rpath        = _cfg.get('PATHS', 'html_report_path')
 STATIC_DIR   = LocDir.parent / "static"
+IMG_DIR      = LocDir.parents[4] / 'img'
 OUTPUT_DIR   = (LocDir.parents[4] / rpath).parents[0]
 DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
@@ -50,6 +54,8 @@ DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 def runcopy(dest: Path = None) -> None:
     dest     = OUTPUT_DIR / 'assets' if dest is None else Path(dest).resolve()
     copy_map = {STATIC_DIR / 'compute01.png': dest}
+    copy_map[IMG_DIR/'favicon.ico']   = dest
+    copy_map[IMG_DIR/'logo_red.jpg'] = dest
     css_dir  = STATIC_DIR / 'css'
     if css_dir.exists():
         for item in css_dir.glob('*'):
@@ -66,6 +72,34 @@ def runcopy(dest: Path = None) -> None:
 
 # CONTEXT BUILDER
 #__________________________________________________________
+def ModifDF(content):
+    RawDF            = load_prediction_dataframe(content)
+    SubjectID        = _cfg.get('SHAP', 'SubjectID')
+    MaxColumnFeature = _cfg.getint('SHAP', 'MaxFeatTabel')
+    Columns = RawDF.columns.tolist()
+    Columns.remove('relevance_score')
+    Columns.remove('rank')
+    if SubjectID in Columns:
+        Columns.remove(SubjectID)
+    NewColumn = random.sample(Columns, MaxColumnFeature - 2)
+    NewColumn.insert(0, SubjectID)
+    NewColumn.extend(['relevance_score', 'rank'])
+    modifdata = deepcopy(RawDF[NewColumn])
+    return modifdata, RawDF
+
+def prettify(col : str) -> str:
+    ACRONYMS = {"Id": "ID", "Enc": "ENC", "Sku": "SKU",
+                "Url": "URL", "Api": "API", "Json": "JSON",
+                "Html": "HTML",  "Xml": "XML"}
+    col = col.replace("_", " ")
+    col = re.sub(r'([a-z0-9])([A-Z])', r'\1 \2', col)
+    col = re.sub(r'([A-Z]+)([A-Z][a-z])', r'\1 \2', col)
+    col = re.sub(r'\s+', ' ', col).strip()
+    col = col.title()
+    words = [ACRONYMS.get(w, w)for w in col.split()]
+    return " ".join(words)
+
+
 def build_context(json_path: str | Path) -> Dict[str, Any]:
     """Build full dashboard rendering context."""
     logger.debug("Entering build_context().")
@@ -82,13 +116,17 @@ def build_context(json_path: str | Path) -> Dict[str, Any]:
         
         metrics = context.get("metrics", dict())
         logger.debug("Metrics count = %d", len(metrics))
-        prediction_df             = load_prediction_dataframe(context)
+        Pred2HTML, Raw = ModifDF(context)
+        rawcolumn = Pred2HTML.columns.tolist()
+        pretcolum = {c: prettify(c) for c in rawcolumn}
+        
         context["scorecards"]     = generate_scorecards(metrics)
         context["gauges"]         = generate_gauges(metrics)
-        context["stat_minis"]     = generate_stat_minis(prediction_df)
+        context["stat_minis"]     = generate_stat_minis(Raw)
         context["charts"]         = normalize_charts(context.get("charts", []))
-        context["rankings"]       = prediction_df.to_dict(orient="records")
-        context["total_rankings"] = len(prediction_df)
+        context["thecolumn"]      = pretcolum
+        context["rankings"]       = Pred2HTML.to_dict(orient="records")
+        context["total_rankings"] = int(Pred2HTML.shape[0])
         context["bar_labels"]     = list(metrics.keys()) if metrics else []
         #context["bar_values"]    = list(metrics.values()) if metrics else []
         context["bar_data"]       = list(metrics.values()) if metrics else []

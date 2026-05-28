@@ -5,32 +5,6 @@
 <div id="page-diagnostics" class="page-content">
 
     <div class="section">
-    <div class="section-title">
-    <i class="fas fa-image"></i> <span>Static Visual Diagnostics</span>
-    </div>
-    <div class="cards-row-3">
-        {% for c in charts | default([]) %}
-        {% if c['type'] not in ['heatmap_plotly', 'bar_chart_js'] %}
-            <div class="chart-panel">
-            <h3 style="font-size:0.9rem; font-weight:600; 
-            color:var(--text-secondary); margin-bottom:12px;">
-            {{ c['title'] }}
-            </h3>
-            {% if c['image'] and c['image']|length > 0 %}
-                <img src="data:image/png;base64,{{ c['image'] }}"
-                alt="{{ c['title'] }}"
-                style="width:100%; border-radius:var(--radius); display:block;">
-            {% else %}
-                <p style="color:var(--text-muted);">
-                Chart tidak tersedia (type: {{ c['type'] | default('none') }})
-                </p>
-            {% endif %}</div>
-        {% endif %}{% endfor %}
-    </div></div>
-
-
-
-    <div class="section">
         <div class="section-title">
         <i class="fas fa-chart-line"></i>
         <span>Interactive Feature Diagnostics</span>
@@ -76,6 +50,151 @@
                 </canvas>
             </div>
             </div></div>
+        
+        {# =======================================================
+           CHART.JS HISTOGRAM DISTRIBUTION
+        ======================================================== #}
+        {% elif c['type'] == 'histrelevance' %}
+        <link rel="stylesheet" href="./assets/css/histrelevance.css">
+        <div class="diagnostic-panel diagnostic-histrelevance-panel">
+            <h3 class="diagnostic-title">
+            {{ c['title'] }}</h3>
+            <div class="histrelevance-container">
+            <div class="histrelevance-wrapper">
+                <canvas
+                    class        = "js-histrelevance-chart"
+                    id           = "histrelevance-{{ loop.index0 }}"
+                    data-values  = "{{ c['data']['values'] | tojson | forceescape }}"
+                    data-bins    = "{{ c['data']['bins'] | tojson | forceescape }}"
+                    data-stats   = "{{ c['data']['stats'] | tojson | forceescape }}"
+                    data-x-label = "{{ c['data']['axis']['x_label'] }}"
+                    data-y-label = "{{ c['data']['axis']['y_label'] }}">
+                </canvas>
+            <div class="histrelevance-stats">
+            <pre>{{ c['data']['stats_text'] }}</pre>
+            </div></div></div>
+            </div>
+
+        {# =======================================================
+           PLOTLY.JS LEARNING CURVE
+        ======================================================== #}
+        {% elif c['type'] == 'learning_curve' %}
+        <link rel="stylesheet" href="./assets/css/learningcurve.css">
+        <div class="diagnostic-panel learningcurve-panel">
+            <h3 class="diagnostic-title">
+            {{ c['title'] }}</h3>
+            <div class="learningcurve-container">
+                <div
+                    id                  = "learningcurve-{{ loop.index0 }}"
+                    class               = "plotly-chart js-learningcurve-render"
+                    data-lines          = '{{ c["data"]["lines"] | tojson | forceescape }}'
+                    data-best-iteration = '{{ c["data"]["best_iteration"] | tojson | forceescape }}'
+                    data-axis           = '{{ c["data"]["axis"] | tojson | forceescape }}'
+                    data-stats          = '{{ c["data"]["stats"] | tojson | forceescape }}'>
+                </div>
+            </div></div>
+
+
+        {# =======================================================
+           SHAP WATERFALL CHART
+          ======================================================== #}
+        {% elif c['type'] == 'shap_waterfall_js' %}
+        <link rel="stylesheet" href="./assets/css/shapwaterfall.css">
+        <div class="diagnostic-panel diagnostic-shapwaterfall-panel">
+            <h3 class="diagnostic-title">
+            {{ c['title'] }}</h3>
+        <div class="shapwaterfall-container">
+
+            <!-- LEFT : CHART -->
+            <div class="shapwaterfall-chart-wrapper">
+            <div
+                id               = "shapwaterfall-{{ loop.index0 }}"
+                class            = "plotly-chart js-shap-waterfall-render"
+                data-title       = "{{ c['title'] | forceescape }}"
+                data-sample-idx  = "{{ c['data']['sample_idx'] }}"
+                data-base-value  = '{{ c["data"]["base_value"] | tojson | forceescape }}'
+                data-prediction  = '{{ c["data"]["prediction"] | tojson | forceescape }}'
+                data-max-display = '{{ c["data"]["max_display"] | tojson | forceescape }}'
+                data-features    = '{{ c["data"]["features"] | tojson | forceescape }}'
+                data-subdata     = '{{ c["data"]["SubData"] | tojson | forceescape }}'>
+            </div></div>
+
+            <!-- RIGHT : SUMMARY -->
+            <div class="shapwaterfall-summary">
+                <div class="shap-summary-card">
+                    <div class="shap-summary-label">{{ c['data']['SubName'] | title }}</div>
+                    <div class="shap-summary-value">
+                    {{ c['data']['SubValue'] }}</div>
+                </div>
+                <div class="shap-summary-card">
+                    <div class="shap-summary-label">Base Value</div>
+                    <div class="shap-summary-value">
+                    {{ "%.8f"|format(c['data']['base_value']) }}</div>
+                </div>
+                <div class="shap-summary-card">
+                    <div class="shap-summary-label">Prediction</div>
+                    <div class="shap-summary-value prediction-positive">
+                    {{ "%.8f"|format(c['data']['prediction']) }}</div>
+                </div>
+                <div class="shap-summary-card">
+                    <div class="shap-summary-label">Max Display</div>
+                    <div class="shap-summary-value">
+                    {{ c['data']['max_display'] }}</div>
+                </div>
+                <div class="shap-summary-card">
+                    <div class="shap-summary-label">Rendered</div>
+                    <div class="shap-summary-value">
+                    {{ c['data']['features'] | length }}</div>
+                </div></div>
+
+            <!-- BELOW : TABLE BEHAVIOUR -->
+            {% set subdata = c['data'].get('SubData', []) %}
+            {% if subdata and subdata | length > 0 %}
+            <div class="shapwaterfall-table">
+                <div class="shapwaterfall-table-header">
+                <div class="shapwaterfall-table-title">
+                    Data Preview</div>
+                <div class="shapwaterfall-table-meta">
+                    Showing
+                    {{ [subdata | length, 3] | min }}
+                    of
+                    {{ subdata | length }}
+                    rows
+                </div></div>
+
+                <div class="shapwaterfall-table-wrapper">
+                <table class="shapwaterfall-data-table">
+                    <thead>
+                        <tr>
+                        {% for col in subdata[0].keys() %}
+                        <th>{{ col }}</th>
+                        {% endfor %}
+                        </tr>
+                    </thead>
+                        <tbody>
+                            {% for row in subdata[:3] %}
+                            <tr>
+                            {% for value in row.values() %}
+                            <td>
+                                {% if value is number %}
+                                    {% if value is integer %}
+                                        {{ value }}
+                                    {% else %}
+                                        {{ "%.6f"|format(value) }}
+                                    {% endif %}
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table></div>
+                </div>{% endif %}
+            </div>
+            </div>
+
         {% endif %}
     {% endfor %}
 
@@ -137,6 +256,9 @@
 <script type="module">
     import { initHeatmaps } from "./assets/js/heatmaps.js";
     import { initBarCharts } from "./assets/js/fbarplot.js";
+    import { initHistRelevance } from "./assets/js/histrelevance.js";
+    import { initLearningCurves } from "./assets/js/learningcurve.js";
+    import { initShapWaterfalls } from "./assets/js/shapwaterfall.js";
     import { initParamsCards } from "./assets/js/paramscard.js";
 
     document.addEventListener("DOMContentLoaded", () => {
@@ -147,6 +269,9 @@
         console.log("[Diagnostics] Initializing scoped modules.");
         initHeatmaps(diagnosticsContainer);
         initBarCharts(diagnosticsContainer);
+        initHistRelevance(diagnosticsContainer);
         initParamsCards(diagnosticsContainer);
+        initLearningCurves(diagnosticsContainer);
+        initShapWaterfalls(diagnosticsContainer);
     });
 </script>

@@ -1,0 +1,318 @@
+/* =========================================================
+   SHAP WATERFALL CHARTS
+   ========================================================= */
+#page-diagnostics .diagnostic-shapwaterfall-panel {
+    background: linear-gradient(180deg, #132844 0%, #0B1C31 100%);
+    border: 1px solid rgba(90,140,220,0.25);
+    box-shadow: 0 10px 35px rgba(0,0,0,0.35);
+    border-radius: 18px;
+    padding: 18px;
+    grid-column: 1 / -1;
+    overflow: visible;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    }
+
+
+/* =========================================================
+   CONTAINER
+   ========================================================= */
+#page-diagnostics .shapwaterfall-container {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px;
+    gap: 18px;
+    width: 100%;
+    min-width: 0;
+    align-items: start;
+    }
+
+/* =========================================================
+   CHART WRAPPER
+   ========================================================= */
+#page-diagnostics .shapwaterfall-chart-wrapper {
+    width: 100%;
+    min-width: 0;
+    overflow: hidden;
+}
+
+/* =========================================================
+   PLOTLY HOLDER
+   ========================================================= */
+#page-diagnostics .js-shap-waterfall-render {
+    width: 100%;
+    min-width: 0;
+    min-height: 420px;
+    border-radius: 16px;
+    background: rgba(255,255,255,0.025);
+    border: 1px solid rgba(255,255,255,0.05);
+    box-sizing: border-box;
+    }
+
+
+/* =========================================================
+   SUMMARY
+   ========================================================= */
+#page-diagnostics .shapwaterfall-summary {
+    width: 150px;
+    min-width: 150px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+
+/* =========================================================
+   SUMMARY CARD
+   ========================================================= */
+#page-diagnostics .shap-summary-card {
+    position: relative;
+    padding: 11px 13px;
+    border-radius: 16px;
+    background:linear-gradient(
+               180deg,
+               rgba(255,255,255,0.05),
+               rgba(255,255,255,0.025) );
+    border: 1px solid rgba(255,255,255,0.06);
+    backdrop-filter: blur(10px);
+    transition:
+        transform 0.18s ease,
+        border-color 0.18s ease,
+        box-shadow 0.18s ease;
+    overflow: hidden;
+    }
+
+#page-diagnostics .shap-summary-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(120,170,255,0.22);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.24);
+    }
+
+#page-diagnostics .prediction-positive {
+    color: #8FD3FF;
+    text-shadow: 0 0 12px rgba(143,211,255,0.22);
+    }
+
+
+/* =========================================================
+   LABEL
+   ========================================================= */
+#page-diagnostics .shap-summary-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: rgba(220,230,245,0.72);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    }
+
+
+/* =========================================================
+   VALUE IN SUMMARY
+   ========================================================= */
+#page-diagnostics .shap-summary-value {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: #F5F8FF;
+    }
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 1100px) {
+    #page-diagnostics .shapwaterfall-container {
+        flex-direction: column;}
+    #page-diagnostics .shapwaterfall-summary {
+        width: 100%;
+        min-width: 0;
+        max-width: 100%;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+    }
+
+
+/* =========================================================
+   SUMMARY CARD ACCENTS
+   ========================================================= */
+#page-diagnostics .shap-summary-card:nth-child(1) {
+    border-left: 4px solid #64B5F6;}
+#page-diagnostics .shap-summary-card:nth-child(2) {
+    border-left: 4px solid #81C784;}
+#page-diagnostics .shap-summary-card:nth-child(3) {
+    border-left: 4px solid #FFB74D;}
+#page-diagnostics .shap-summary-card:nth-child(4) {
+    border-left: 4px solid #BA68C8;}
+#page-diagnostics .shap-summary-card:nth-child(5) {
+    border-left: 4px solid #E57373;}
+
+
+/* =========================================================
+   SHAP WATERFALL TABLE
+   ========================================================= */
+#page-diagnostics .shapwaterfall-table {
+    margin-top    : 22px;
+    width         : 100%;
+    max-width     : 100%;
+    min-width     : 0;
+    border-radius : 18px;
+    overflow      : hidden;
+    background    : linear-gradient(
+        180deg,
+        rgba(255,255,255,0.035) 0%,
+        rgba(255,255,255,0.015) 100%);
+    border        : 1px solid rgba(120,170,255,0.12);
+    box-shadow    : 0 8px 26px rgba(0,0,0,0.22),
+                    inset 0 1px 0 rgba(255,255,255,0.04);
+    backdrop-filter: blur(10px);
+    box-sizing    : border-box;
+    grid-column   : 1 / -1;
+    flex          : 0 0 auto;
+    display       : block;
+    clear         : both;
+    }
+
+
+/* =========================================================
+   TABLE HEADER
+   ========================================================= */
+#page-diagnostics .shapwaterfall-table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 14px 18px;
+    background:
+        linear-gradient(
+        180deg,
+        rgba(255,255,255,0.04),
+        rgba(255,255,255,0.015));
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+
+/* =========================================================
+   TABLE TITLE
+   ========================================================= */
+#page-diagnostics .shapwaterfall-table-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.25px;
+    color: #F4F7FF;
+    }
+
+#page-diagnostics .shapwaterfall-table-title::before {
+    content: "\f0ce";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    color: #7EC8FF;
+    font-size: 0.95rem;
+    opacity: 0.92;
+    }
+
+
+/* =========================================================
+   TABLE META
+   ========================================================= */
+#page-diagnostics .shapwaterfall-table-meta {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: rgba(225,235,255,0.72);
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.05);
+    white-space: nowrap;
+    }
+
+
+/* =========================================================
+   TABLE WRAPPER
+   ========================================================= */
+#page-diagnostics .shapwaterfall-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(140,190,255,0.30) transparent;
+    }
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+#page-diagnostics .shapwaterfall-data-table {
+    width: 100%;
+    min-width: max-content;
+    border-collapse: collapse;
+    table-layout: auto;
+    }
+
+
+/* =========================================================
+   TABLE HEAD
+   ========================================================= */
+#page-diagnostics .shapwaterfall-data-table thead {
+    background:
+        linear-gradient(
+        180deg,
+        rgba(126,200,255,0.10),
+        rgba(126,200,255,0.03));
+    }
+
+#page-diagnostics .shapwaterfall-data-table thead th {
+    padding: 13px 14px;
+    font-size: 0.84rem;
+    font-weight: 800;
+    letter-spacing: 0.20px;
+    text-align: left;
+    white-space: nowrap;
+    color: #DDEBFF;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+
+/* =========================================================
+   TABLE BODY
+   ========================================================= */
+#page-diagnostics .shapwaterfall-data-table tbody tr {
+    transition: background 0.18s ease, transform 0.18s ease; }
+#page-diagnostics .shapwaterfall-data-table tbody tr:nth-child(odd) {
+    background: rgba(255,255,255,0.018); }
+#page-diagnostics .shapwaterfall-data-table tbody tr:nth-child(even) {
+    background: rgba(255,255,255,0.010); }
+#page-diagnostics .shapwaterfall-data-table tbody tr:hover {
+    background: rgba(126,200,255,0.07); }
+
+
+/* =========================================================
+   TABLE CELLS
+   ========================================================= */
+#page-diagnostics .shapwaterfall-data-table tbody td {
+    padding: 12px 14px;
+    font-size: 0.84rem;
+    font-weight: 600;
+    line-height: 1.45;
+    color: #F5F8FF;
+    border-bottom: 1px solid rgba(255,255,255,0.045);
+    white-space: nowrap;
+    vertical-align: middle;
+    }
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+@media (max-width: 900px) {
+    #page-diagnostics .shapwaterfall-table-header {
+        flex-direction: column;
+        align-items: flex-start;}
+    #page-diagnostics .shapwaterfall-table-meta {
+        width: fit-content;}
+    #page-diagnostics .shapwaterfall-data-table thead th,
+    #page-diagnostics .shapwaterfall-data-table tbody td {
+        padding: 11px 12px;
+        font-size: 0.80rem;}
+    }

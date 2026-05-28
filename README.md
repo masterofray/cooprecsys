@@ -3,17 +3,17 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: Python](https://img.shields.io/badge/code%20style-python-blue)](https://www.python.org/)
 
-# 🏪 CoopRecSys
-
-<img src="./img/logo_navi.jpg" alt="CoopRecSys Logo" width="200" height="200">
+# CoopRecSys
+<p align="center">
+    <img src="./img/cooprecsys.jpg" alt="CoopRecSys Logo" width="100%">
+</p>
 
 **Koperasi Recommender System ML/AI Module**
-
 A production-grade machine learning and AI module for building intelligent recommendation systems tailored for cooperative (koperasi) product recommendations. This system combines collaborative filtering, learning-to-rank techniques, and explainable AI dashboards.
 
 ---
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Features](#features)
 - [Tech Stack](#tech-stack)
@@ -31,9 +31,9 @@ A production-grade machine learning and AI module for building intelligent recom
 
 ---
 
-## ✨ Features
+## Features
 
-### 🤖 **Advanced Recommendation Models**
+### **Advanced Recommendation Models**
 
 - **AryColBring**: Ultra-optimized collaborative filtering powered by Cython + OpenMP
   - Multi-loss support: Logistic, WARP, BPR, WARP-kOS
@@ -45,7 +45,7 @@ A production-grade machine learning and AI module for building intelligent recom
   - Ranking metrics: NDCG, MAP, AUC
   - MLflow experiment tracking
 
-### 📊 **Explainable AI Dashboard**
+### **Explainable AI Dashboard**
 
 - Interactive HTML-based dashboard powered by JavaScript
 - Feature importance visualization
@@ -53,7 +53,7 @@ A production-grade machine learning and AI module for building intelligent recom
 - Real-time ranking visualization
 - SHAP-style local interpretability
 
-### 🚀 **Performance Optimizations**
+### **Performance Optimizations**
 
 - **69.7% Python** for core logic and data processing
 - **9.7% Cython** for high-performance numerical kernels
@@ -62,7 +62,7 @@ A production-grade machine learning and AI module for building intelligent recom
 - Multi-threading support with joblib parallelization
 - Sparse matrix operations with SciPy
 
-### ✅ **Production Ready**
+### **Production Ready**
 
 - CI/CD Pipeline with GitHub Actions
 - Comprehensive error handling and logging
@@ -72,7 +72,7 @@ A production-grade machine learning and AI module for building intelligent recom
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Component | Technology | Version |
 |-----------|-----------|---------|
@@ -88,7 +88,7 @@ A production-grade machine learning and AI module for building intelligent recom
 
 ---
 
-## 📦 Installation
+## Installation
 
 ### Prerequisites
 
@@ -127,7 +127,7 @@ brew install gcc llvm libomp
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Using the Test Suite
 
@@ -174,7 +174,7 @@ pytest test/arycolbring_tests/test_data_utils.py -v
 
 ---
 
-## 💡 Usage Examples
+## Usage Examples
 
 ### Example 1: LTR LightGBM Pipeline
 
@@ -246,7 +246,7 @@ top_items = np.argsort(item_scores)[::-1][:10]
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 cooprecsys/
@@ -289,7 +289,7 @@ cooprecsys/
 
 ---
 
-## 📊 Dashboard & Explainability
+## Dashboard & Explainability
 
 The dashboard provides real-time explanations for model predictions:
 
@@ -318,7 +318,7 @@ python -m http.server 8000 --directory src/models/dashboard
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -353,7 +353,7 @@ experiment_name = cooprecsys_prod
 
 ---
 
-## ✅ Testing
+## Testing
 
 ### Run All Tests
 
@@ -380,16 +380,16 @@ All tests run automatically on:
 ### Test Results
 
 Tests verify:
-- ✅ Model initialization and parameter validation
-- ✅ Data loading and preprocessing
-- ✅ Training and inference
-- ✅ Evaluation metrics computation
-- ✅ Cross-validation splitting strategies
-- ✅ Security checks (Bandit)
+[x] Model initialization and parameter validation
+[x] Data loading and preprocessing
+[x] Training and inference
+[x] Evaluation metrics computation
+[x] Cross-validation splitting strategies
+[x] Security checks (Bandit)
 
 ---
 
-## 📈 Performance
+## Performance
 
 ### Benchmarks (Sample Dataset)
 
@@ -404,7 +404,7 @@ Tests verify:
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 Contributions are welcome! Please:
 
@@ -426,7 +426,7 @@ Contributions are welcome! Please:
 
 ---
 
-## 📝 Author
+## Author
 
 **Aryanto** (masterofray)
 - Email: aryanto.dandan@gmail.com
@@ -435,13 +435,13 @@ Contributions are welcome! Please:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## 🔗 References
+## References
 
 - [AryColBring Model Documentation](src/models/README.md)
 - [Collaborative Filtering - ACM](https://en.wikipedia.org/wiki/Collaborative_filtering)
@@ -452,7 +452,7 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 
 ---
 
-## 🆘 Support & Issues
+## Support & Issues
 
 - **Report Issues**: [GitHub Issues](https://github.com/masterofray/cooprecsys/issues)
 - **Documentation**: See `/docs` folder
@@ -464,6 +464,6 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 
 **Built with ❤️ for better product recommendations in cooperative systems**
 
-⭐ **If you find this useful, please star the repository!**
+**If you find this useful, please star the repository!**
 
 </div>

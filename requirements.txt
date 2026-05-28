@@ -12,11 +12,11 @@ scikit-learn>=1.3.0
 lightgbm>=4.0.0
 xgboost>=2.0.0
 optuna>=3.5.0
-shap>=0.44.0
 
 # __ Visualisation __________________________
 matplotlib>=3.8.0
 seaborn>=0.12.0
+shap>=0.49.1
 
 # __ Support Libraries ______________________
 tqdm>=4.60
