@@ -4,7 +4,9 @@
 [![Code style: Python](https://img.shields.io/badge/code%20style-python-blue)](https://www.python.org/)
 
 # CoopRecSys
-<img src="./img/cooprecsys.jpg" alt="CoopRecSys Logo" width="200" height="200">
+<p align="center">
+    <img src="./img/cooprecsys.jpg" alt="CoopRecSys Logo" width="100%">
+</p>
 
 **Koperasi Recommender System ML/AI Module**
 A production-grade machine learning and AI module for building intelligent recommendation systems tailored for cooperative (koperasi) product recommendations. This system combines collaborative filtering, learning-to-rank techniques, and explainable AI dashboards.
