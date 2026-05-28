@@ -135,12 +135,12 @@
 
 
 /* =========================================================
-   TABLE HEADER
+   GLOBAL TABLE HEADER
 ========================================================= */
 #page-rankings .data-table th {
-    position: sticky;
+    /*position: sticky;
     top: 0;
-    z-index: 5;
+    z-index: 5;*/
     padding: clamp(10px, 1vw, 18px)
              clamp(8px, 1vw, 16px);
     text-align: left;
@@ -281,7 +281,18 @@
 
 #page-rankings .filter-row th {
     padding: 10px 12px;
+    position: sticky;
     background: rgba(10,14,24,0.96);
+
+    /* tinggi header utama */
+    top: 40px;
+    z-index: 1;
+    backdrop-filter: blur(12px);
+    }
+
+#page-rankings .data-table thead tr:not(.filter-row) th {
+    top: 0;
+    z-index: 2;
     }
 
 #page-rankings .table-filter {
@@ -291,14 +302,14 @@
     border: 1px solid rgba(255,255,255,0.08);
     background: rgba(255,255,255,0.04);
     color: white;
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     outline: none;
     transition:border 0.2s ease,
                background 0.2s ease;
     }
 
 #page-rankings .table-filter:focus {
-    border: 1px solid #8ab4ff;
+    border: 2px solid #8ab4ff;
     background: rgba(138,180,255,0.08);
     box-shadow: 0 0 0 3px rgba(138,180,255,0.15);
     }
