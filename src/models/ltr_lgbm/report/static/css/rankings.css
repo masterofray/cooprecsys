@@ -160,6 +160,7 @@
    TABLE BODY CELL
    ========================================================= */
 #page-rankings .data-table td {
+    display: table-cell;
     position: relative;
     padding: clamp(10px, 1vw, 18px)
              clamp(8px, 1vw, 16px);
@@ -276,7 +277,10 @@
         gap: 12px;
         }
     #page-rankings .data-table th,
-    #page-rankings .data-table td {padding:14px 12px;}
+    #page-rankings .data-table td {
+        padding:14px 12px;
+        text-align: center;
+        vertical-align: middle;}
     }
 
 #page-rankings .filter-row th {
@@ -285,17 +289,20 @@
     background: rgba(10,14,24,0.96);
 
     /* tinggi header utama */
-    top: 40px;
+    top: 42px;
     z-index: 1;
+    text-align: center;
     backdrop-filter: blur(12px);
     }
 
 #page-rankings .data-table thead tr:not(.filter-row) th {
-    top: 0;
+    top: 1;
     z-index: 2;
     }
 
 #page-rankings .table-filter {
+    position: relative;
+    z-index: 3;
     width: 100%;
     padding: 10px 12px;
     border-radius: 10px;
@@ -304,6 +311,7 @@
     color: white;
     font-size: 0.7rem;
     outline: none;
+    text-align: center;
     transition:border 0.2s ease,
                background 0.2s ease;
     }
@@ -317,4 +325,17 @@
 #page-rankings .table-filter::placeholder {
     color: rgba(255,255,255,0.4); }
 
+#page-rankings .filter-row th,
+#page-rankings .data-table th {
+    background-clip: padding-box;
+}
 
+#page-rankings.filters-cleared {
+    animation: flashReset 0.3s ease;
+}
+
+@keyframes flashReset {
+    0% { box-shadow: 0 0 0 rgba(138,180,255,0); }
+    50% { box-shadow: 0 0 25px rgba(138,180,255,0.25); }
+    100% { box-shadow: 0 0 0 rgba(138,180,255,0); }
+}

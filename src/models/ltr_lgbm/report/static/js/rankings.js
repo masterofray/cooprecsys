@@ -160,3 +160,61 @@ function initRankingsPage(container) {
    Export
    ========================================================= */
 export {initRankingsPage};
+
+
+/* =========================================================
+   Shortcut
+   ========================================================= */
+document.addEventListener("beforeinput", (event) => {
+    const container = document.getElementById("page-rankings");
+    if (!container) return;
+    if (event.inputType === "insertText" && event.data === "f" && event.ctrlKey) {
+        event.preventDefault();}
+    }, true);
+
+
+document.addEventListener("keydown", (event) => {
+    const container = document.getElementById("page-rankings");
+    if (!container) return;
+    const isInside = container.contains(document.activeElement);
+
+    /* =========================================================
+       ESC -> clear filter + reset sort + scroll top
+       ========================================================= */
+    if (event.key === "Escape") {
+        // clear filters
+        container.querySelectorAll(".table-filter").forEach(input => {
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+
+        // reset sort (kalau kamu pakai sort state di JS)
+        if (typeof window.resetRankingsSort === "function") {
+            window.resetRankingsSort(container); }
+
+        // scroll ke atas table
+        const scrollBox = container.querySelector(".table-scroll");
+        if (scrollBox) {scrollBox.scrollTo({
+            top: 0,
+            left: 0,
+            behavior: "smooth"});
+        }
+        container.classList.add("reset-flash");
+        setTimeout(() => container.classList.remove("reset-flash"), 300);
+        console.log("[Rankings] ESC → reset filters + sort + scroll top");
+        }
+
+    /* =========================================================
+       Ctrl + F -> focus first filter input
+       (override default browser search only inside table)
+       ========================================================= */
+     if (event.ctrlKey && event.shiftKey && event.key.toLowerCase() === "f") {
+        if (!isInside) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const firstFilter = container.querySelector(".table-filter");
+        if (firstFilter) {firstFilter.focus();
+            firstFilter.select?.(); }
+        console.log("[Rankings] Ctrl+F intercepted");
+        }
+    }, true);
