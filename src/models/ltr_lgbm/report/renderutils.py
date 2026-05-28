@@ -192,12 +192,13 @@ def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     color_cycle = ["blue", "green", "purple", "orange", "cyan", "red"]
     try:
         for idx, (metric_name, metric_value) in enumerate(metrics.items()):
+            iconx = f'data_{idx+1}.ico'
             logger.debug("Generating scorecard for metric=%s", metric_name)
             cards.append({ "label" : beautify_label(metric_name),
                            "value" : safe_float(metric_value),
                            "sub"   : "Auto-generated metric",
                            "color" : color_cycle[idx % len(color_cycle)],
-                           "icon"  : "fas fa-chart-line"})
+                           "icon"  : iconx})
         logger.info("Generated %d scorecards.", len(cards))
         return cards
     except Exception as exc:

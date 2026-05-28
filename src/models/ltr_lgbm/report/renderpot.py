@@ -27,6 +27,7 @@ import json
 import math
 import random
 import pandas as pd
+from tqdm.auto import tqdm
 from pathlib  import Path
 from copy     import deepcopy
 from datetime import datetime
@@ -50,23 +51,33 @@ OUTPUT_DIR   = (LocDir.parents[4] / rpath).parents[0]
 DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
 
+from pdb import set_trace
+def copymaps(mapdict : Dict, 
+             goal    : Path,
+             dirlist : List = ['css', 'js', 'icon'],
+            ) -> Dict:
+    for fdr in tqdm(dirlist,
+                    desc   = 'Directory Dest',
+                    colour = _cfg.get('tqdm', 'colour'),
+                    ncols  = _cfg.getint('tqdm', 'ncols'),
+                    unit   = 'dir'):
+        try:
+            xdir  = STATIC_DIR / fdr
+            if xdir.exists():
+                for item in xdir.glob('*'):
+                    if item.is_file():
+                        mapdict[item] = goal/fdr
+        except Exception as err:
+            logger.error(err)
+    return mapdict
 
 def runcopy(dest: Path = None) -> None:
     dest     = OUTPUT_DIR / 'assets' if dest is None else Path(dest).resolve()
     copy_map = {STATIC_DIR / 'compute01.png': dest}
     copy_map[IMG_DIR/'favicon.ico']   = dest
-    copy_map[IMG_DIR/'logo_red.jpg'] = dest
-    css_dir  = STATIC_DIR / 'css'
-    if css_dir.exists():
-        for item in css_dir.glob('*'):
-            if item.is_file():
-                copy_map[item] = dest / 'css'
-    js_dir = STATIC_DIR / 'js'
-    if js_dir.exists():
-        for item in js_dir.glob('*'):
-            if item.is_file():
-                copy_map[item] = dest / 'js'
-    for src, dst_dir in copy_map.items():
+    copy_map[IMG_DIR/'logo_red.jpg']  = dest
+    cpnow = copymaps(copy_map, dest)
+    for src, dst_dir in cpnow.items():
         _ = FileCopier(Scrpath = src,
                        Destdir = dst_dir)
 
@@ -136,14 +147,15 @@ def build_context(json_path: str | Path) -> Dict[str, Any]:
         context.setdefault("subtitle", "Learning to Rank Monitoring")
         context.setdefault("experiment_name", "Default Experiment")
         context.setdefault("best_iteration", "N/A")
-        context.setdefault("overall_score", "0.0000")
         
         # Calculate overall score percent for main gauge
         try:
-            overall_score_val = float(context["overall_score"])
-            context["overall_score_percent"] = round(overall_score_val * 100, 2)
+            mtep = context["bar_data"][4:]
+            osv  = round(sum(mtep)/len(mtep) * 100, 2)
+            context["overall_score_percent"] = osv
         except (ValueError, TypeError):
             context["overall_score_percent"] = 0
+        context['overall_score'] = f'{osv}%'
         
         context.setdefault("tuner_summary", None)
         context.setdefault("training_params", dict())

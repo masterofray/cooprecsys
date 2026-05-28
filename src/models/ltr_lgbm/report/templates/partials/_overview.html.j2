@@ -28,8 +28,8 @@
     {% for m in scorecards %}
     <div class="scorecard animate-in {{ m.color | default('') }}">
         <div class="scorecard-icon">
-            {% if m.icon_img | default('') %}
-            <img src="{{ static_img | default('') }}/{{ m.icon_img }}" alt="{{ m.label }}">
+            {% if m.icon | default('') %}
+            <img src="./assets/icon/{{ m.icon }}" alt="{{ m.label }}">
             {% else %}
             <i class="{{ m.icon | default('fas fa-circle') }}"></i>
             {% endif %}

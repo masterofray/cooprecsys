@@ -85,6 +85,20 @@ body {
     transition: width var(--transition);
 }
 .sidebar:hover { width: var(--sidebar-expanded); }
+
+.sidebar-icon {
+    width: 36px;
+    height: 36px;
+    min-width: 30px;
+    min-height: 30px;
+    object-fit: contain;
+    flex-shrink: 0;
+    display: block;
+    padding: 1px;
+    box-sizing: border-box;
+    image-rendering: auto;
+    }
+
 .sidebar-logo {
     width: 44px; height: 44px;
     background: linear-gradient(135deg, var(--accent), var(--cyan));
@@ -185,12 +199,23 @@ body {
 .relevance-bar { display: inline-block; height: 6px; border-radius: 3px; background: var(--accent); min-width: 4px; }
 
 /* ── Multi-page Tabs ── */
-.page-tabs { display: flex; gap: 6px; margin-bottom: 24px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 6px; width: fit-content; }
+.page-tabs { display: flex; gap: 8px; margin-bottom: 24px; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 10px 20px; width: fit-content; color: var(--text-muted); cursor: pointer; transition: all var(--transition); background: transparent;}
 .page-tab { padding: 10px 20px; border-radius: var(--radius); font-size: 0.85rem; font-weight: 600; color: var(--text-muted); cursor: pointer; transition: all var(--transition); border: none; background: transparent; }
 .page-tab:hover { color: var(--text); }
 .page-tab.active { background: var(--accent); color: #fff; box-shadow: 0 2px 12px rgba(45, 127, 249, 0.3); }
 .page-content { display: none; }
 .page-content.active { display: block; }
+
+.headtop-icon {
+    width: 40px;
+    height: 40px;
+    opacity: 0.8;
+    min-width: 32px;
+    min-height: 32px;
+    object-fit: contain;
+    flex-shrink: 0;
+    display: block;
+    }
 
 /* ── Footer ── */
 .footer { text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.78rem; border-top: 1px solid var(--border); margin-top: 32px; }

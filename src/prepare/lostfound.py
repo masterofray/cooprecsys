@@ -31,6 +31,7 @@ def FileCopier(Scrpath  : Path,
         raise ValueError(f"Bukan file: {srcp}")
     dstd.mkdir(parents = True, exist_ok = True)
     DestPath = dstd / srcp.name
+    DestPath.unlink(missing_ok = True)
     copy2(srcp, DestPath)
     if DestPath.suffix == '.zip':
         pdir = DestPath.resolve().parent

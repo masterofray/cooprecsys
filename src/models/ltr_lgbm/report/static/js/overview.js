@@ -180,7 +180,7 @@ function initMainGauge(container) {
         data: {
             datasets: [{
                 data           : [percent, 100 - percent],
-                backgroundColor: ["#2d7ff9", "rgba(26,51,88,0.4)"],
+                backgroundColor: ["#daf7e5", "rgba(26,51,88,0.4)"], // color Final gauge
                 borderWidth    : 0
             }]
         },
