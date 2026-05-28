@@ -16,7 +16,7 @@ optuna>=3.5.0
 # __ Visualisation __________________________
 matplotlib>=3.8.0
 seaborn>=0.12.0
-shap>=0.51.0
+shap>=0.49.1
 
 # __ Support Libraries ______________________
 tqdm>=4.60

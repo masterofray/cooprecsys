@@ -1,0 +1,309 @@
+/* =========================================================
+   PAGE RANKINGS
+   ========================================================= */
+#page-rankings {
+    width: 100%;
+    min-width: 0;
+    color: var(--text-primary);
+    }
+
+
+/* =========================================================
+   SECTION
+========================================================= */
+#page-rankings .section {
+    width: 100%;
+    margin-top: 18px;
+    }
+
+#page-rankings .section-title {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    margin-bottom: 20px;
+    color: #ffffff;
+    }
+
+#page-rankings .section-title i {
+    color: #8ab4ff;
+    font-size: 1rem;
+    }
+
+
+/* =========================================================
+   CARD
+   ========================================================= */
+#page-rankings .table-card {
+    position: relative;
+    width: 100%;
+    border-radius: 24px;
+    background:linear-gradient(
+               145deg,
+               rgba(22, 28, 45, 0.95),
+               rgba(15, 20, 35, 0.98));
+    border: 1px solid rgba(255,255,255,0.06);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.35),
+                inset 0 1px 0 rgba(255,255,255,0.04);
+    overflow: visible;
+    backdrop-filter: blur(18px);
+    }
+
+/* glow effect */
+#page-rankings .table-card::before {
+    content: "";
+    position: absolute;
+    top: -120px;
+    right: -120px;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background:radial-gradient(
+               circle,
+               rgba(138,180,255,0.16),
+               transparent 70% );
+    pointer-events: none;
+    }
+
+/* =========================================================
+   HEADER
+   ========================================================= */
+#page-rankings .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+
+#page-rankings .table-header h3 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #ffffff;
+    }
+
+#page-rankings .table-badge {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: #dce7ff;
+    background: linear-gradient(
+                135deg,
+                rgba(80,120,255,0.35),
+                rgba(138,180,255,0.18));
+    border: 1px solid rgba(138,180,255,0.25);
+    }
+
+
+/* =========================================================
+   TABLE SCROLL
+   ========================================================= */
+#page-rankings .table-scroll {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: visible;
+    }
+
+/* custom scrollbar */
+#page-rankings .table-scroll::-webkit-scrollbar {height: 10px;}
+#page-rankings .table-scroll::-webkit-scrollbar-track {
+    background: rgba(255,255,255,0.04);}
+#page-rankings .table-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background:linear-gradient(
+               90deg,
+               rgba(138,180,255,0.55),
+               rgba(110,160,255,0.75));
+    }
+
+
+/* =========================================================
+   TABLE
+   ========================================================= */
+#page-rankings .data-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    table-layout: auto;
+    min-width: 100%;
+    }
+
+
+/* =========================================================
+   TABLE HEADER
+========================================================= */
+#page-rankings .data-table th {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    padding: clamp(10px, 1vw, 18px)
+             clamp(8px, 1vw, 16px);
+    text-align: left;
+    font-size: clamp(0.65rem, 0.78vw, 0.82rem);
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    color: #8ab4ff;
+    background: rgba(17, 23, 38, 0.98);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    backdrop-filter: blur(12px);
+    white-space: nowrap;
+    vertical-align: middle;
+    }
+
+
+/* =========================================================
+   TABLE BODY CELL
+   ========================================================= */
+#page-rankings .data-table td {
+    position: relative;
+    padding: clamp(10px, 1vw, 18px)
+             clamp(8px, 1vw, 16px);
+    font-size: clamp(0.72rem, 0.85vw, 0.92rem);
+    font-weight: 500;
+    color: rgba(255,255,255,0.92);
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    vertical-align: middle;
+    white-space: nowrap;
+    transition: background 0.25s ease,
+                transform 0.2s ease;
+    }
+
+/* zebra striping */
+#page-rankings .data-table tbody tr:nth-child(even) {
+    background: rgba(255,255,255,0.015);}
+
+/* hover */
+#page-rankings .data-table tbody tr {
+    transition:
+        transform 0.2s ease,
+        background 0.2s ease,
+        box-shadow 0.2s ease;
+    }
+
+#page-rankings .data-table tbody tr:hover {
+    background: rgba(138,180,255,0.07);
+    transform: scale(1.002);
+    box-shadow: inset 4px 0 0 #8ab4ff;
+    }
+
+
+/* =========================================================
+   RANK BADGE
+   ========================================================= */
+#page-rankings .rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 12px;
+    border-radius: 12px;
+    font-size: 0.82rem;
+    font-weight: 800;
+    color: white;
+    }
+
+#page-rankings .rank-1 {
+    background: linear-gradient(135deg, #ffd54f, #ffb300);
+    box-shadow: 0 0 18px rgba(255,213,79,0.45);
+    }
+
+#page-rankings .rank-2 {
+    background: linear-gradient(135deg, #dfe6ef, #aab4c4);
+    box-shadow: 0 0 16px rgba(220,220,220,0.28);
+    }
+
+#page-rankings .rank-3 {
+    background: linear-gradient(135deg, #ffb47d, #ff7f50);
+    box-shadow: 0 0 16px rgba(255,140,80,0.28);
+    }
+
+#page-rankings .rank-default {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.06);
+    }
+
+
+/* =========================================================
+   RELEVANCE SCORE
+   ========================================================= */
+#page-rankings .relevance-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    }
+
+#page-rankings .relevance-bar {
+    position: relative;
+    display: inline-block;
+    height: 10px;
+    min-width: 10px;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #4facfe, #00f2fe);
+    box-shadow: 0 0 12px rgba(79,172,254,0.45);
+    transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+#page-rankings .relevance-value {
+    font-weight: 700;
+    color: #d9e7ff;
+    }
+
+
+/* =========================================================
+   NUMERIC ALIGNMENT
+   ========================================================= */
+#page-rankings td[data-column="relevance_score"],
+#page-rankings td[data-column="ProductPrice"],
+#page-rankings td[data-column="Discount"],
+#page-rankings td[data-column="VitalityDays"] {
+    font-variant-numeric: tabular-nums;}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 900px) {
+    #page-rankings .table-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+        }
+    #page-rankings .data-table th,
+    #page-rankings .data-table td {padding:14px 12px;}
+    }
+
+#page-rankings .filter-row th {
+    padding: 10px 12px;
+    background: rgba(10,14,24,0.96);
+    }
+
+#page-rankings .table-filter {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.08);
+    background: rgba(255,255,255,0.04);
+    color: white;
+    font-size: 0.8rem;
+    outline: none;
+    transition:border 0.2s ease,
+               background 0.2s ease;
+    }
+
+#page-rankings .table-filter:focus {
+    border: 1px solid #8ab4ff;
+    background: rgba(138,180,255,0.08);
+    box-shadow: 0 0 0 3px rgba(138,180,255,0.15);
+    }
+
+#page-rankings .table-filter::placeholder {
+    color: rgba(255,255,255,0.4); }
+
+

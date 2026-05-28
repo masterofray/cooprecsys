@@ -2,61 +2,98 @@
    PARTIAL: _rankings.html.j2
    DESKRIPSI: Komponen tabel performa tabular, ranking fitur, dan rincian metadata
    ========================================================================= #}
+<link rel="stylesheet" href="./assets/css/rankings.css">
 <div id="page-rankings" class="page-content">
     <div class="section">
     <div class="section-title">
-    <i class="fas fa-list-ol"></i>
-    Top {{ rankings|length }} Predictions (LTR LightGBM)
-    </div>
+        <i class="fas fa-list-ol"></i>
+        Top {{ rankings|length }} Predictions (LTR LightGBM)
+        </div>
     
     <div class="table-card">
-        <div class="table-header">
+    <div class="table-header">
         <h3>Ranking Results</h3>
-        <span class="table-badge">rankings_top20.csv</span>
+        <span class="table-badge">rankings_from_testdata</span>
         </div>
 
-        <div class="table-scroll">
-        <table class="data-table">
+    <div class="table-scroll">
+    {% if rankings and rankings|length > 0 %}
+    {% set columns = rankings[0].keys() %}
+    <table class="data-table rankings-table">
         <thead>
-            <tr>
-                <th>#</th>
-                <th>CustomerID</th>
-                <th>ProductPrice</th>
-                <th>Discount</th>
-                <th>CategoryID</th>
-                <th>VitalityDays</th>
-                <th>EmployeeAge</th>
-                <th>YearsWorking</th>
-                <th>Relevance</th>
-            </tr>
-        </thead>
-        <tbody>
-        {% for r in rankings %}
-            <tr>
-            <td>
-                {% if r.rank <= 3 %}
-                <span class="rank-badge rank-{{ r.rank }}">{{ r.rank }}</span>
-                {% else %}
-                <span class="rank-badge rank-default">{{ r.rank }}</span>
-                {% endif %}
-            </td>
-            <td>{{ r.CustomerID }}</td>
-            <td>{{ "%.2f"|format(r.ProductPrice) }}</td>
-            <td>{{ "%.1f"|format(r.Discount) }}</td>
-            <td>{{ r.CategoryID }}</td>
-            <td>{{ "%.0f"|format(r.VitalityDays) }}</td>
-            <td>{{ r.EmployeeAge }}</td>
-            <td>{{ r.YearsWorking }}</td>
-            <td>
-                <span class="relevance-bar"
-                style="width:{{ (r.relevance_score * 100)|int }}px;">
-                </span>
-                {{ "%.4f"|format(r.relevance_score) }}
-            </td>
-            </tr>
-        {% endfor %}
-        </tbody></table>
-        </div>
 
+        <tr class="filter-row">
+        <th></th>
+            {% for col in columns %}
+            {% if col != 'rank' %}
+            <th>
+            {% set sample = rankings[0][col] %}
+            <input
+                type        = "text"
+                class       = "table-filter"
+                data-column = "{{ col }}"
+                placeholder = "{{ '> 5 | x > 5 and x <= 10' if sample is number 
+                               else 'contains text' }}">
+            </th>
+            {% endif %}
+            {% endfor %}
+        </tr>
+
+        <tr>
+            <th>#</th>
+            {% for col in columns %}
+                {% if col != 'rank' %}
+                <th>{{ thecolumn[col] }}</th>
+                {% endif %}
+            {% endfor %}
+        </tr>
+        </thead>
+
+    <tbody>
+    {% for r in rankings %}
+    {% set rk = r.get('rank', r.get('rank', loop.index)) %}
+    <tr><td>
+        {% if rk <= 3 %}
+            <span class="rank-badge rank-{{ rk }}">
+            {{ rk }}</span>
+        {% else %}
+            <span class="rank-badge rank-default">
+            {{ rk }}</span>
+        {% endif %}
+        </td>
+
+        {% for col in columns %}
+        {% if col|lower != 'rank' %}
+        <td data-column="{{ col }}">
+            {% set value = r.get(col, r.get(col|capitalize)) %}
+            {% if col|lower == 'relevance_score' %}
+                <span class="relevance-bar"
+                      style="width:{{ (value * 100)|int }}px;"></span>
+                {{ "%.3f"|format(value) }}
+            {% elif value is number and value is not integer %}
+                {{ "%.2f"|format(value) }}
+            {% else %}
+                {{ value }}
+            {% endif %}
+        </td>
+        {% endif %}
+        {% endfor %}
+        </tr>
+    {% endfor %}
+    </tbody>
+    </table>
+    {% endif %}</div>
     </div></div>
-</div>
+    </div>
+
+<script type="module">
+    import { initRankingsPage } from "./assets/js/rankings.js";
+    document.addEventListener("DOMContentLoaded", () => {
+    const rankingsContainer = document.getElementById("page-rankings");
+    if (!rankingsContainer) {
+        console.warn("[Rankings] Container tidak ditemukan.");
+        return; }
+    console.log("[Rankings] Initializing scoped module.");
+    initRankingsPage(rankingsContainer);
+    });
+</script>
