@@ -345,7 +345,22 @@ jobs:
         run: |
           gcc --version
           g++ --version
+
+
+      - name: Debug Paths
+        run: |
+          echo "PWD:"
+          pwd
       
+          echo ""
+          echo "ROOT FILES:"
+          ls -la
+      
+          echo ""
+          echo "DIRECTORIES:"
+          find . -maxdepth 3 -type d
+
+
       - name: Build AryColBring Cython Extensions
         working-directory: ./src
         run: |
