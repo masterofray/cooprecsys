@@ -322,3 +322,49 @@ jobs:
             echo "Bandit exited with unexpected code: $EXIT_CODE"
             exit 0
           fi
+
+
+  # =========================================================
+  # CYTHON BUILD VALIDATION
+  # =========================================================
+  Cython-Build-Validation:
+    name: Cython Build test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install cython numpy pandas setuptools wheel
+      
+      - name: Verify GCC/OpenMP
+        run: |
+          gcc --version
+          g++ --version
+      
+      - name: Build AryColBring Cython Extensions
+        working-directory: ./src
+        run: |
+          chmod +x run_colbring.sh
+          bash run_colbring.sh
+      
+      - name: Verify Compiled Shared Objects
+        working-directory: ./src
+        run: |
+          echo "Checking compiled modules..."
+          find . -name "*.so" -o -name "*.pyd"
+          test $(find . -name "*.so" -o -name "*.pyd" | wc -l) -gt 0
+      
+      - name: Import Test
+        working-directory: ./src
+        run: |
+          python -c "
+          import models.arycolbring.CLproximity._cy_math
+          import models.arycolbring.CLproximity._cy_update
+          import models.arycolbring.CLproximity._cy_predict
+          print('SUCCESS: Cython modules imported')
+          "

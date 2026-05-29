@@ -9,11 +9,11 @@ cimport numpy as np
 from libc.stdlib  cimport malloc, free, rand
 from libc.stdio   cimport fprintf, stderr
 
-from _cy_types          cimport CSRMatrix, FastAryColBring, flt
-from _cy_math           cimport in_positives
-from _cy_representation cimport compute_representation, compute_prediction_from_repr
-from _cy_update         cimport warp_update
-from _cy_regularize     cimport regularize, locked_regularize, omp_lock_t, omp_init_lock, omp_destroy_lock
+from ._cy_types          cimport CSRMatrix, FastAryColBring, flt
+from ._cy_math           cimport in_positives
+from ._cy_representation cimport compute_representation, compute_prediction_from_repr
+from ._cy_update         cimport warp_update
+from ._cy_regularize     cimport regularize, locked_regularize, omp_lock_t, omp_init_lock, omp_destroy_lock
 
 cdef extern from "math.h" nogil:
     double log(double)
