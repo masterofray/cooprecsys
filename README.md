@@ -291,7 +291,7 @@ cooprecsys/
 
 ## Dashboard & Explainability
 
-The dashboard provides real-time explanations for model predictions:
+**CoopRecSys Explainable AI Dashboard** is a lightweight web interface implemented with **Jinja2 templates**, **JavaScript**, and **CSS**. It is intended for production monitoring and diagnostic workflows of an LTR LightGBM ranking model, presenting concise, actionable metrics, temporal trends, and dataset context. The dashboard enables data scientists and engineers to rapidly assess model health, detect anomalies or drift, and investigate root causes of performance changes through an integrated explainability‑focused view. The dashboard provides real-time explanations for model predictions:
 
 ### Features
 
@@ -305,16 +305,143 @@ The dashboard provides real-time explanations for model predictions:
 
 ```bash
 # Start the web server
-python -m http.server 8000 --directory src/models/dashboard
+python -m http.server 8000 --directory ./artifacts/reports
 
-# Open browser to http://localhost:8000
+# Open browser to http://localhost:8000/20260528_training_report.html
 ```
 
-### Dashboard Files
+### Overviews Page
+<table align       = "center" 
+       bgcolor     = "#ffffff"
+       cellpadding = "14" cellspacing="0"
+       style       = "border-collapse:collapse;">
+    <tr><td>
+    <img src="./img/dashboard_img/01_overviews.jpg"
+         alt="Overview of CoopRecSys Explainable AI Dashboard"
+         style="display:block; max-width:100%; height:auto;"/>
+    </td></tr>
+    <tr><td align="center" style="padding-top:8px; color:#333333; font-size:0.95rem;">
+    <strong>Figure 1.</strong> Overview of the CoopRecSys Explainable AI Dashboard.
+    </td></tr>
+</table>
 
-- `src/models/dashboard/index.html` - Main UI
-- `src/models/dashboard/styles.css` - Styling
-- `src/models/dashboard/app.js` - Interactive logic
+Figure 1 displays the primary overview screen of the dashboard, combining a high‑level scorecard, temporal visualizations, navigation tabs, and dataset context to provide an immediate assessment of model status. **Key elements and purpose**:
+- **Header** — identifies the dashboard and the monitored model for orientation.  
+- **Navigation Tabs** — Overview, Rankings, Diagnostics, Config for structured access to analytical modules.  
+- **Scorecard Metrics** — compact presentation of prediction statistics (**PRED MAX**, **PRED MEAN**, **PRED MIN**, **PRED STD**) and ranking performance (**NDCG@5**, **NDCG@10** for train and test) for rapid appraisal.  
+- **Control Panel Visitor Analytics** — summary count of recent predictions and an interactive multi‑series line chart to reveal trends, spikes, or drift.  
+- **Sidebar Dataset Statistics** — contextual counts such as **USERS**, **PRODUCTS**, **CATEGORIES**, and **ROWS** to indicate scale and coverage.  
+- **Multi‑series Line Chart** — overlays prediction and evaluation metrics to facilitate correlation analysis and anomaly detection.
+
+---
+
+### Rankings Page
+<table align       = "center" 
+       bgcolor     = "#ffffff"
+       cellpadding = "14" cellspacing="0"
+       style       = "border-collapse:collapse;">
+    <tr><td>
+    <img src="./img/dashboard_img/02_rankings.jpg"
+         alt="Rankings of CoopRecSys Explainable AI Dashboard"
+         style="display:block; max-width:100%; height:auto;"/>
+    </td></tr>
+    <tr><td align="center" style="padding-top:8px; color:#333333; font-size:0.95rem;">
+    <strong>Figure 2.</strong> Rankings CoopRecSys Dashboard.
+    </td></tr>
+</table>
+
+The **Rankings** page provides a transparent, interactive view of model inference results and the feature context that produced each ranking. It is intended for analysts and engineers who require a sortable, filterable listing of top predictions together with per‑row explainability signals so that individual decisions can be inspected, validated, and traced back to input features. 
+
+#### Key Components
+- **Ranking Results Table** — Primary component showing the top N predictions produced by the LTR LightGBM model with configurable columns for identifiers, features, prediction score, and explainability metrics.  
+- **Row Explainability Panel** — Per‑row detail pane that surfaces feature contributions (e.g., SHAP values), top contributing features, and short textual explanation for the predicted rank.  
+- **Filters and Facets** — Controls to restrict the table by date range, user segment, product category, prediction score range, or custom tags.  
+- **Sorting and Pagination** — Stable, server‑side or client‑side sorting by score and any feature column, with efficient pagination for large result sets.  
+- **Export and Snapshot** — Export current view to CSV and capture a snapshot (timestamped) of the displayed ranking for audit or reporting.  
+- **Contextual Metadata** — Small summary area showing dataset scope (rows, users, products), generation timestamp, and model version used for the ranking.
+
+#### Interactions and Controls
+- **Global Filters** — Date range picker; dropdowns for product category and user segment; numeric sliders for prediction score and years working.  
+- **Column Filters** — Per‑column quick filters (text search, numeric range).  
+- **Row Inspection** — Clicking a row opens the **Row Explainability Panel** with:  
+  - Full feature vector for that row.  
+  - SHAP waterfall or bar chart showing positive and negative contributions.  
+  - A short natural language explanation generated from the top contributions.  
+- **Compare Mode** — Select two or more rows to view a side‑by‑side comparison of features and contributions.  
+- **Server Mode** — For large datasets, enable server‑side pagination and sorting; otherwise use client‑side DataTables for small to medium result sets.  
+- **Audit Trail** — Each exported snapshot includes metadata: model version, timestamp, and filter state.
+
+---
+
+### Diagnostics Page
+<table align       = "center" 
+       bgcolor     = "#ffffff"
+       cellpadding = "14" cellspacing="0"
+       style       = "border-collapse:collapse;">
+    <tr><td>
+    <img src="./img/dashboard_img/03_diagnostics.jpg"
+         alt="Diagnostics of CoopRecSys Explainable AI Dashboard"
+         style="display:block; max-width:100%; height:auto;"/>
+    </td></tr>
+    <tr><td align="center" style="padding-top:8px; color:#333333; font-size:0.95rem;">
+    <strong>Figure 3.</strong> diagnostics Graph for CoopRecSys model.
+    </td></tr>
+</table>
+
+The **Diagnostics** page provides a consolidated environment for model introspection and validation. It combines global diagnostics (feature importance and distributional checks), prediction‑level diagnostics (relevance score histograms and drift indicators), and per‑sample explainability artifacts (SHAP summaries and downloadable SHAP files). The page is intended for data scientists, ML engineers, and auditors who require both high‑level signals and the ability to drill into individual explanations.
+
+#### Key Components
+- **Feature Importance Chart** — Horizontal bar chart showing top features by chosen importance metric (GAIN, SPLIT, or permutation importance). Interactive: sort, change metric, and toggle top‑K.
+- **Histogram of Relevance Predictions** — Binned histogram of model relevance scores (test / production) with overlayed reference distribution (train) and summary statistics (mean, median, std, skewness).
+- **SHAP Samples Panel** — A sample browser that lists available SHAP files (timestamped), allows download, and previews selected samples with a SHAP waterfall or bar chart and raw feature vector.
+- **Drift & Distribution Alerts** — Small indicator cards that flag features with significant distributional shift (KS test, PSI) and prediction drift (population mean shift).
+- **Sample Inspector** — On selecting a sample from the SHAP list or from the top predictions, show: raw features, SHAP contributions (positive/negative), cumulative contribution to score, and a short natural‑language explanation.
+- **Export & Audit** — Buttons to export diagnostics snapshot (CSV/JSON) and to attach model version, feature engineering commit, and timestamp for reproducibility.
+
+#### Operational and Implementation Notes
+- **Server responsibilities**  
+  - Precompute feature importance (GAIN/SPLIT) and expose as JSON.  
+  - Provide binned relevance distributions for train/test/production to avoid heavy client computation.  
+  - Serve SHAP files on demand and paginate sample lists for large files.
+
+- **Performance**  
+  - For large SHAP files, fetch only sample metadata for the list and request full sample SHAP vectors when the user inspects a sample.  
+  - Use server‑side aggregation for histograms and KS/PSI calculations.
+
+- **Accessibility & UX**  
+  - Ensure charts have `aria-label` and textual summaries for screen readers.  
+  - Allow keyboard navigation for the SHAP sample list and close preview with `Esc`.  
+  - Provide clear tooltips explaining each diagnostic metric (e.g., GAIN vs SPLIT).
+
+- **Reproducibility & Audit**  
+  - Every diagnostics snapshot must include **model version**, **feature engineering commit hash**, **data window**, and **timestamp**.  
+  - Exported diagnostics should embed this metadata.
+
+---
+
+### Configs Page
+<table align       = "center" 
+       bgcolor     = "#ffffff"
+       cellpadding = "14" cellspacing="0"
+       style       = "border-collapse:collapse;">
+    <tr><td>
+    <img src="./img/dashboard_img/04_configs.jpg"
+         alt="Configs of CoopRecSys table Model"
+         style="display:block; max-width:100%; height:auto;"/>
+    </td></tr>
+    <tr><td align="center" style="padding-top:8px; color:#333333; font-size:0.95rem;">
+    <strong>Figure 4.</strong> Configs table as parameter LTR LGBM.
+    </td></tr>
+</table>
+
+The **Config** page centralizes model configuration and hyperparameter management for the LTR LightGBM ranking model. It provides a controlled interface to **view**, **edit**, **validate**, **version**, and **apply** training and inference parameters while preserving auditability and reproducibility. The page is intended for ML engineers and platform operators who must safely tune model behavior in production or prepare reproducible training runs.
+
+#### Key Components
+- **Configuration Table** — Tabular display of current parameter names and values (e.g., `objective`, `metric`, `ndcg_eval_at`, `learning_rate`, `max_depth`, `num_leaves`, `feature_fraction`, `bagging_fraction`, `bagging_freq`, `lambda_l1`). Each row shows **Parameter**, **Value**, **Type**, **Source** (default / experiment / production), and **Last modified** timestamp.
+- **Edit Controls** — Inline editors for editable parameters with appropriate input types: numeric fields, dropdowns for enumerated options, multi-value arrays for list parameters, and toggles for booleans. Edits are staged until explicitly saved.
+- **Validation Engine** — Client and server validation rules that enforce type constraints, allowed ranges, and inter‑parameter consistency (e.g., `num_leaves` consistent with `max_depth`, `feature_fraction` in (0,1]).
+- **Preview and Dry Run** — A preview panel that shows the effective configuration JSON and a dry‑run button that triggers a lightweight validation job (no training) to check compatibility with current feature schema and training pipeline.
+
 
 ---
 
