@@ -337,7 +337,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
       
       - name: Install dependencies
         run: |
@@ -349,20 +349,16 @@ jobs:
           gcc --version
           g++ --version
 
-
       #- name: Debug Paths
       #  run: |
       #    echo "PWD:"
       #    pwd
-      #
       #    echo ""
       #    echo "ROOT FILES:"
       #    ls -la
-      #
       #    echo ""
       #    echo "DIRECTORIES:"
       #    find . -maxdepth 3 -type d
-
 
       - name: Build AryColBring Cython Extensions
         run: |

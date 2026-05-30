@@ -10,5 +10,7 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-30"
 
-from .bloatdata import *
-from .wrap_interaction import *
+from .flex import _shuffle as datashuffle
+from .flex import coo_ttsplit, user_based_train_test_split
+
+__all__ = ['datashuffle', 'coo_ttsplit', 'user_based_train_test_split']

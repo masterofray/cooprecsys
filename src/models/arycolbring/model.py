@@ -27,7 +27,6 @@ __status__     = "Development"
 __created__    = "2026-04-25"
 
 
-from __future__ import annotations
 import gc
 import logging
 from configparser import ConfigParser
@@ -41,7 +40,8 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 
 from .data_utils import validate_sparse_matrix
-from .cy import (
+from .
+ import (
     CSRMatrix,
     FastAryColBring,
     fit_logistic,

@@ -17,19 +17,22 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-25"
 
-from __future__ import annotations
 import gc
 import logging
 import configparser
 import os
-from contextlib import contextmanager
 from typing import Optional, Tuple, Union
 
-import duckdb
+
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 from tqdm import tqdm
+
+import sys
+from pathlib import Path
+LocDir = Path(__file__).resolve().parents[3]
+sys.path.append(str(LocDir))
 
 # ── logging ──────────────────────────────────────────────────────────────────
 logger = logging.getLogger(__name__)
@@ -44,27 +47,6 @@ DEFAULT_DTYPE = _cfg.get("model",  "dtype",      fallback="float32")
 DUCKDB_THREADS = _cfg.getint("duckdb", "threads", fallback=4)
 
 
-# ── DuckDB connection context ─────────────────────────────────────────────────
-
-@contextmanager
-def duck_connection(threads: int = DUCKDB_THREADS):
-    """
-    Context manager that yields an in-process DuckDB connection
-    and guarantees it is closed on exit.
-
-    Usage::
-
-        with duck_connection() as con:
-            df = con.execute("SELECT * FROM my_table").df()
-    """
-    logger.debug("Opening DuckDB connection with %d threads", threads)
-    con = duckdb.connect(":memory:")
-    con.execute(f"PRAGMA threads={threads}")
-    try:
-        yield con
-    finally:
-        logger.debug("Closing DuckDB connection")
-        con.close()
 
 
 # ── Data loading helpers ──────────────────────────────────────────────────────
@@ -112,7 +94,7 @@ def load_interactions_from_df(
               colour=TQDM_COLOUR, ncols=TQDM_NCOLS) as pbar:
 
         # Step 1 — register df in DuckDB and encode IDs
-        with duck_connection() as con:
+        with duckdb_connection() as con:
             pbar.set_postfix_str("registering dataframe")
             con.register("raw_df", df)
 
@@ -204,7 +186,7 @@ def load_interactions_from_csv(
               ncols=TQDM_NCOLS) as pbar:
         pbar.set_postfix_str("reading via DuckDB")
 
-        with duck_connection() as con:
+        with duckdb_connection() as con:
             rating_expr = (f'CAST("{rating_col}" AS DOUBLE)'
                            if rating_col else "1.0")
             df = con.execute(f"""
@@ -228,82 +210,3 @@ def load_interactions_from_csv(
     return result
 
 
-def describe_interactions(interactions: sp.spmatrix) -> pd.DataFrame:
-    """
-    Return a summary DataFrame of a sparse interaction matrix via DuckDB.
-
-    Columns: n_users, n_items, nnz, density, avg_interactions_per_user,
-             min_interactions_per_user, max_interactions_per_user.
-    """
-    logger.debug("describe_interactions: shape=%s", interactions.shape)
-
-    mat = interactions.tocsr()
-    row_counts = np.diff(mat.indptr).astype(np.float64)
-
-    with duck_connection() as con:
-        con.register("row_counts_arr",
-                     pd.DataFrame({"nnz_per_user": row_counts}))
-        stats = con.execute("""
-            SELECT
-                COUNT(*)                     AS n_users,
-                AVG(nnz_per_user)            AS avg_interactions_per_user,
-                MIN(nnz_per_user)            AS min_interactions_per_user,
-                MAX(nnz_per_user)            AS max_interactions_per_user
-            FROM row_counts_arr
-        """).df()
-
-    n_users, n_items = interactions.shape
-    nnz     = interactions.nnz
-    density = nnz / (n_users * n_items) if n_users * n_items > 0 else 0.0
-
-    summary = pd.DataFrame({
-        "n_users":                   [n_users],
-        "n_items":                   [n_items],
-        "nnz":                       [nnz],
-        "density":                   [density],
-        "avg_interactions_per_user": [stats["avg_interactions_per_user"].iloc[0]],
-        "min_interactions_per_user": [stats["min_interactions_per_user"].iloc[0]],
-        "max_interactions_per_user": [stats["max_interactions_per_user"].iloc[0]],
-    })
-
-    logger.debug("describe_interactions: %s", summary.to_dict(orient="records")[0])
-    return summary
-
-
-def validate_sparse_matrix(mat: sp.spmatrix, name: str = "matrix") -> None:
-    """
-    Raise informative errors if *mat* is not a valid finite sparse matrix.
-
-    Raises
-    ------
-    TypeError         – if mat is not a scipy sparse matrix
-    ValueError        – if mat contains NaN / Inf values
-    RuntimeError      – if mat has zero rows or columns
-    ReferenceError    – if mat.data is None or empty unexpectedly
-    """
-    logger.debug("validate_sparse_matrix: name=%s type=%s", name, type(mat))
-
-    if not sp.issparse(mat):
-        raise TypeError(
-            f"Expected a scipy sparse matrix for '{name}', "
-            f"got {type(mat).__name__}."
-        )
-    if mat.shape[0] == 0 or mat.shape[1] == 0:
-        raise RuntimeError(
-            f"Sparse matrix '{name}' has degenerate shape {mat.shape}."
-        )
-    if mat.nnz == 0:
-        logger.warning("validate_sparse_matrix: '%s' has zero non-zero entries", name)
-        return
-
-    data = mat.data
-    if data is None:
-        raise ReferenceError(f"Sparse matrix '{name}' has None data array.")
-
-    if not np.isfinite(data).all():
-        raise ValueError(
-            f"Sparse matrix '{name}' contains NaN or Inf values. "
-            "Check your input data."
-        )
-
-    logger.debug("validate_sparse_matrix: '%s' OK — nnz=%d", name, mat.nnz)
