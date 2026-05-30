@@ -18,5 +18,4 @@ __all__ = [
     "__version__",
     "DuckDBManager",
     "duckdb_connection",
-    "logger",
     ]
