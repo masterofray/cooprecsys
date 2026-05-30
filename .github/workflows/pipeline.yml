@@ -350,25 +350,24 @@ jobs:
           g++ --version
 
 
-      - name: Debug Paths
-        run: |
-          echo "PWD:"
-          pwd
-      
-          echo ""
-          echo "ROOT FILES:"
-          ls -la
-      
-          echo ""
-          echo "DIRECTORIES:"
-          find . -maxdepth 3 -type d
+      #- name: Debug Paths
+      #  run: |
+      #    echo "PWD:"
+      #    pwd
+      #
+      #    echo ""
+      #    echo "ROOT FILES:"
+      #    ls -la
+      #
+      #    echo ""
+      #    echo "DIRECTORIES:"
+      #    find . -maxdepth 3 -type d
 
 
       - name: Build AryColBring Cython Extensions
-        working-directory: ./src
         run: |
-          chmod +x run_colbring.sh
-          bash run_colbring.sh
+          chmod +x ./run_colbring.sh
+          bash ./run_colbring.sh
       
       - name: Verify Compiled Shared Objects
         working-directory: ./src
@@ -381,6 +380,8 @@ jobs:
         working-directory: ./src
         run: |
           python -c "
+          import sys
+          print(sys.path)
           import models.arycolbring.CLproximity._cy_math
           import models.arycolbring.CLproximity._cy_update
           import models.arycolbring.CLproximity._cy_predict
