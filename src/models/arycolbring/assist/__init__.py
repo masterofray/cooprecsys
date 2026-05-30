@@ -10,5 +10,5 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-30"
 
-from .bloatdata import *
-from .wrap_interaction import *
+from .bloatdata import norm_exchange, fileload_interactions
+from .wrap_interaction import describe_interactions, validate_sparse_matrix

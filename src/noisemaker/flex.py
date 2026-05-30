@@ -21,11 +21,7 @@ from   typing import Optional, Tuple
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
-from configs import logger
-
-colour   = _cfg.get("tqdm", "colour", fallback = "#05ad46")
-ncolumns = _cfg.getint("tqdm", "ncols", fallback = 180)
-barfor   = _cfg.get('tqdm', 'BarFormats')
+from configs import logger, _cfg
 
 
 def _shuffle(uids   : np.ndarray,
@@ -36,7 +32,7 @@ def _shuffle(uids   : np.ndarray,
     """In-place shuffle of COO triplets via a permutation index array."""
     index = np.arange(len(uids), dtype=np.int32)
     rstate.shuffle(index)
-    lreturn uids[index], iids[index], data[index]
+    lreturn = [uids[index], iids[index], data[index]]
     logger.debug('Suffle data in success.')
     return lreturn
 
@@ -75,9 +71,9 @@ def coo_ttsplit(interactions: sp.spmatrix,
 
     with tqdm(total       = 4, 
               desc        = "Splitting interactions",
-              colour      = colour,
-              ncols       = ncolumns,
-              bar_format  = barfor,
+              colour      = _cfg.get('tqdm', 'colour'),
+              ncols       = _cfg.getint('tqdm', 'ncols'),
+              bar_format  = _cfg.get('tqdm', 'BarFormats'),
               unit        = 'process',
               mininterval = 0.1)
               as pbar:
@@ -152,9 +148,9 @@ def user_based_train_test_split(
 
     for user_id in tqdm(range(n_users)
                         desc        = "User-based split",
-                        colour      = colour,
-                        ncols       = ncolumns,
-                        bar_format  = barfor,
+                        colour      = _cfg.get('tqdm', 'colour'),
+                        ncols       = _cfg.getint('tqdm', 'ncols'),
+                        bar_format  = _cfg.get('tqdm', 'BarFormats'),
                         unit        = 'User',
                         mininterval = 0.1):
         start  = csr.indptr[user_id]
