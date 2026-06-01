@@ -81,6 +81,7 @@ jobs:
           # Use local file storage instead of SQLite DB
           # This is MUCH more stable in GitHub Actions
           MLFLOW_TRACKING_URI: "file:./mlruns"
+          MLFLOW_ALLOW_FILE_STORE: "true"
 
         run: |
           echo "===== STARTING LTR LIGHTGBM TEST ====="
