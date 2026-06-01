@@ -13,7 +13,7 @@ __created__    = "2026-05-30"
 
 """
 ___________________________________
-Scaffold.py
+scaffold.py
 Abstract base class for the AryColBring collaborative filtering model.
 Owns all shared hyper-parameters, embedding state, helper utilities,
 and sklearn-compatible get_params / set_params.  Concrete subclasses
@@ -21,23 +21,22 @@ must implement the four public API methods declared here as
 ``@abstractmethod``.
 """
 
-from abc import ABC, abstractmethod
-from configparser import ConfigParser
-from typing import Any, Dict, Optional, Union
-
+import sys
 import numpy as np
 import scipy.sparse as sp
-from tqdm import tqdm
+from   tqdm.auto import tqdm
+from   pathlib   import Path
+from   abc       import ABC, abstractmethod
+from   typing    import Any, Dict, Optional, Union
 
-from ..assist import validate_sparse_matrix
-from ..CLproximity import (
-    CSRMatrix,
-    FastAryColBring,
-)
+LocDir = Path(__file__).resolve()
+sys.path.append(str(LocDir.parents[1]))
+from assist      import validate_sparse_matrix
+from CLproximity import CSRMatrix, FastAryColBring
 
-TQDM_COLOUR  = _cfg.get("tqdm", "colour", fallback="#05ad46")
-TQDM_NCOLS   = _cfg.getint("tqdm", "ncols", fallback=80)
-CYTHON_DTYPE = np.float32
+sys.path.append(str(LocDir.parents[3]))
+from configs import _cfg, logger
+cydtype = np.float32
 
 
 class AryColBringBase(ABC):
@@ -50,48 +49,41 @@ class AryColBringBase(ABC):
       - ``predict``  /  ``predict_rank``  (inference contract)
 
     Parameters
-    ----------
-    no_components    : int   — latent dimension count (default 10)
-    k                : int   — warp-kos anchor count (default 5)
-    n                : int   — warp-kos anchor pool size (default 10)
-    learning_schedule: str   — "adagrad" | "adadelta"
-    loss             : str   — "logistic" | "warp" | "bpr" | "warp-kos"
-    learning_rate    : float — base LR (default 0.05)
-    rho              : float — Adadelta decay ∈ (0, 1) (default 0.95)
-    epsilon          : float — numerical stability (default 1e-6)
-    item_alpha       : float — L2 item regularisation (default 0.0)
-    user_alpha       : float — L2 user regularisation (default 0.0)
-    max_sampled      : int   — max negatives per positive (default 10)
+    _____________________________________________________________
+    no_components    : int   - latent dimension count (default 10)
+    k                : int   - warp-kos anchor count (default 5)
+    n                : int   - warp-kos anchor pool size (default 10)
+    learning_schedule: str   - "adagrad" | "adadelta"
+    loss             : str   - "logistic" | "warp" | "bpr" | "warp-kos"
+    learning_rate    : float - base LR (default 0.05)
+    rho              : float - Adadelta decay part of (0, 1) (default 0.95)
+    epsilon          : float - numerical stability (default 1e-6)
+    item_alpha       : float - L2 item regularisation (default 0.0)
+    user_alpha       : float - L2 user regularisation (default 0.0)
+    max_sampled      : int   - max negatives per positive (default 10)
     random_state     : int | np.random.RandomState | None
     """
-
-    # ── constructor ───────────────────────────────────────────────────────────
-
     def __init__(
-        self,
-        no_components:     int   = 10,
-        k:                 int   = 5,
-        n:                 int   = 10,
-        learning_schedule: str   = "adagrad",
-        loss:              str   = "logistic",
-        learning_rate:     float = 0.05,
-        rho:               float = 0.95,
-        epsilon:           float = 1e-6,
-        item_alpha:        float = 0.0,
-        user_alpha:        float = 0.0,
-        max_sampled:       int   = 10,
-        random_state              = None,
-    ) -> None:
-        logger.debug(
-            "%s.__init__: loss=%s schedule=%s no_components=%d",
-            self.__class__.__name__, loss, learning_schedule, no_components,
-        )
-
-        # ── parameter validation ──────────────────────────────────────────────
+            self,
+            no_components:     int   = 10,
+            k:                 int   = 5,
+            n:                 int   = 10,
+            learning_schedule: str   = "adagrad",
+            loss:              str   = "logistic",
+            learning_rate:     float = 0.05,
+            rho:               float = 0.95,
+            epsilon:           float = 1e-6,
+            item_alpha:        float = 0.0,
+            user_alpha:        float = 0.0,
+            max_sampled:       int   = 10,
+            random_state             = 4,
+        ) -> None:
+        logger.debug("Initialize loss = %s schedule = %s no_components = %d",
+                      loss, learning_schedule, no_components)
         if item_alpha < 0.0:
-            raise ValueError("item_alpha must be ≥ 0.0")
+            raise ValueError("item_alpha must be >= 0.0")
         if user_alpha < 0.0:
-            raise ValueError("user_alpha must be ≥ 0.0")
+            raise ValueError("user_alpha must be >= 0.0")
         if no_components <= 0:
             raise ValueError("no_components must be > 0")
         if k <= 0:
@@ -105,15 +97,11 @@ class AryColBringBase(ABC):
         if max_sampled < 1:
             raise ValueError("max_sampled must be a positive integer")
         if learning_schedule not in ("adagrad", "adadelta"):
-            raise ValueError(
-                f"learning_schedule must be 'adagrad' or 'adadelta', "
-                f"got '{learning_schedule}'"
-            )
+            raise ValueError(f"learning_schedule must be 'adagrad' or 'adadelta', "
+                             f"got '{learning_schedule}'")
         if loss not in ("logistic", "warp", "bpr", "warp-kos"):
-            raise ValueError(
-                f"loss must be one of 'logistic','warp','bpr','warp-kos', "
-                f"got '{loss}'"
-            )
+            raise ValueError(f"loss must be one of 'logistic','warp','bpr','warp-kos', "
+                             f"got '{loss}'")
 
         self._loss              = loss
         self._learning_schedule = learning_schedule
@@ -132,16 +120,15 @@ class AryColBringBase(ABC):
         elif isinstance(random_state, np.random.RandomState):
             self._random_state = random_state
         elif isinstance(random_state, int):
-            self._random_state = np.random.RandomState(seed=random_state)
+            self._random_state = np.random.RandomState(seed = random_state)
         else:
             raise TypeError(
-                "random_state must be None, an int, or np.random.RandomState"
-            )
-
+            "random_state must be None, an int, or np.random.RandomState")
         self._reset_state()
 
-    # ── properties ────────────────────────────────────────────────────────────
 
+
+    # ── properties ───────────────────────────
     @property
     def loss(self) -> str:
         return self._loss
@@ -201,21 +188,18 @@ class AryColBringBase(ABC):
     def learning_schedule(self) -> str:
         return self._learning_schedule
 
-    # ── internal state management ─────────────────────────────────────────────
 
+
+    # ── internal state management ───────────────────────────
     def _reset_state(self) -> None:
         """Zero out all embedding matrices and gradient accumulators."""
-        logger.debug(
-            "%s._reset_state: clearing all embeddings",
-            self.__class__.__name__,
-        )
+        logger.debug("clearing all embeddings")
         self.item_embeddings          = None
         self.item_embedding_gradients = None
         self.item_embedding_momentum  = None
         self.item_biases              = None
         self.item_bias_gradients      = None
         self.item_bias_momentum       = None
-
         self.user_embeddings          = None
         self.user_embedding_gradients = None
         self.user_embedding_momentum  = None
@@ -223,53 +207,52 @@ class AryColBringBase(ABC):
         self.user_bias_gradients      = None
         self.user_bias_momentum       = None
 
+
     def _check_initialized(self) -> None:
         """Raise RuntimeError if embeddings have not been initialised yet."""
-        attrs = [
-            "item_embeddings", "item_embedding_gradients",
-            "item_embedding_momentum", "item_biases",
-            "item_bias_gradients", "item_bias_momentum",
-            "user_embeddings", "user_embedding_gradients",
-            "user_embedding_momentum", "user_biases",
-            "user_bias_gradients", "user_bias_momentum",
-        ]
+        attrs = ["item_embeddings", 
+                 "item_embedding_gradients",
+                 "item_embedding_momentum",
+                 "item_biases",
+                 "item_bias_gradients",
+                 "item_bias_momentum",
+                 "user_embeddings",
+                 "user_embedding_gradients",
+                 "user_embedding_momentum",
+                 "user_biases",
+                 "user_bias_gradients",
+                 "user_bias_momentum"]
         for attr in attrs:
             if getattr(self, attr) is None:
                 raise RuntimeError(
-                    "Model is not yet fitted. Call fit() or fit_partial() first."
-                )
+                "Model is not yet fitted. Call fit() or fit_partial() first.")
 
     def _initialize(
-        self,
-        no_components:    int,
-        no_item_features: int,
-        no_user_features: int,
-    ) -> None:
+            self,
+            no_components:    int,
+            no_item_features: int,
+            no_user_features: int,
+        ) -> None:
         """Randomly initialise embedding matrices and zero gradient buffers."""
-        logger.debug(
-            "_initialize: no_components=%d n_item_feat=%d n_user_feat=%d",
-            no_components, no_item_features, no_user_features,
-        )
-
-        # Item embeddings: uniform ± 0.5 / no_components
-        self.item_embeddings = (
-            (self._random_state.rand(no_item_features, no_components) - 0.5)
-            / no_components
-        ).astype(CYTHON_DTYPE)
+        logger.debug("no_components = %d n_item_feat = %d n_user_feat = %d",
+                      no_components, no_item_features, no_user_features)
+        # Item embeddings
+        self.item_embeddings = ((self._random_state.rand(
+                               no_item_features, no_components) - 0.5)
+                               / no_components).astype(cydtype)
         self.item_embedding_gradients = np.zeros_like(self.item_embeddings)
         self.item_embedding_momentum  = np.zeros_like(self.item_embeddings)
-        self.item_biases              = np.zeros(no_item_features, dtype=CYTHON_DTYPE)
+        self.item_biases              = np.zeros(no_item_features, dtype=cydtype)
         self.item_bias_gradients      = np.zeros_like(self.item_biases)
         self.item_bias_momentum       = np.zeros_like(self.item_biases)
 
         # User embeddings: same scheme
-        self.user_embeddings = (
-            (self._random_state.rand(no_user_features, no_components) - 0.5)
-            / no_components
-        ).astype(CYTHON_DTYPE)
+        self.user_embeddings = ((self._random_state.rand(
+                               no_user_features, no_components) - 0.5)
+                               / no_components).astype(cydtype)
         self.user_embedding_gradients = np.zeros_like(self.user_embeddings)
         self.user_embedding_momentum  = np.zeros_like(self.user_embeddings)
-        self.user_biases              = np.zeros(no_user_features, dtype=CYTHON_DTYPE)
+        self.user_biases              = np.zeros(no_user_features, dtype=cydtype)
         self.user_bias_gradients      = np.zeros_like(self.user_biases)
         self.user_bias_momentum       = np.zeros_like(self.user_biases)
 
@@ -280,88 +263,81 @@ class AryColBringBase(ABC):
             self.user_embedding_gradients += 1
             self.user_bias_gradients      += 1
 
-    # ── static helpers ────────────────────────────────────────────────────────
 
+
+    # ── static helpers ───────────────────────────
     @staticmethod
     def _to_cython_dtype(mat: sp.spmatrix) -> sp.spmatrix:
-        """Cast sparse matrix to CYTHON_DTYPE (float32) if needed."""
-        if mat.dtype != CYTHON_DTYPE:
-            return mat.astype(CYTHON_DTYPE)
+        """Cast sparse matrix to cydtype (float32) if needed."""
+        if mat.dtype != cydtype:
+            return mat.astype(cydtype)
         return mat
 
     @staticmethod
     def _epoch_iterator(n_epochs: int, verbose: bool):
         """Return a plain range or a tqdm-wrapped range depending on verbosity."""
         if verbose:
-            return tqdm(
-                range(n_epochs),
-                desc="Epoch",
-                colour=TQDM_COLOUR,
-                ncols=TQDM_NCOLS,
-            )
+            return tqdm(range(n_epochs),
+                        desc        = f"Intra-List Diversity@{k}",
+                        colour      = _cfg.get('tqdm', 'colour'),
+                        ncols       = _cfg.getint('tqdm', 'ncols'),
+                        bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                        unit        = 'batch',
+                        mininterval = 0.1)
         return range(n_epochs)
 
+
+
     # ── feature matrix helpers ────────────────────────────────────────────────
-
     def _construct_feature_matrices(
-        self,
-        n_users:       int,
-        n_items:       int,
-        user_features: Optional[sp.spmatrix],
-        item_features: Optional[sp.spmatrix],
-    ):
-        """
-        Build or validate CSR user / item feature matrices.
-
-        Falls back to identity matrices when features are ``None``
-        (standard matrix-factorisation mode).
-        """
-        logger.debug(
-            "_construct_feature_matrices: n_users=%d n_items=%d",
-            n_users, n_items,
-        )
-
+            self,
+            n_users:       int,
+            n_items:       int,
+            user_features: Optional[sp.spmatrix],
+            item_features: Optional[sp.spmatrix],
+        ):
+        """Build or validate CSR user / item feature matrices.
+           Falls back to identity matrices when features are ``None``
+           (standard matrix-factorisation mode)."""
+        logger.debug("Try to construct Feature: n_users = %d n_items = %d",
+                      n_users, n_items)
         if user_features is None:
-            user_features = sp.identity(n_users, dtype=CYTHON_DTYPE, format="csr")
+            user_features = sp.identity(n_users, dtype=cydtype, format="csr")
         else:
             user_features = user_features.tocsr()
 
         if item_features is None:
-            item_features = sp.identity(n_items, dtype=CYTHON_DTYPE, format="csr")
+            item_features = sp.identity(n_items, dtype=cydtype, format="csr")
         else:
             item_features = item_features.tocsr()
 
         if n_users > user_features.shape[0]:
             raise ValueError(
                 f"n_users ({n_users}) exceeds user_features rows "
-                f"({user_features.shape[0]})"
-            )
+                f"({user_features.shape[0]})")
         if n_items > item_features.shape[0]:
             raise ValueError(
                 f"n_items ({n_items}) exceeds item_features rows "
-                f"({item_features.shape[0]})"
-            )
+                f"({item_features.shape[0]})")
 
         if self.user_embeddings is not None:
             if self.user_embeddings.shape[0] < user_features.shape[1]:
                 raise ValueError(
                     "user_features has more columns than embedding matrix rows: "
-                    f"{user_features.shape[1]} vs {self.user_embeddings.shape[0]}"
-                )
+                    f"{user_features.shape[1]} vs {self.user_embeddings.shape[0]}")
         if self.item_embeddings is not None:
             if self.item_embeddings.shape[0] < item_features.shape[1]:
                 raise ValueError(
                     "item_features has more columns than embedding matrix rows: "
-                    f"{item_features.shape[1]} vs {self.item_embeddings.shape[0]}"
-                )
-
+                    f"{item_features.shape[1]} vs {self.item_embeddings.shape[0]}")
         user_features = self._to_cython_dtype(user_features)
         item_features = self._to_cython_dtype(item_features)
         return user_features, item_features
 
     def _get_positives_lookup_matrix(
-        self, interactions: sp.coo_matrix
-    ) -> sp.csr_matrix:
+            self, 
+            interactions: sp.coo_matrix,
+        ) -> sp.csr_matrix:
         """Return a sorted-index CSR view of positive interactions."""
         mat = interactions.tocsr()
         if not mat.has_sorted_indices:
@@ -369,14 +345,14 @@ class AryColBringBase(ABC):
         return mat
 
     def _process_sample_weight(
-        self,
-        interactions:  sp.coo_matrix,
-        sample_weight: Optional[sp.coo_matrix],
-    ) -> np.ndarray:
+            self,
+            interactions:  sp.coo_matrix,
+            sample_weight: Optional[sp.coo_matrix],
+        ) -> np.ndarray:
         """
         Validate and return the sample-weight array aligned with interactions.
-
-        If ``sample_weight`` is ``None``, returns a ones vector (uniform weighting).
+        If ``sample_weight`` is ``None``, returns a ones 
+        vector (uniform weighting).
         """
         if sample_weight is not None:
             if self._loss == "warp-kos":
@@ -397,13 +373,13 @@ class AryColBringBase(ABC):
                     "sample_weight and interactions entries must be in the same order."
                 )
             data = sample_weight.data
-            if data.dtype != CYTHON_DTYPE:
-                data = data.astype(CYTHON_DTYPE)
+            if data.dtype != cydtype:
+                data = data.astype(cydtype)
             return data
         else:
             if np.array_equiv(interactions.data, 1.0):
                 return interactions.data
-            return np.ones_like(interactions.data, dtype=CYTHON_DTYPE)
+            return np.ones_like(interactions.data, dtype=cydtype)
 
     def _get_model_data(self) -> FastAryColBring:
         """Pack current embedding state into the Cython FastAryColBring struct."""
@@ -482,7 +458,7 @@ class AryColBringBase(ABC):
         self._check_initialized()
         if features is None:
             return self.item_biases, self.item_embeddings
-        features = sp.csr_matrix(features, dtype=CYTHON_DTYPE)
+        features = sp.csr_matrix(features, dtype=cydtype)
         return features * self.item_biases, features * self.item_embeddings
 
     def get_user_representations(
@@ -498,7 +474,7 @@ class AryColBringBase(ABC):
         self._check_initialized()
         if features is None:
             return self.user_biases, self.user_embeddings
-        features = sp.csr_matrix(features, dtype=CYTHON_DTYPE)
+        features = sp.csr_matrix(features, dtype=cydtype)
         return features * self.user_biases, features * self.user_embeddings
 
     # ── sklearn-style get/set params ──────────────────────────────────────────
