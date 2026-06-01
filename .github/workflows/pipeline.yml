@@ -361,25 +361,26 @@ jobs:
       #    find . -maxdepth 3 -type d
 
       - name: Build AryColBring Cython Extensions
+        working-directory: ./src/models/arycolbring
         run: |
-          chmod +x ./run_colbring.sh
-          bash ./run_colbring.sh
+          chmod +x ./cysetup.sh
+          bash ./cysetup.sh
       
       - name: Verify Compiled Shared Objects
-        working-directory: ./src
+        working-directory: ./src/models/arycolbring
         run: |
           echo "Checking compiled modules..."
           find . -name "*.so" -o -name "*.pyd"
           test $(find . -name "*.so" -o -name "*.pyd" | wc -l) -gt 0
       
       - name: Import Test
-        working-directory: ./src
+        working-directory: ./src/models/arycolbring
         run: |
           python -c "
           import sys
           print(sys.path)
-          import models.arycolbring.CLproximity._cy_math
-          import models.arycolbring.CLproximity._cy_update
-          import models.arycolbring.CLproximity._cy_predict
+          from CLproximity import _cy_math
+          from CLproximity import _cy_update
+          from CLproximity import _cy_predict
           print('SUCCESS: Cython modules imported')
           "

@@ -41,7 +41,7 @@ $$\hat{r}_{ui} = q_i^T p_u = \sum_{f=1}^{k} q_{if} \cdot p_{uf}$$
 
 ### **Step 3: Define the Loss Function (Objective)**
 We need to minimize the difference between the observed ratings $r_{ui}$ and the predicted ratings $\hat{r}_{ui}$. To prevent overfitting to the sparse data, we introduce **L2 Regularization**. The objective function $\mathcal{L}$ to minimize is:
-$$\mathcal{L} = \min_{p^*, q^*} \sum_{(u,i) \in \mathcal{K}} \left( r_{ui} - q_i^T p_u \right)^2 + \lambda \left( \|q_i\|^2 + \|p_u\|^2 \right)$$
+$\mathcal{L} = \min_{p^*, q^*} \sum_{(u,i) \in \mathcal{K}} \left( r_{ui} - q_i^T p_u \right)^2 + \lambda \left( \|q_i\|^2 + \|p_u\|^2 \right)$
 
 Where:
 - $\mathcal{K}$ is the set of known (user, item) pairs in the training data.
@@ -49,17 +49,16 @@ Where:
 
 ### **Step 4: Optimization via Stochastic Gradient Descent (SGD)**
 We iterate over each known rating $r_{ui}$ in the training set. We compute the prediction error:
-$$e_{ui} = r_{ui} - q_i^T p_u$$
+$e_{ui} = r_{ui} - q_i^T p_u$
 
 We then compute the gradients of the loss with respect to the parameters and update them in the opposite direction of the gradient. **Update for User Vector $p_u$:**
-$$p_u \leftarrow p_u + \eta \cdot (e_{ui} \cdot q_i - \lambda \cdot p_u)$$
+$p_u \leftarrow p_u + \eta \cdot (e_{ui} \cdot q_i - \lambda \cdot p_u)$
 
 **Update for Item Vector $q_i$:**
-$$q_i \leftarrow q_i + \eta \cdot (e_{ui} \cdot p_u - \lambda \cdot q_i)$$
-
+$q_i \leftarrow q_i + \eta \cdot (e_{ui} \cdot p_u - \lambda \cdot q_i)$
 Where $\eta$ is the learning rate.
 
 ### **Step 5: Prediction for Missing Values**
 After convergence (or a fixed number of epochs), we reconstruct the full matrix $\hat{R}$. For a user $u$ and an unseen item $j$, the final predicted score is:
-$$\hat{r}_{uj} = q_j^T p_u$$
+$\hat{r}_{uj} = q_j^T p_u$
 We then recommend the top-$N$ items with the highest $\hat{r}_{uj}$ values that the user has not yet interacted with.

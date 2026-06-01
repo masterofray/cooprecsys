@@ -6,9 +6,16 @@ echo "========================================="
 echo "BUILDING CYTHON MODULES"
 echo "========================================="
 
-cd src
+echo ""
 python3 --version
-python3 ./models/arycolbring/cysetup.py build_ext --inplace
+echo ""
+
+rm -rf build/
+rm -f CLproximity/*.c
+rm -f CLproximity/*.so
+echo ""
+
+python3 ./cysetup.py build_ext --inplace
 
 echo "========================================="
 echo "BUILD FINISHED"

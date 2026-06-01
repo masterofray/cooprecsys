@@ -22,7 +22,8 @@ CYTHON_DIR = BASE_DIR / "CLproximity"
 if __name__ == '__main__':
     exts = list()
     for pyx in CYTHON_DIR.glob("*.pyx"):
-        module_name = (f"models.arycolbring.CLproximity.{pyx.stem}")
+        module_name = (f"CLproximity.{pyx.stem}")
+        relative    = pyx.relative_to(BASE_DIR)
         exts.append(Extension(
             name               = module_name,
             sources            = [str(pyx)],

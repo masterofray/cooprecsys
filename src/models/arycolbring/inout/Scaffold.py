@@ -21,8 +21,6 @@ must implement the four public API methods declared here as
 ``@abstractmethod``.
 """
 
-import logging
-import os
 from abc import ABC, abstractmethod
 from configparser import ConfigParser
 from typing import Any, Dict, Optional, Union
@@ -37,22 +35,9 @@ from ..CLproximity import (
     FastAryColBring,
 )
 
-# ── logging ───────────────────────────────────────────────────────────────────
-logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
-
-# ── config ────────────────────────────────────────────────────────────────────
-_cfg = ConfigParser()
-_cfg.read(os.path.join(os.path.dirname(__file__), "config.ini"))
-
 TQDM_COLOUR  = _cfg.get("tqdm", "colour", fallback="#05ad46")
 TQDM_NCOLS   = _cfg.getint("tqdm", "ncols", fallback=80)
 CYTHON_DTYPE = np.float32
-
-__all__ = ["AryColBringBase", "CYTHON_DTYPE", "TQDM_COLOUR", "TQDM_NCOLS"]
 
 
 class AryColBringBase(ABC):
