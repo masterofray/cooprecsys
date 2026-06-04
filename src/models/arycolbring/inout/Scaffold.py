@@ -12,8 +12,8 @@ __created__    = "2026-05-30"
 
 
 """
-___________________________________
 scaffold.py
+_______________________________________________________________
 Abstract base class for the AryColBring collaborative filtering model.
 Owns all shared hyper-parameters, embedding state, helper utilities,
 and sklearn-compatible get_params / set_params.  Concrete subclasses
@@ -42,11 +42,10 @@ cydtype = np.float32
 class AryColBringBase(ABC):
     """
     Abstract base for the AryColBring collaborative filtering family.
-
     Holds all hyper-parameters, manages embedding matrices, and provides
     shared internal helpers.  Subclasses must implement:
-      - ``fit``  /  ``fit_partial``   (training contract)
-      - ``predict``  /  ``predict_rank``  (inference contract)
+    - ``fit``  /  ``fit_partial`` (training contract)
+    - ``predict``  /  ``predict_rank`` (inference contract)
 
     Parameters
     _____________________________________________________________
@@ -334,6 +333,7 @@ class AryColBringBase(ABC):
         item_features = self._to_cython_dtype(item_features)
         return user_features, item_features
 
+
     def _get_positives_lookup_matrix(
             self, 
             interactions: sp.coo_matrix,
@@ -344,42 +344,42 @@ class AryColBringBase(ABC):
             mat.sort_indices()
         return mat
 
-    def _process_sample_weight(
-            self,
-            interactions:  sp.coo_matrix,
-            sample_weight: Optional[sp.coo_matrix],
-        ) -> np.ndarray:
+
+    def _process_sample_weight(self,
+                               interactions  : sp.coo_matrix,
+                               sample_weight : Optional[sp.coo_matrix],
+                              ) -> np.ndarray:
         """
         Validate and return the sample-weight array aligned with interactions.
-        If ``sample_weight`` is ``None``, returns a ones 
-        vector (uniform weighting).
+        If ``sample_weight`` is ``None``, returns a ones vector (uniform weighting).
         """
         if sample_weight is not None:
             if self._loss == "warp-kos":
                 raise NotImplementedError(
-                    "Sample weights are not supported with warp-kos loss."
-                )
+                "Sample weights are not supported with warp-kos loss.")
+
             if not isinstance(sample_weight, sp.coo_matrix):
                 raise TypeError("sample_weight must be a scipy COO matrix.")
+
             if sample_weight.shape != interactions.shape:
                 raise ValueError(
-                    "sample_weight and interactions must have the same shape."
-                )
-            if not (
-                np.array_equal(interactions.row, sample_weight.row)
-                and np.array_equal(interactions.col, sample_weight.col)
-            ):
+                "sample_weight and interactions must have the same shape.")
+
+            if not (np.array_equal(interactions.row, sample_weight.row)
+            and np.array_equal(interactions.col, sample_weight.col)):
                 raise ValueError(
-                    "sample_weight and interactions entries must be in the same order."
-                )
+                "sample_weight and interactions entries must be in the same order.")
+
             data = sample_weight.data
             if data.dtype != cydtype:
                 data = data.astype(cydtype)
             return data
+
         else:
             if np.array_equiv(interactions.data, 1.0):
                 return interactions.data
-            return np.ones_like(interactions.data, dtype=cydtype)
+            return np.ones_like(interactions.data, dtype = cydtype)
+
 
     def _get_model_data(self) -> FastAryColBring:
         """Pack current embedding state into the Cython FastAryColBring struct."""
@@ -401,60 +401,56 @@ class AryColBringBase(ABC):
             self._learning_rate,
             self._rho,
             self._epsilon,
-            self._max_sampled,
-        )
+            self._max_sampled)
 
-    # ── finite-value guards ───────────────────────────────────────────────────
 
+    # ── finite-value guards ──────────────────────────────────────
     def _check_finite(self) -> None:
         """Raise ValueError if any embedding or bias contains NaN / Inf."""
         for name, arr in [
             ("item_embeddings", self.item_embeddings),
             ("item_biases",     self.item_biases),
             ("user_embeddings", self.user_embeddings),
-            ("user_biases",     self.user_biases),
-        ]:
+            ("user_biases",     self.user_biases)]:
             if not np.isfinite(np.sum(arr)):
                 raise ValueError(
-                    f"Non-finite values detected in '{name}' after update. "
-                    "Try reducing learning_rate or normalising input features."
-                )
+                f"Non-finite values detected in '{name}' after update. "
+                 "Try reducing learning_rate or normalising input features.")
 
-    def _check_input_finite(self, data: np.ndarray, name: str = "input") -> None:
+    def _check_input_finite(
+            self,
+            data : np.ndarray, 
+            name : str = "input",
+            ) -> None:
         """Raise ValueError if *data* contains NaN / Inf."""
         if not np.isfinite(np.sum(data)):
             raise ValueError(
-                f"Non-finite values detected in '{name}'. "
-                "Check your input for NaN or Inf."
-            )
+            f"Non-finite values detected in '{name}'. "
+             "Check your input for NaN or Inf.")
 
     def _check_test_train_intersections(
-        self,
-        test_mat:  sp.spmatrix,
-        train_mat: Optional[sp.spmatrix],
-    ) -> None:
+            self,
+            test_mat:  sp.spmatrix,
+            train_mat: Optional[sp.spmatrix],
+        ) -> None:
         """Raise ValueError if test and train matrices share any interactions."""
         if train_mat is not None:
             n = test_mat.multiply(train_mat).nnz
             if n:
                 raise ValueError(
-                    f"test and train matrices share {n} interactions. "
-                    "This produces optimistic evaluation results. "
-                    "Fix your data split before evaluating."
-                )
+                f"test and train matrices share {n} interactions. "
+                "This produces optimistic evaluation results. "
+                "Fix your data split before evaluating.")
+
 
     # ── representation getters ────────────────────────────────────────────────
-
     def get_item_representations(
-        self,
-        features: Optional[sp.spmatrix] = None,
-    ):
-        """
-        Return ``(biases, embeddings)`` for items.
-
-        If *features* is ``None``, returns raw embedding arrays directly.
-        Otherwise projects through the feature matrix.
-        """
+            self,
+            features: Optional[sp.spmatrix] = None,
+        ):
+        """Return ``(biases, embeddings)`` for items.
+           If *features* is ``None``, returns raw embedding arrays directly.
+           Otherwise projects through the feature matrix."""
         self._check_initialized()
         if features is None:
             return self.item_biases, self.item_embeddings
@@ -462,24 +458,23 @@ class AryColBringBase(ABC):
         return features * self.item_biases, features * self.item_embeddings
 
     def get_user_representations(
-        self,
-        features: Optional[sp.spmatrix] = None,
-    ):
+            self,
+            features: Optional[sp.spmatrix] = None,
+        ):
         """
         Return ``(biases, embeddings)`` for users.
-
-        If *features* is ``None``, returns raw embedding arrays directly.
-        Otherwise projects through the feature matrix.
         """
         self._check_initialized()
         if features is None:
             return self.user_biases, self.user_embeddings
-        features = sp.csr_matrix(features, dtype=cydtype)
+        features = sp.csr_matrix(features, dtype = cydtype)
         return features * self.user_biases, features * self.user_embeddings
 
-    # ── sklearn-style get/set params ──────────────────────────────────────────
 
-    def get_params(self, deep: bool = True) -> Dict[str, Any]:
+    # ── sklearn-style get/set params ──────────────────────────────────────────
+    def get_params(
+        self,
+        deep: bool = True) -> Dict[str, Any]:
         """Return constructor parameters as a dict (sklearn API compatible)."""
         return {
             "loss":              self._loss,
@@ -493,8 +488,7 @@ class AryColBringBase(ABC):
             "max_sampled":       self._max_sampled,
             "item_alpha":        self._item_alpha,
             "user_alpha":        self._user_alpha,
-            "random_state":      self._random_state,
-        }
+            "random_state":      self._random_state}
 
     def set_params(self, **params) -> "AryColBringBase":
         """Set parameters in-place (sklearn API compatible)."""
@@ -502,76 +496,71 @@ class AryColBringBase(ABC):
         for key, value in params.items():
             if key not in valid:
                 raise ValueError(
-                    f"Invalid parameter '{key}' for {self.__class__.__name__}. "
-                    f"Valid params: {sorted(valid)}"
-                )
+                f"Invalid parameter '{key}' for {self.__class__.__name__}. "
+                f"Valid params: {sorted(valid)}")
             setattr(self, f"_{key}", value)
         return self
 
-    # ── abstract public API ───────────────────────────────────────────────────
 
+    # ── abstract public API ───────────────────────────────────────────────────
     @abstractmethod
-    def fit(
-        self,
-        interactions:  sp.spmatrix,
-        user_features: Optional[sp.spmatrix] = None,
-        item_features: Optional[sp.spmatrix] = None,
-        sample_weight: Optional[sp.coo_matrix] = None,
-        epochs:        int  = 1,
-        num_threads:   int  = 1,
-        verbose:       bool = False,
-    ) -> "AryColBringBase":
+    def fit(self,
+            interactions  : sp.spmatrix,
+            user_features : Optional[sp.spmatrix] = None,
+            item_features : Optional[sp.spmatrix] = None,
+            sample_weight : Optional[sp.coo_matrix] = None,
+            epochs        : int  = 1,
+            num_threads   : int  = 1,
+            verbose       : bool = False,
+           ) -> "AryColBringBase":
         """Train from scratch, discarding any previous state."""
 
     @abstractmethod
-    def fit_partial(
-        self,
-        interactions:  sp.spmatrix,
-        user_features: Optional[sp.spmatrix] = None,
-        item_features: Optional[sp.spmatrix] = None,
-        sample_weight: Optional[sp.coo_matrix] = None,
-        epochs:        int  = 1,
-        num_threads:   int  = 1,
-        verbose:       bool = False,
-    ) -> "AryColBringBase":
+    def fit_partial(self,
+                    interactions  : sp.spmatrix,
+                    user_features : Optional[sp.spmatrix] = None,
+                    item_features : Optional[sp.spmatrix] = None,
+                    sample_weight : Optional[sp.coo_matrix] = None,
+                    epochs        : int  = 1,
+                    num_threads   : int  = 1,
+                    verbose       : bool = False,
+                   ) -> "AryColBringBase":
         """Incrementally fit, preserving previous embedding state."""
 
     @abstractmethod
-    def predict(
-        self,
-        user_ids:      Union[int, list, np.ndarray],
-        item_ids:      Union[list, np.ndarray],
-        item_features: Optional[sp.spmatrix] = None,
-        user_features: Optional[sp.spmatrix] = None,
-        num_threads:   int = 1,
-    ) -> np.ndarray:
+    def predict(self,
+                user_ids      : Union[int, list, np.ndarray],
+                item_ids      : Union[list, np.ndarray],
+                item_features : Optional[sp.spmatrix] = None,
+                user_features : Optional[sp.spmatrix] = None,
+                num_threads   : int = 1,
+               ) -> np.ndarray:
         """Compute raw prediction scores for (user_id, item_id) pairs."""
 
     @abstractmethod
-    def predict_rank(
-        self,
-        test_interactions:   sp.spmatrix,
-        train_interactions:  Optional[sp.spmatrix] = None,
-        item_features:       Optional[sp.spmatrix] = None,
-        user_features:       Optional[sp.spmatrix] = None,
-        num_threads:         int  = 1,
-        check_intersections: bool = True,
-    ) -> sp.csr_matrix:
+    def predict_rank(self,
+                     test_interactions:   sp.spmatrix,
+                     train_interactions:  Optional[sp.spmatrix] = None,
+                     item_features:       Optional[sp.spmatrix] = None,
+                     user_features:       Optional[sp.spmatrix] = None,
+                     num_threads:         int  = 1,
+                     check_intersections: bool = True,
+                    ) -> sp.csr_matrix:
         """Return item ranks for all test-positive interactions."""
 
-    # ── string representation ─────────────────────────────────────────────────
 
+    # ── string representation ─────────────────────────────────────────────────
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"loss='{self._loss}', "
-            f"no_components={self._no_components}, "
-            f"learning_schedule='{self._learning_schedule}', "
-            f"learning_rate={self._learning_rate}, "
-            f"item_alpha={self._item_alpha}, "
-            f"user_alpha={self._user_alpha}"
-            f")"
-        )
+            f"loss = '{self._loss}', "
+            f"no_components = {self._no_components}, "
+            f"learning_schedule = '{self._learning_schedule}', "
+            f"learning_rate = {self._learning_rate}, "
+            f"item_alpha = {self._item_alpha}, "
+            f"user_alpha = {self._user_alpha}"
+            f")")
+
 
 if __name__ == '__main__':
     pass
