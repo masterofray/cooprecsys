@@ -130,7 +130,7 @@ def norm_exchange(data       : pd.DataFrame,
         pbar.update(1)
 
     logger.info("norm_exchange: n_users = %d, n_items = %d, nnz = %d",
-                  n_users, n_items, len(data_arr))
+                 n_users, n_items, len(data_arr))
     del encoded, row_arr, col_arr, data_arr
     gc.collect()
     logger.debug("norm_exchange: done")

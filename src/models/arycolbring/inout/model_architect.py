@@ -39,6 +39,8 @@ from CLproximity import (CSRMatrix, fit_logistic,
 sys.path.append(str(LocDir.parents[3]))
 from configs import _cfg, logger
 
+
+
 class AryColBringTrainer(AryColBringBase):
     """
     Training interface for the AryColBring collaborative filtering model.

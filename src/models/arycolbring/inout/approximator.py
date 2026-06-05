@@ -45,6 +45,7 @@ sys.path.append(str(LocDir.parents[3]))
 from configs import _cfg, logger
 
 
+
 class AryColBringPredictor(AryColBringBase):
     """
     Inference interface for a fitted AryColBring collaborative filtering model.
@@ -80,11 +81,11 @@ class AryColBringPredictor(AryColBringBase):
         if isinstance(user_ids, int):
             user_ids = np.repeat(np.int32(user_ids), len(item_ids))
 
-        # Coerce list / tuple → contiguous C arrays
+        # Coerce list / tuple -> contiguous C arrays
         if isinstance(user_ids, (list, tuple)):
-            user_ids = np.array(user_ids, dtype=np.int32)
+            user_ids = np.array(user_ids, dtype = np.int32)
         if isinstance(item_ids, (list, tuple)):
-            item_ids = np.array(item_ids, dtype=np.int32)
+            item_ids = np.array(item_ids, dtype = np.int32)
 
         if user_ids.dtype != np.int32:
             user_ids = user_ids.astype(np.int32)
