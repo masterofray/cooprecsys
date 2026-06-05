@@ -323,7 +323,7 @@ arycolbring/
 
 | Role | Name |
 |------|------|
-| **Author / maintainer** | **aryanto** |
+| **Author / maintainer** | **Aryanto** |
 
 Contributions are welcome via pull request.  Please:
 

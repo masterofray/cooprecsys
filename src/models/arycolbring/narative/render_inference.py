@@ -39,6 +39,7 @@ import pandas as pd
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[3]))
+from configs import logger
 
 TEMPLATE_DIR = LocDir / "templates"
 STATIC_DIR   = LocDir / "static"
