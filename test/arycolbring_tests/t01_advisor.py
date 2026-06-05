@@ -13,22 +13,10 @@ __created__    = "2026-06-04"
 
 """
 t01_advisor.py
-_______________________________________________________________________________
+___________________________________________________________________
 Training test script for AryColBring collaborative filtering model.
-
 This script provides a comprehensive training pipeline for the AryColBring model
 with integrated logging, progress tracking, and model persistence.
-
-Features:
-- Load training data from parquet/CSV files
-- Train collaborative filtering model with configurable parameters
-- Evaluate model performance on validation data
-- Generate comprehensive training reports
-- Save trained models for production deployment
-- Full logging and progress bar integration with tqdm
-
-Author: Aryanto
-Created: 2026-06-05
 """
 
 import sys
