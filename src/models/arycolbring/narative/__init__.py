@@ -8,14 +8,9 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-04-25"
+__created__    = "2026-05-31"
 
-from .callduckdb import DuckDBManager, duckdb_connection
+from .render_training  import generate_training_report  as genAdvisor
+from .render_inference import generate_inference_report as genReasoner
 
-__version__ = "0.0.1.dev0"
-
-__all__ = [
-    "__version__",
-    "DuckDBManager",
-    "duckdb_connection",
-    ]
+__all__ = ["genAdvisor", "genReasoner"]

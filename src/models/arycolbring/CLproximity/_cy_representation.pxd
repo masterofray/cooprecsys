@@ -2,7 +2,7 @@
 # Inline functions for computing latent representations and dot-product
 # predictions for arycolbring collaborative filtering.
 
-from _cy_types cimport CSRMatrix, FastAryColBring, flt
+from ._cy_types cimport CSRMatrix, FastAryColBring, flt
 
 
 cdef inline void compute_representation(CSRMatrix features,

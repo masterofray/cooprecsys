@@ -3,7 +3,7 @@
 # regularize()        – flush accumulated lazy scale factor across all weights.
 # locked_regularize() – thread-safe version using an OMP lock pointer.
 
-from _cy_types cimport FastAryColBring, flt
+from ._cy_types cimport FastAryColBring, flt
 
 cdef extern from "omp.h" nogil:
     ctypedef struct omp_lock_t:
@@ -40,7 +40,7 @@ cdef inline void regularize(FastAryColBring model,
     model.user_scale = 1.0
 
 
-cdef inline void w(FastAryColBring model,
+cdef inline void locked_regularize(FastAryColBring model,
                                    double item_alpha,
                                    double user_alpha,
                                    omp_lock_t *lock,

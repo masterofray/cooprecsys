@@ -8,14 +8,9 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-04-25"
+__created__    = "2026-05-30"
 
-from .callduckdb import DuckDBManager, duckdb_connection
+from .flex import _shuffle as datashuffle
+from .flex import coo_ttsplit, user_based_train_test_split
 
-__version__ = "0.0.1.dev0"
-
-__all__ = [
-    "__version__",
-    "DuckDBManager",
-    "duckdb_connection",
-    ]
+__all__ = ['datashuffle', 'coo_ttsplit', 'user_based_train_test_split']

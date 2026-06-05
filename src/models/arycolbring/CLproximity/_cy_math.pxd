@@ -2,7 +2,7 @@
 # Inline math utilities for arycolbring Cython modules.
 # All functions defined here are inlined into every module that cimports them.
 
-from _cy_types cimport CSRMatrix, flt
+from ._cy_types cimport CSRMatrix, flt
 
 # ── C standard library declarations ─────────────────────────────────────────
 
