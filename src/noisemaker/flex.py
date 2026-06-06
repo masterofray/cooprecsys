@@ -10,6 +10,12 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-30"
 
+'''
+This script flex.py was for group split train test
+that for COO or CSR matrix data. You could not use
+train test split in sklearn usually, so this purpose
+to be created.
+'''
 
 import gc
 import sys

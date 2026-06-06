@@ -81,6 +81,8 @@ class AryColBringModelTrainer:
         logger.info(
         "Initializing class with loss = %s components = %d lr = %.4f",
         loss, no_components, learning_rate)
+        loss              = str(loss).lower()
+        learning_schedule = str(learning_schedule).lower()
         self.trainer = TheAdvisor(no_components     = no_components,
                                   loss              = loss,
                                   learning_rate     = learning_rate,
@@ -120,10 +122,12 @@ class AryColBringModelTrainer:
         evaluate_every  : int, Evaluate metrics every N epochs (default: 1)
         """
         start_time = datetime.now()
-        logger.debug("Starting training: epochs=%d threads=%d", epochs, num_threads)
+        logger.debug("Starting training: epochs = %d threads = %d",
+                      epochs, num_threads)
         if isinstance(interactions, str):
-            logger.info("Loading interactions from CSV: %s", interactions)
-            interactions, _, _ = load_interactions_from_csv(interactions)
+            logger.info("Loading interactions from flatfile: %s",
+                         interactions)
+            interactions, _, _ = fileload_interactions(interactions)
         if not sp.isspmatrix_coo(interactions):
             interactions = interactions.tocoo()
         data_stats = describe_interactions(interactions)
@@ -131,10 +135,13 @@ class AryColBringModelTrainer:
         "Training data: users = %d items = %d interactions = %d sparsity = %.4f",
         data_stats["n_users"],        data_stats["n_items"],
         data_stats["n_interactions"], data_stats["sparsity"])
-        self.trainer.fit(interactions = interactions,
-                         epochs       = epochs,
-                         num_threads  = num_threads,
-                         verbose      = verbose)
+        self.trainer.fit(interactions  = interactions,
+                         #user_features = FeatureUsers,
+                         #item_features = FeatureItems,
+                         #sample_weight = PsudoRating,
+                         epochs        = epochs,
+                         num_threads   = num_threads,
+                         verbose       = verbose)
         training_time = (datetime.now() - start_time).total_seconds()
         logger.info("Training completed in %.2f seconds", training_time)
         self.training_history.append({

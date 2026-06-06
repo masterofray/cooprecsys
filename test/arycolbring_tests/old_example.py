@@ -37,8 +37,6 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-25"
 
-from __future__ import annotations
-
 import logging
 import sys
 import time

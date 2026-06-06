@@ -20,26 +20,23 @@ with integrated logging, progress tracking, and model persistence.
 """
 
 import sys
-import json
-import numpy as np
 import pandas as pd
-import scipy.sparse as sp
 from pathlib import Path
 from typing import Optional, Tuple, Union
-from datetime import datetime
-from tqdm.auto import tqdm
 
-# Add source directory to path
-SrcDir = Path(__file__).resolve().parents[1] / "src"
-sys.path.insert(0, str(SrcDir))
+LocDir = Path(__file__).resolve().parents[2] / 'src'
+sys.path.append(str(LocDir))
+from configs import _cfg, logger
+from models.arycolbring import AryColBringModelTrainer, RunTrainer
+from db import duckdb_connection
 
-from configs import logger, _cfg
+
 from db.callduckdb import DuckDBManager
 from models.arycolbring.trainer import AryColBringModelTrainer, RunTrainer
 from models.arycolbring.assist import fileload_interactions, describe_interactions
 
 
-class AryColBringTrainingPipeline:
+class AryColBring_Reasoner_Test:
     """
     High-level training pipeline wrapper for AryColBring model.
     Handles data loading, training, evaluation, and reporting.
@@ -131,121 +128,121 @@ class AryColBringTrainingPipeline:
 
         return train_interactions, test_interactions
 
-    def train(self,
-              train_data: sp.spmatrix,
-              validation_data: Optional[sp.spmatrix] = None,
-              epochs: Optional[int] = None,
-              experiment_name: str = "AryColBring Training Run") -> Tuple[AryColBringModelTrainer, Path]:
-        """
-        Train the AryColBring model.
+    # def train(self,
+              # train_data: sp.spmatrix,
+              # validation_data: Optional[sp.spmatrix] = None,
+              # epochs: Optional[int] = None,
+              # experiment_name: str = "AryColBring Training Run") -> Tuple[AryColBringModelTrainer, Path]:
+        # """
+        # Train the AryColBring model.
 
-        Args:
-            train_data: Training interaction matrix (sparse)
-            validation_data: Optional validation interaction matrix
-            epochs: Number of epochs (uses config if not specified)
-            experiment_name: Name for the experiment/report
+        # Args:
+            # train_data: Training interaction matrix (sparse)
+            # validation_data: Optional validation interaction matrix
+            # epochs: Number of epochs (uses config if not specified)
+            # experiment_name: Name for the experiment/report
 
-        Returns:
-            Tuple of (trained_model, report_path)
-        """
-        epochs = epochs or self.config["epochs"]
+        # Returns:
+            # Tuple of (trained_model, report_path)
+        # """
+        # epochs = epochs or self.config["epochs"]
 
-        logger.info("Starting training: epochs=%d, threads=%d", epochs, self.config["num_threads"])
+        # logger.info("Starting training: epochs=%d, threads=%d", epochs, self.config["num_threads"])
 
-        # Create and train model
-        model = AryColBringModelTrainer(
-            no_components=self.config["no_components"],
-            loss=self.config["loss"],
-            learning_rate=self.config["learning_rate"],
-            learning_schedule=self.config["learning_schedule"],
-            random_state=42
-        )
+        # # Create and train model
+        # model = AryColBringModelTrainer(
+            # no_components=self.config["no_components"],
+            # loss=self.config["loss"],
+            # learning_rate=self.config["learning_rate"],
+            # learning_schedule=self.config["learning_schedule"],
+            # random_state=42
+        # )
 
-        model.fit(
-            interactions=train_data,
-            epochs=epochs,
-            num_threads=self.config["num_threads"],
-            verbose=True,
-            validation_data=validation_data,
-            evaluate_every=1
-        )
+        # model.fit(
+            # interactions=train_data,
+            # epochs=epochs,
+            # num_threads=self.config["num_threads"],
+            # verbose=True,
+            # validation_data=validation_data,
+            # evaluate_every=1
+        # )
 
-        # Generate report
-        report_path = model.generate_training_report(
-            output_dir=str(self.output_dir),
-            experiment_name=experiment_name
-        )
+        # # Generate report
+        # report_path = model.generate_training_report(
+            # output_dir=str(self.output_dir),
+            # experiment_name=experiment_name
+        # )
 
-        logger.info("Training completed. Report: %s", report_path)
-        return model, report_path
+        # logger.info("Training completed. Report: %s", report_path)
+        # return model, report_path
 
-    def save_model(self, model: AryColBringModelTrainer, model_name: str = "arycolbring_model.npz") -> Path:
-        """
-        Save trained model.
+    # def save_model(self, model: AryColBringModelTrainer, model_name: str = "arycolbring_model.npz") -> Path:
+        # """
+        # Save trained model.
 
-        Args:
-            model: Trained AryColBringModelTrainer instance
-            model_name: Output model filename
+        # Args:
+            # model: Trained AryColBringModelTrainer instance
+            # model_name: Output model filename
 
-        Returns:
-            Path to saved model
-        """
-        model_path = self.output_dir / "models" / model_name
-        model_path.parent.mkdir(parents=True, exist_ok=True)
+        # Returns:
+            # Path to saved model
+        # """
+        # model_path = self.output_dir / "models" / model_name
+        # model_path.parent.mkdir(parents=True, exist_ok=True)
 
-        model.save_model(str(model_path))
-        logger.info("Model saved: %s", model_path)
-        return model_path
+        # model.save_model(str(model_path))
+        # logger.info("Model saved: %s", model_path)
+        # return model_path
 
-    def run_full_pipeline(self,
-                         data_file: Union[str, Path],
-                         test_split: float = 0.2,
-                         epochs: Optional[int] = None,
-                         save_model: bool = True,
-                         experiment_name: str = "Full Training Pipeline") -> dict:
-        """
-        Run complete training pipeline.
+    # def run_full_pipeline(self,
+                         # data_file: Union[str, Path],
+                         # test_split: float = 0.2,
+                         # epochs: Optional[int] = None,
+                         # save_model: bool = True,
+                         # experiment_name: str = "Full Training Pipeline") -> dict:
+        # """
+        # Run complete training pipeline.
 
-        Args:
-            data_file: Path to training data
-            test_split: Test data fraction
-            epochs: Number of epochs
-            save_model: Whether to save the trained model
-            experiment_name: Experiment name for reports
+        # Args:
+            # data_file: Path to training data
+            # test_split: Test data fraction
+            # epochs: Number of epochs
+            # save_model: Whether to save the trained model
+            # experiment_name: Experiment name for reports
 
-        Returns:
-            Dictionary with results and paths
-        """
-        logger.info("Starting full pipeline: %s", experiment_name)
+        # Returns:
+            # Dictionary with results and paths
+        # """
+        # logger.info("Starting full pipeline: %s", experiment_name)
 
-        # Load data
-        train_data, val_data = self.load_training_data(data_file, test_split)
+        # # Load data
+        # train_data, val_data = self.load_training_data(data_file, test_split)
 
-        # Train
-        model, report_path = self.train(
-            train_data=train_data,
-            validation_data=val_data,
-            epochs=epochs,
-            experiment_name=experiment_name
-        )
+        # # Train
+        # model, report_path = self.train(
+            # train_data=train_data,
+            # validation_data=val_data,
+            # epochs=epochs,
+            # experiment_name=experiment_name
+        # )
 
-        # Save
-        model_path = None
-        if save_model:
-            model_path = self.save_model(model)
+        # # Save
+        # model_path = None
+        # if save_model:
+            # model_path = self.save_model(model)
 
-        results = {
-            "status": "success",
-            "model": model,
-            "model_path": model_path,
-            "report_path": report_path,
-            "training_time": model.training_history[-1]["training_time_sec"] if model.training_history else 0,
-            "metrics": model.metrics_history[-1] if model.metrics_history else {},
-            "data_stats": describe_interactions(train_data)
-        }
+        # results = {
+            # "status": "success",
+            # "model": model,
+            # "model_path": model_path,
+            # "report_path": report_path,
+            # "training_time": model.training_history[-1]["training_time_sec"] if model.training_history else 0,
+            # "metrics": model.metrics_history[-1] if model.metrics_history else {},
+            # "data_stats": describe_interactions(train_data)
+        # }
 
-        logger.info("Pipeline completed successfully")
-        return results
+        # logger.info("Pipeline completed successfully")
+        # return results
 
 
 def main():
@@ -301,8 +298,9 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception as e:
-        logger.exception("Training failed with error: %s", str(e))
-        sys.exit(1)
+    print("Running the AryColBring_Reasoner_Test")
+    #try:
+    #    sys.exit(main())
+    #except Exception as e:
+    #    logger.exception("Training failed with error: %s", str(e))
+    #    sys.exit(1)
