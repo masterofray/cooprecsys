@@ -13,8 +13,9 @@ __created__    = "2026-06-06"
 
 import re
 import sys
+import numpy as np
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
@@ -131,8 +132,14 @@ def DetectReco_Identifier(
                 if matched_col:
                     break
         result_map[Target] = matched_col
+    logger.info(f'This is the result: {result_map}.')
     return result_map
 
 
 if __name__ == '__main__':
-    pass
+    import pandas as pd
+    pathdf     = LocDir.parents[0] / 'data' / 'sampledata.parquet'
+    assert pathdf.exists(), 'data is not exist.'
+    data       = pd.read_parquet(str(pathdf))
+    datacolumn = data.columns.to_numpy()
+    check      = DetectReco_Identifier(datacolumn)

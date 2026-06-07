@@ -11,11 +11,13 @@ __status__     = "Development"
 __created__    = "2026-06-06"
 
 
+import gc
 import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple, List
+
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
@@ -49,48 +51,42 @@ def GenQuasi_Grade(data              : pd.DataFrame,
         logger.warning(
         f"Found negative or zero values in '{total_col}'.")
     logger.debug("Registering raw data into DuckDB for aggregation...")
-    
-    # Menggunakan DuckDB untuk agregasi cepat berskala jutaan baris
-    with duckdb.connect(database=':memory:') as con:
-        con.register("RAW_DATA", data)
-        
-        # Query untuk mengompres transaksi per user-item dan menghitung skor logaritmik
-        query = f"""
-            SELECT 
-                "{user_col}",
-                "{item_col}",
-                SUM("{quantity_col}") as total_quantity,
-                COUNT(*) as transaction_count,
-                SUM("{total_col}") as total_spend,
-                -- Formula Pseudo Rating: Log-scaling untuk meredam skewness kuantitas
-                LN(1 + SUM("{quantity_col}")) as "{output_rating_col}"
-            FROM RAW_DATA
-            GROUP BY "{user_col}", "{item_col}"
-        """
-        logger.debug("Executing DuckDB aggregation query...")
-        aggregated_df = con.execute(query).df()
 
-    # Debugging distribusi hasil pseudo-rating
-    logger.info(f"Pseudo-ratings generated successfully. Unique pairs: {aggregated_df.shape[0]}")
-    logger.debug(
-        f"Rating distribution -> Min: {aggregated_df[output_rating_col].min():.4f}, "
-        f"Max: {aggregated_df[output_rating_col].max():.4f}, "
-        f"Mean: {aggregated_df[output_rating_col].mean():.4f}"
-    )
+    # Query Compression of Transaction per user-item
+    with duckdb_connection() as con:
+        con.register_dataframe(name = "RAW_DATA", df = sdata)
+        logger.debug('Formula Pseudo Rating - Log-scaling!')
+        query = f'''
+        SELECT 
+            "{user_col}",
+            "{item_col}",
+            SUM("{quantity_col}") as total_quantity,
+            COUNT(*) as transaction_count,
+            SUM("{total_col}") as total_spend,
+            LN(1 + SUM("{quantity_col}")) as "{output_rating_col}"
+        FROM
+            RAW_DATA
+        GROUP BY
+            "{user_col}", "{item_col}"
+        ORDER BY
+            "{user_col}" ASC, "{item_col}" DESC
+        '''
+        logger.debug(f"Executing aggregation: {query}")
+        Aggs = con.query(query)
+    logger.info(f"Pseudo-ratings Unique pairs: {Aggs.shape[0]}")
+    logger.debug("Rating distribution ::"
+        f"Min  : {Aggs[output_rating_col].min():.4f}, "
+        f"Max  : {Aggs[output_rating_col].max():.4f}, "
+        f"Mean : {Aggs[output_rating_col].mean():.4f}.")
     
-    # Warning jika terjadi sparsity ekstrem
-    n_users = aggregated_df[user_col].nunique()
-    n_items = aggregated_df[item_col].nunique()
-    sparsity = 1.0 - (len(aggregated_df) / (n_users * n_items))
+    # Checking for Extreme Sparsity
+    n_users  = Aggs[user_col].nunique()
+    n_items  = Aggs[item_col].nunique()
+    sparsity = 1.0 - (len(Aggs) / (n_users * n_items))
     if sparsity > 0.99:
-        logger.warning(f"Extreme matrix sparsity detected: {sparsity * 100:.2f}%. Collaborative filtering might struggle.")
-
-    return aggregated_df
-
-import scipy.sparse as sp
-import gc
-from typing import Tuple, List
-from tqdm import tqdm
+        logger.warning("Extreme matrix sparsity detected"
+        f": {sparsity * 100:.2f}%. Collaborative filtering might struggle.")
+    return Aggs
 
 def build_collaborative_features_v2(
     data: pd.DataFrame,
