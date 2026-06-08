@@ -11,12 +11,13 @@ __status__     = "Development"
 __created__    = "2026-06-07"
 
 import sys
-import scann
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from copy import deepcopy
 from tqdm.auto import tqdm
-from typing import Dict, List, Any
+from typing import Dict, List, Tuple, Any
+from scann import scann_ops_pybind as sopy
 from sklearn.preprocessing import StandardScaler
 
 LocDir = Path(__file__).resolve().parents[1]
@@ -24,7 +25,7 @@ sys.path.append(str(LocDir))
 from configs import _cfg, logger
 
 
-class MultiGroupScaNN:
+class QuasiRate_ScaNN:
     """
     A scalable nearest neighbor search system utilizing ScaNN for parallel 
     Quasi-Rating extraction based on heterogeneous feature groupings.
@@ -49,6 +50,7 @@ class MultiGroupScaNN:
             "anisotropic_quantization_threshold": 0.2}
         self.scalers   : Dict[str, StandardScaler] = dict()
         self.searchers : Dict[str, Any]            = dict()
+        self.unidata       = pd.DataFrame([])
         self._is_fitted    = False
         self._reference_df = None
 
@@ -73,7 +75,7 @@ class MultiGroupScaNN:
         if miss:
             logger.error(f"The following columns are missing from the dataset: {miss}")
             raise ValueError()
-        self._reference_df = Data.reset_index(drop = True)
+        self._reference_df = deepcopy(Data.reset_index(drop = True))
         num_rows           = len(self._reference_df)
         if num_rows == 0:
             logger.error("The input DataFrame is empty."
@@ -89,6 +91,7 @@ class MultiGroupScaNN:
             logger.warning(
             f"Dataset size ({num_rows}) is smaller than configured "
             f"num_leaves. Adjusted num_leaves to {num_leaves}.")
+
         for group_name, features in tqdm(
                 self.feature_groups.items(), 
                 desc        = "Building ScaNN Indices",
@@ -97,56 +100,113 @@ class MultiGroupScaNN:
                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
                 unit        = 'Group',
                 mininterval = 0.1):
-            logger.info(f"Processing group: '{group_name}' | Features: {features}")
+            #logger.debug(f"Processing group: '{group_name}' | Features: {features}")
             total_dims = len(features)
             if total_dims == 0:
-                raise ValueError(f"Feature group '{group_name}' has no features.")
+                logger.error(f"Feature group '{group_name}' has no features.")
+                raise ValueError()
                 
             # Feature extraction and standardization with robust NaN handling
-            raw_df = self._reference_df[features].copy()
-            if raw_df.isnull().values.any():
-                logger.warning(f"NaN values detected in group '{group_name}'. Filling with column medians.")
-                raw_df = raw_df.fillna(raw_df.median())
-            raw_data = raw_df.values.astype(np.float32)
-            
-            scaler = StandardScaler()
-            scaled_data = scaler.fit_transform(raw_data)
+            RAWdata     = self._reference_df[features].copy()
+            if RAWdata.isnull().values.any():
+                logger.warning(f"NaN values detected in group '{group_name}'."
+                "Filling with column medians.")
+                RAWdata = RAWdata.fillna(RAWdata.median())
+            RAW_data    = RAWdata.values.astype(np.float32)
+            scaler      = StandardScaler()
+            scaled_data = scaler.fit_transform(RAW_data)
+            normdata    = self._l2_normalize(scaled_data)
             self.scalers[group_name] = scaler
-            
-            # L2 normalization
-            normalized_data = self._l2_normalize(scaled_data)
-            
-            # Construct ScaNN Index
-            # CRITICAL FIX: dimensions_per_block must evenly divide the total number of dimensions
-            dim_block = 2 if (total_dims >= 2 and total_dims % 2 == 0) else 1
-            
-            searcher = scann.scann_ops_pybind.builder(
-                normalized_data, num_neighbors=10, distance_measure="dot_product"
-            ).tree(
-                num_leaves=num_leaves,
-                num_leaves_to_search=self.scann_config["num_leaves_to_search"],
-                training_sample_size=min(num_rows, 100000) # Cap training sample to optimize memory and build time
-            ).score_ah(
-                dimensions_per_block=dim_block, 
-                anisotropic_quantization_threshold=self.scann_config["anisotropic_quantization_threshold"]
-            ).reorder(100).build()
-            
-            self.searchers[group_name] = searcher
-            
-        self._is_fitted = True
-        logger.info("Index construction completed successfully.")
-        return self
 
-    def search(self, query_dict: Dict[str, float], k: int = 5) -> Dict[str, pd.DataFrame]:
+            # dimensions_per_block must evenly divide the 
+            # total number of dimensions
+            dim_block   = 2 if (total_dims >= 2 and total_dims % 2 == 0) else 1
+            nleaf       = self.scann_config["num_leaves_to_search"]
+            threshold   = self.scann_config["anisotropic_quantization_threshold"]
+            searcher    = sopy.builder(normdata, 
+                                       num_neighbors    = 10, 
+                                       distance_measure = "squared_l2",
+                          ).tree(num_leaves             = num_leaves,
+                                 num_leaves_to_search   = nleaf,
+                                 training_sample_size   = min(num_rows, 100_000)
+                          ).score_ah(
+                          dimensions_per_block               = dim_block, 
+                          anisotropic_quantization_threshold = threshold,
+                          ).reorder(100).build()
+            self.searchers[group_name] = searcher
+        self._is_fitted = True
+        logger.debug("Index construction completed successfully.")
+
+
+    def RateUnified(self, 
+                    aggweighted  : bool = False, 
+                    weights      : Dict[str, float] = dict(), 
+                    invert_score : bool = False,
+                    rating_range : Tuple[float, float] = (1.0, 5.0),
+                   ) -> pd.DataFrame:
+        """Helper method to calculate the unified 'final_rquasi' column."""
+        RateColumn = [c for c in self.unidata.columns
+                      if c.startswith('Quasi_Rating_')]
+        if not RateColumn:
+            logger.warning("No rating columns available to "
+                           "calculate final_rquasi.")
+            self.unidata['final_rquasi'] = np.nan
+            return
+
+        if not aggweighted:
+            self.unidata['final_rquasi'] = self.unidata[RateColumn].mean(axis = 1)
+        else:
+            if not weights:
+                logger.error('Your weights parameter is empty.')
+                raise ValueError()
+            available_groups    = [c.replace('Quasi_Rating_', '') for c in RateColumn]
+            global_weights      = {g: weights.get(g, 0.0) for g in available_groups}
+            total_global_weight = sum(global_weights.values())
+            if total_global_weight == 0:
+                logger.warning("Total weight is zero. Setting final_rquasi to 0.0.")
+                self.unidata['final_rquasi'] = 0.0
+            else:
+                norm_weights    = {g: w / total_global_weight
+                                      for g, w in global_weights.items()}
+                self.unidata['final_rquasi'] = sum(self.unidata[
+                f'Quasi_Rating_{g}'] * w for g, w in norm_weights.items())
+
+        if invert_score:
+            #Convert distance to similarity score (1.0 is 
+            #perfect match, approaches 0.0 for large distances)
+            self.unidata['final_rquasi'] = 1.0 / (1.0 + self.unidata['final_rquasi'])
+        else:
+            # Formula: Score = Min + Span * e^(-0.5 * Distance)
+            # This ensures: Dist = 0 -> 5.0, Dist-> Inf -> 1.0
+            # if alpha be increased, you make scores drop faster as distance increases
+            alpha                = 0.5  # Decay factor
+            min_score, max_score = rating_range
+            score_span           = max_score - min_score
+            self.unidata['final_rquasi'] = min_score + score_span * np.exp(
+                                           -alpha * self.unidata['final_rquasi'])
+
+
+    def search(self, 
+               query_dict   : Dict[str, float], 
+               k            : int              = 5,
+               use_norm     : bool             = False,
+               aggweighted  : bool             = False, 
+               weights      : Dict[str, float] = None,
+               invert_score : bool             = False,
+               rating_range : Tuple[float, float] = (1.0, 5.0),
+              ) -> Tuple[Dict[str, pd.DataFrame], pd.DataFrame]:
         """
         Executes queries against all existing group indices and returns Quasi-Ratings.
+        Returns is A tuple containing:
+        - A dictionary mapping group names to DataFrames with individual group results.
+        - A unified DataFrame containing all retrieved items with a 'final_rquasi' column.
         """
+        results   = dict()
+        DataMerge = list()
         if not self._is_fitted:
-            raise RuntimeError("The model has not been fitted yet. Please invoke the .fit(Data) method first.")
-
-        results = dict()
-        
-        # Iterate over groups with a progress bar
+            logger.error("The model has not been fitted yet. Please "
+                         "invoke the .fit(Data) method first.")
+            raise RuntimeError("Model is not fitted.")
         for group_name, features in tqdm(
                 self.feature_groups.items(), 
                 desc        = 'Executing Search Queries',
@@ -155,48 +215,84 @@ class MultiGroupScaNN:
                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
                 unit        = 'Group',
                 mininterval = 0.1):
-            # Validate query input
-            missing_query_keys = [f for f in features if f not in query_dict]
-            if missing_query_keys:
-                logger.warning(f"Query for group '{group_name}' is skipped. Missing keys: {missing_query_keys}")
+            misskey = [f for f in features if f not in query_dict]
+            if misskey:
+                logger.warning(f"Query for group '{group_name}' is "
+                               f"skipped. Missing keys: {misskey}")
                 continue
-
-            # Construct query vector
             q_vector = np.array([[query_dict[f] for f in features]], dtype=np.float32)
-            
-            # Transformation (Scaling + L2 Normalization)
             q_scaled = self.scalers[group_name].transform(q_vector)
-            q_scaled = np.nan_to_num(q_scaled, nan=0.0) # Robustly handle potential NaNs in query
-            q_norm = self._l2_normalize(q_scaled)
-            
-            # Execute low-latency search
-            neighbors, distances = self.searchers[group_name].search(q_norm[0], final_num_neighbors=k)
-            
-            # Format output
+            q_scaled = np.nan_to_num(q_scaled, nan=0.0)
+            quasi = self._l2_normalize(q_scaled) if use_norm else q_scaled[0].copy()
+            neighbors, distances = self.searchers[group_name].search(quasi, final_num_neighbors=k)
             res_df = self._reference_df.iloc[neighbors].copy()
+            res_df['original_index'] = neighbors
+            res_df['query_index']    = 0  # 0 indicates a single query execution
             res_df[f'Quasi_Rating_{group_name}'] = distances
             results[group_name] = res_df
-            
-        return results
+            DataMerge.append(res_df)
+        logger.debug(f'Search results generated for {len(results)} groups.')
+        if not DataMerge:
+            return results, pd.DataFrame()
 
-    def search_batch(self, queries_df: pd.DataFrame, k: int = 5) -> Dict[str, pd.DataFrame]:
+        if aggweighted and not weights:
+            logger.error("Weights dictionary must be provided "
+                         "when aggregation_method is 'weighted'.")
+            raise ValueError()
+        self.unidata = DataMerge[0]
+        for temp in DataMerge[1:]:
+            keeps = ['query_index', 'original_index'] + \
+                    [c for c in temp.columns if c.startswith('Quasi_Rating_')]
+            self.unidata = self.unidata.merge(temp[keeps], 
+                           on  = ['query_index', 'original_index'], 
+                           how = 'outer')
+        self.RateUnified(aggweighted  = aggweighted, 
+                         weights      = weights,
+                         invert_score = invert_score,
+                         rating_range = rating_range)
+        ASC = not invert_score
+        self.unidata = self.unidata.sort_values(
+                       by        = ['query_index', 'final_rquasi'], 
+                       ascending = [True, ASC]).reset_index(drop = True)
+        return results, self.unidata
+
+
+    def search_batch(self, 
+                     data         : pd.DataFrame, 
+                     k            : int              = 5,
+                     use_norm     : bool             = False,
+                     aggweighted  : bool             = False, 
+                     weights      : Dict[str, float] = None,
+                     invert_score : bool             = False,
+                     rating_range : Tuple[float, float] = (1.0, 5.0),
+                    ) -> Tuple[Dict[str, pd.DataFrame], pd.DataFrame]:
         """
-        Executes batched queries against all existing group indices for optimal throughput.
-        Highly recommended for Quasi-Rating generation involving large user/item populations.
-        
-        Args:
-            queries_df: A DataFrame where each row represents a query containing feature values.
-            k: The number of nearest neighbors to retrieve.
-            
-        Returns:
-            A dictionary mapping group names to DataFrames containing the batched search results.
+        Executes batched queries against all existing group 
+        indices for optimal throughput. Highly recommended 
+        for Quasi-Rating generation involving large user/item populations.
+        The parameter:
+        - data         : A DataFrame where each row represents a 
+                         query containing feature values.
+        - k            : The number of nearest neighbors to retrieve.
+        - use_norm     : If True, applies L2 normalization to the 
+                         query vectors before searching.
+        - aggweighted  : If True, uses a weighted average for aggregation,
+                         otherwise, uses a simple mean.
+        - weights      : A dictionary mapping group names to their 
+                         respective weights. Required if 
+                         aggweighted is True.
+        - invert_score : If True, converts the distance-based score 
+                         to a similarity score where higher values 
+                         indicate a better match.
+        - rating_range : A tuple (min_score, max_score) for the final 
+                         unified rating output.
         """
+        BATCH     = dict()
+        DataMerge = list()
         if not self._is_fitted:
-            raise RuntimeError("The model has not been fitted yet. Please invoke the .fit(Data) method first.")
-
-        batch_results = dict()
-        
-        # Iterate over groups with a progress bar
+            logger.error("The model has not been fitted yet. Please "
+                         "invoke the .fit(Data) method first.")
+            raise RuntimeError("Model is not fitted.")
         for group_name, features in tqdm(
                 self.feature_groups.items(), 
                 desc        = 'Executing Batched Search',
@@ -205,92 +301,117 @@ class MultiGroupScaNN:
                 bar_format  = _cfg.get('tqdm', 'BarFormats'),
                 unit        = 'Group',
                 mininterval = 0.1):
-            # Validate query input
-            missing_query_keys = [f for f in features if f not in queries_df.columns]
-            if missing_query_keys:
-                logger.warning(f"Batch query for group '{group_name}' is skipped. Missing columns: {missing_query_keys}")
+            misskey = [f for f in features if f not in data.columns]
+            if misskey:
+                logger.warning(f"Query for group '{group_name}' is "
+                               f"skipped. Missing keys: {misskey}")
                 continue
-
-            # Construct batch query vectors
-            q_vectors = queries_df[features].values.astype(np.float32)
-            
-            # Transformation (Scaling + L2 Normalization)
-            q_scaled = self.scalers[group_name].transform(q_vectors)
-            q_scaled = np.nan_to_num(q_scaled, nan=0.0) # Robustly handle potential NaNs
-            q_norm = self._l2_normalize(q_scaled)
-            
-            # Execute batched low-latency search (Vectorized operation)
-            neighbors, distances = self.searchers[group_name].search_batched(q_norm, final_num_neighbors=k)
-            
-            # Format output
-            retrieved_items = list()
-            for i in range(len(queries_df)):
+            q_vectors = data[features].values.astype(np.float32)
+            q_scaled  = self.scalers[group_name].transform(q_vectors)
+            q_scaled  = np.nan_to_num(q_scaled, nan=0.0)
+            quasi = self._l2_normalize(q_scaled) if use_norm else q_scaled.copy()
+            neighbors, distances = self.searchers[group_name].search_batched(
+                                   quasi, final_num_neighbors = k)
+            Items = list()
+            for i in range(len(data)):
                 row_neighbors = neighbors[i]
                 row_distances = distances[i]
-                
                 res_df = self._reference_df.iloc[row_neighbors].copy()
+                res_df['original_index']             = row_neighbors
                 res_df[f'Quasi_Rating_{group_name}'] = row_distances
-                res_df['query_index'] = i
-                retrieved_items.append(res_df)
-                
-            if retrieved_items:
-                batch_results[group_name] = pd.concat(retrieved_items, ignore_index=True)
+                res_df['query_index']                = i
+                Items.append(res_df)
+            if Items:
+                Tempdata          = pd.concat(Items, ignore_index=True)
+                BATCH[group_name] = Tempdata
+                DataMerge.append(Tempdata)
             else:
-                batch_results[group_name] = pd.DataFrame()
-            
-        return batch_results
+                BATCH[group_name] = pd.DataFrame()
+        logger.debug(f'Batch search results generated for {len(BATCH)} groups.')
+        if not DataMerge:
+            logger.warning("No groups were successfully processed. "
+                           "Returning empty unified DataFrame.")
+            return BATCH, pd.DataFrame()
+
+        if aggweighted and not weights:
+            logger.error("Weights dictionary must be provided "
+                         "when aggregation_method is 'weighted'.")
+            raise ValueError()
+        self.unidata = DataMerge[0]
+        for temp in DataMerge[1:]:
+            keeps = ['query_index', 'original_index'] + \
+                    [c for c in temp.columns if c.startswith('Quasi_Rating_')]
+            self.unidata = self.unidata.merge(temp[keeps], 
+                           on  = ['query_index', 'original_index'],
+                           how = 'outer')
+        self.RateUnified(aggweighted  = aggweighted, 
+                         weights      = weights,
+                         invert_score = invert_score,
+                         rating_range = rating_range)
+        ASC = not invert_score
+        self.unidata = self.unidata.sort_values(
+                       by        = ['query_index', 'final_rquasi'], 
+                       ascending = [True, ASC]).reset_index(drop = True)
+        return BATCH, self.unidata
 
 
 if __name__ == '__main__':
-    datapath = LocDir / 'scr' / 'sampledata.parquet'
-    df = pd.read_parquet(datapath)
-    # Convert necessary columns to numeric types for ScaNN processing
-    numeric_cols = ['SalesID', 'CustomerID', 'ProductPrice', 'Quantity', 'Discount', 
-                    'TotalPrice', 'CategoryID', 'VitalityDays', 'EmployeeID', 
+    datapath    = LocDir.parent / 'data' / 'sampledata.parquet'
+    DataSample          = pd.read_parquet(datapath)
+    numeric_cols= ['SalesID', 'CustomerID', 'ProductPrice', 
+                    'Quantity', 'Discount', 'TotalPrice', 
+                    'CategoryID', 'VitalityDays', 'EmployeeID', 
                     'EmployeeAge', 'YearsWorking']
     for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+        DataSample[col] = pd.to_numeric(DataSample[col], errors = 'coerce')
+    DataSample          = pd.concat([DataSample] * 5, ignore_index = True)
+    logger.info(f"Dataset loaded and expanded to {len(DataSample)} "
+                 "rows for ScaNN compatibility.\n")
+    Feats   = {"transaction_metrics"   : ["ProductPrice", "Quantity", 
+                                          "Discount", "TotalPrice"],
+               "product_traits"        : ["CategoryID", "VitalityDays"],
+               "employee_demographics" : ["EmployeeAge", "YearsWorking"]}
+    model   = QuasiRate_ScaNN(feature_groups = Feats)
+    model.fit(DataSample)
 
-    df = pd.concat([df] * 5, ignore_index=True)
-    print(f"Dataset loaded and expanded to {len(df)} rows for ScaNN compatibility.\n")
+    logger.info("\n--- Executing Single Search Query ---")
+    query   = {"ProductPrice" : 50.0,
+               "Quantity"     : 15,
+               "Discount"     : 0.1,
+               "TotalPrice"   : 700.0,
+               "CategoryID"   : 4,
+               "VitalityDays" : 60,
+               "EmployeeAge"  : 50,
+               "YearsWorking" : 12}
+    Single, UnifiedTest  = model.search(
+                           query_dict   = query,
+                           k            = 7,
+                           use_norm     = False,
+                           aggweighted  = False, 
+                           weights      = dict(), 
+                           invert_score = False,
+                           rating_range = (1.0, 5.0),
+                           )
+    for group_name, res_df in Single.items():
+        logger.info(f"\nTop 3 matches for '{group_name}':")
+        dis01 = ['ProductName', 'EmployeeFirstName', f'Quasi_Rating_{group_name}']
+        logger.info(res_df[dis01].head(3))
+    logger.info(UnifiedTest.head(5))
 
-    # 2. Define heterogeneous feature groups for Quasi-Rating extraction
-    feature_groups = {
-        "transaction_metrics": ["ProductPrice", "Quantity", "Discount", "TotalPrice"],
-        "product_traits": ["CategoryID", "VitalityDays"],
-        "employee_demographics": ["EmployeeAge", "YearsWorking"]
-    }
-
-    # 3. Initialize and fit the MultiGroupScaNN model
-    model = MultiGroupScaNN(feature_groups=feature_groups)
-    model.fit(df)
-
-    # 4. Execute a single search query
-    print("\n--- Executing Single Search Query ---")
-    query = {
-        "ProductPrice": 50.0,
-        "Quantity": 15,
-        "Discount": 0.1,
-        "TotalPrice": 700.0,
-        "CategoryID": 4,
-        "VitalityDays": 60,
-        "EmployeeAge": 50,
-        "YearsWorking": 12
-    }
-    
-    single_results = model.search(query, k=3)
-    for group_name, res_df in single_results.items():
-        print(f"\nTop 3 matches for '{group_name}':")
-        display_cols = ['ProductName', 'EmployeeFirstName', f'Quasi_Rating_{group_name}']
-        print(res_df[display_cols].head(3))
-
-    # 5. Execute a batched search query (Optimized for high throughput)
-    print("\n\n--- Executing Batched Search Queries ---")
-    # Use the first 5 rows of our numeric features as batch queries
-    batch_queries = df[numeric_cols].head(5)
-    
-    batch_results = model.search_batch(batch_queries, k=2)
+    logger.info("\n\n--- Executing Batched Search Queries ---")
+    batch_queries = DataSample[numeric_cols].sample(1_000)
+    _, batch_results = model.search_batch(
+                    data         = batch_queries, 
+                    k            = 6,
+                    use_norm     = False,
+                    aggweighted  = False, 
+                    weights      = dict(), 
+                    invert_score = False,
+                    rating_range = (1.0, 5.0),
+                   )
     for group_name, res_df in batch_results.items():
-        print(f"\nBatch results for '{group_name}' (showing first 5 retrieved items):")
-        display_cols = ['query_index', 'ProductName', f'Quasi_Rating_{group_name}']
-        print(res_df[display_cols].head(5))
+        logger.info(f"\nBatch results for '{group_name}':")
+        dis02     = ['query_index', 'ProductName', f'Quasi_Rating_{group_name}']
+        #logger.info(res_df[dis02].head(5))
+        #logger.info(res_df[f'Quasi_Rating_{group_name}'].describe())
+        
