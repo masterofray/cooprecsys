@@ -10,12 +10,15 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-06-07"
 
+from ipdb import set_trace
+
 import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
 from copy import deepcopy
 from tqdm.auto import tqdm
+from jinja2 import Template
 from typing import Dict, List, Tuple, Any
 from scann import scann_ops_pybind as sopy
 from sklearn.preprocessing import StandardScaler
@@ -23,6 +26,89 @@ from sklearn.preprocessing import StandardScaler
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
 from configs import _cfg, logger
+from db      import duckdb_connection
+
+
+def DFMerger(DataArray: List[pd.DataFrame]) -> pd.DataFrame:
+    """
+    Merges a collection of Quasi Rating DataFrames 
+    using in-memory DuckDB. Ensures a strict 1-to-1
+    relationship based on 'original_index' to prevent 
+    Cartesian explosions while maintaining operational latency.
+    The parameter is DataArray (List[pd.DataFrame]): 
+    A list of Pandas DataFrames. Each DataFrame must 
+    contain 'original_index', 'query_index', and one 
+    column starting with 'Quasi_Rating_'.
+    """
+    logger.debug(f"Initiating merge engine for {len(DataArray)} DataFrames.")
+    if not DataArray:
+        logger.warning("Input DataArray is empty.")
+        return pd.DataFrame([])
+
+    Final      = pd.DataFrame([])
+    QueryJinja = """
+    WITH 
+        {% for group in groups %}
+        {{ group }}_dedup AS (
+        SELECT 
+            original_index,
+            ANY_VALUE(Quasi_Rating_{{ group }}) AS Quasi_Rating_{{ group }}
+        FROM 
+            vw_{{ group }}
+        GROUP BY 
+            original_index
+        ){% if not loop.last %},{% endif %}
+        {% endfor %}
+
+    SELECT
+        *
+    FROM 
+        {{ groups[0] }}_dedup
+    {% for group in groups[1:] %}
+    FULL OUTER JOIN 
+        {{ group }}_dedup USING (original_index)
+    {% endfor %}
+    """
+
+    try:
+        group_names: List[str] = list()
+        with duckdb_connection() as con:
+            for idx, KdfScann in enumerate(DataArray):
+                RateColumn = next((c for c in KdfScann.columns 
+                                   if c.startswith('Quasi_Rating_')),
+                                   None)
+                if not RateColumn:
+                    logger.error(f"DataFrame at index {idx} ignored:"
+                    " Missing column starting with 'Quasi_Rating_'.")
+                    continue
+                grop      = RateColumn.replace('Quasi_Rating_', '')
+                group_names.append(grop)
+                view_name = f"vw_{grop}"
+                con.register_dataframe(view_name, KdfScann)
+                logger.debug(f"View '{view_name}' successfully "
+                             f"registered with {len(KdfScann)} rows.")
+
+            if not group_names:
+                logger.warning("No valid DataFrames with target "
+                               "columns found. Aborting operation.")
+                return pd.DataFrame([])
+            logger.debug("Generating optimized query for "
+                        f"{len(group_names)} matrices: {group_names}")
+            DoSQL    = Template(QueryJinja)
+            SQLquery = DoSQL.render(groups = group_names)
+            Final    = con.query(SQLquery)
+        logger.debug("Merge completed. Generated output DataFrame "
+                    f"with {len(Final)} rows and "
+                    f"{len(Final.columns)} columns.")
+
+    except Exception as arc:
+        logger.exception(f"Fatal failure in DuckDB execution: {str(arc)}")
+        raise ValueError()
+
+    finally:
+        logger.debug("DuckDB memory connection closed gracefully.")
+        return Final
+
 
 
 class QuasiRate_ScaNN:
@@ -308,7 +394,7 @@ class QuasiRate_ScaNN:
                 continue
             q_vectors = data[features].values.astype(np.float32)
             q_scaled  = self.scalers[group_name].transform(q_vectors)
-            q_scaled  = np.nan_to_num(q_scaled, nan=0.0)
+            q_scaled  = np.nan_to_num(q_scaled, nan = 0.0)
             quasi = self._l2_normalize(q_scaled) if use_norm else q_scaled.copy()
             neighbors, distances = self.searchers[group_name].search_batched(
                                    quasi, final_num_neighbors = k)
@@ -319,10 +405,10 @@ class QuasiRate_ScaNN:
                 res_df = self._reference_df.iloc[row_neighbors].copy()
                 res_df['original_index']             = row_neighbors
                 res_df[f'Quasi_Rating_{group_name}'] = row_distances
-                res_df['query_index']                = i
+                #res_df['query_index']                = i
                 Items.append(res_df)
             if Items:
-                Tempdata          = pd.concat(Items, ignore_index=True)
+                Tempdata          = pd.concat(Items, ignore_index = True)
                 BATCH[group_name] = Tempdata
                 DataMerge.append(Tempdata)
             else:
@@ -337,34 +423,37 @@ class QuasiRate_ScaNN:
             logger.error("Weights dictionary must be provided "
                          "when aggregation_method is 'weighted'.")
             raise ValueError()
-        self.unidata = DataMerge[0]
-        for temp in DataMerge[1:]:
-            keeps = ['query_index', 'original_index'] + \
-                    [c for c in temp.columns if c.startswith('Quasi_Rating_')]
-            self.unidata = self.unidata.merge(temp[keeps], 
-                           on  = ['query_index', 'original_index'],
-                           how = 'outer')
+
+        #self.unidata = DataMerge[0]
+        #for temp in DataMerge[1:]:
+        #    keeps = ['query_index', 'original_index'] + \
+        #            [c for c in temp.columns if c.startswith('Quasi_Rating_')]
+        #    self.unidata = self.unidata.merge(temp[keeps], 
+        #                   on  = ['original_index'],
+        #                   how = 'outer')
+        self.unidata = DFMerger(DataMerge)
+        #set_trace()
+        
         self.RateUnified(aggweighted  = aggweighted, 
                          weights      = weights,
                          invert_score = invert_score,
                          rating_range = rating_range)
         ASC = not invert_score
         self.unidata = self.unidata.sort_values(
-                       by        = ['query_index', 'final_rquasi'], 
-                       ascending = [True, ASC]).reset_index(drop = True)
+                       by        = ['final_rquasi'], 
+                       ascending = [ASC]).reset_index(drop = True)
         return BATCH, self.unidata
 
 
 if __name__ == '__main__':
-    datapath    = LocDir.parent / 'data' / 'sampledata.parquet'
-    DataSample          = pd.read_parquet(datapath)
-    numeric_cols= ['SalesID', 'CustomerID', 'ProductPrice', 
+    datapath     = LocDir.parent / 'data' / 'sampledata.parquet'
+    DataSample   = pd.read_parquet(datapath)
+    numeric_cols = ['SalesID', 'CustomerID', 'ProductPrice', 
                     'Quantity', 'Discount', 'TotalPrice', 
                     'CategoryID', 'VitalityDays', 'EmployeeID', 
                     'EmployeeAge', 'YearsWorking']
     for col in numeric_cols:
         DataSample[col] = pd.to_numeric(DataSample[col], errors = 'coerce')
-    DataSample          = pd.concat([DataSample] * 5, ignore_index = True)
     logger.info(f"Dataset loaded and expanded to {len(DataSample)} "
                  "rows for ScaNN compatibility.\n")
     Feats   = {"transaction_metrics"   : ["ProductPrice", "Quantity", 
@@ -399,19 +488,19 @@ if __name__ == '__main__':
     logger.info(UnifiedTest.head(5))
 
     logger.info("\n\n--- Executing Batched Search Queries ---")
-    batch_queries = DataSample[numeric_cols].sample(1_000)
-    _, batch_results = model.search_batch(
-                    data         = batch_queries, 
-                    k            = 6,
+    #Use sampling if just want to show
+    #thedata      = DataSample[numeric_cols].sample(500)
+    thedata       = deepcopy(DataSample)
+    Btc, dataBach = model.search_batch(
+                    data         = thedata, 
+                    k            = 4,
                     use_norm     = False,
-                    aggweighted  = False, 
-                    weights      = dict(), 
+                    aggweighted  = False,
+                    weights      = dict(),
                     invert_score = False,
                     rating_range = (1.0, 5.0),
-                   )
-    for group_name, res_df in batch_results.items():
-        logger.info(f"\nBatch results for '{group_name}':")
-        dis02     = ['query_index', 'ProductName', f'Quasi_Rating_{group_name}']
-        #logger.info(res_df[dis02].head(5))
-        #logger.info(res_df[f'Quasi_Rating_{group_name}'].describe())
-        
+                    )
+    pd.set_option('display.max_columns', None)
+    logger.info(dataBach.head(10))
+    logger.info(dataBach.isna().sum())
+

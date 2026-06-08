@@ -39,22 +39,22 @@ class DuckDBManager:
             df = db.query("SELECT * FROM users")
     """
     def __init__(self,
-                 db_path: Union[str, Path],
-                 read_only: bool = True,
-                 threads: Optional[int] = None,
-                 memory_limit: Optional[str] = '2GB'):
+                 db_path      : Union[str, Path],
+                 read_only    : bool          = True,
+                 threads      : Optional[int] = None,
+                 memory_limit : Optional[str] = '2GB'):
         """
         Initialize DuckDB manager.
 
         Args:
-            db_path: Path to database file (use ':memory:' for in-memory DB)
-            read_only: Open in read-only mode
-            threads: Number of CPU threads to use
-            memory_limit: Memory limit (e.g., '4GB', '1TB')
+            db_path      : Path to database file (use ':memory:' for in-memory DB)
+            read_only    : Open in read-only mode
+            threads      : Number of CPU threads to use
+            memory_limit : Memory limit (e.g., '4GB', '1TB')
         """
-        self.db_path = str(db_path)
+        self.db_path   = str(db_path)
         self.read_only = read_only
-        self.conn = None
+        self.conn      = None
 
         # Create connection
         self._create_connection(threads, memory_limit)
@@ -96,7 +96,7 @@ class DuckDBManager:
             raise Exception(f"Query failed: {e}\nQuery: {query}")
 
     def query_arrow(self, 
-                    query: str, 
+                    query : str, 
                     params: Optional[Union[List, Dict]] = None,
                    ):
         """Execute query and return Arrow table (faster for large datasets)."""
@@ -106,7 +106,7 @@ class DuckDBManager:
 
     def register_dataframe(self, 
                            name: str, 
-                           df: pd.DataFrame):
+                           df  : pd.DataFrame):
         """Register pandas DataFrame as temporary table (table_view)."""
         try:
             self.conn.register(name, df)
@@ -175,13 +175,14 @@ class DuckDBManager:
 
 
 @contextmanager
-def duckdb_connection(db_path   : Union[str, Path] = './dbprocess.duckdb',
+def duckdb_connection(db_path   : Union[str, Path] = ':memory:',
                       read_only : bool = False,
                       **kwargs) -> DuckDBManager:
     """
     Context manager for DuckDB connection.
+    use ':memory:' for in-memory DB
     Example:
-        with duckdb_connection('mydb.duckdb') as db:
+        with duckdb_connection('./dbprocess.duckdb') as db:
             df = db.query("SELECT * FROM users")
     """
     db = DuckDBManager(db_path, read_only, **kwargs)
