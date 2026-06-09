@@ -12,6 +12,7 @@ __created__    = "2026-06-07"
 
 from ipdb import set_trace
 
+import gc
 import sys
 import numpy as np
 import pandas as pd
@@ -25,8 +26,9 @@ from sklearn.preprocessing import StandardScaler
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
-from configs import _cfg, logger
+from configs import _cfg, logger, _cfglist
 from db      import duckdb_connection
+
 
 
 def DFMerger(DataArray: List[pd.DataFrame]) -> pd.DataFrame:
@@ -137,6 +139,7 @@ class QuasiRate_ScaNN:
         self.scalers   : Dict[str, StandardScaler] = dict()
         self.searchers : Dict[str, Any]            = dict()
         self.unidata       = pd.DataFrame([])
+        self._original     = pd.DataFrame([])
         self._is_fitted    = False
         self._reference_df = None
 
@@ -161,6 +164,7 @@ class QuasiRate_ScaNN:
         if miss:
             logger.error(f"The following columns are missing from the dataset: {miss}")
             raise ValueError()
+        self._original     = deepcopy(Data)
         self._reference_df = deepcopy(Data.reset_index(drop = True))
         num_rows           = len(self._reference_df)
         if num_rows == 0:
@@ -222,6 +226,7 @@ class QuasiRate_ScaNN:
             self.searchers[group_name] = searcher
         self._is_fitted = True
         logger.debug("Index construction completed successfully.")
+        gc.collect()
 
 
     def RateUnified(self, 
@@ -313,7 +318,7 @@ class QuasiRate_ScaNN:
             neighbors, distances = self.searchers[group_name].search(quasi, final_num_neighbors=k)
             res_df = self._reference_df.iloc[neighbors].copy()
             res_df['original_index'] = neighbors
-            res_df['query_index']    = 0  # 0 indicates a single query execution
+            #res_df['query_index']    = 0  # 0 indicates a single query execution
             res_df[f'Quasi_Rating_{group_name}'] = distances
             results[group_name] = res_df
             DataMerge.append(res_df)
@@ -325,21 +330,15 @@ class QuasiRate_ScaNN:
             logger.error("Weights dictionary must be provided "
                          "when aggregation_method is 'weighted'.")
             raise ValueError()
-        self.unidata = DataMerge[0]
-        for temp in DataMerge[1:]:
-            keeps = ['query_index', 'original_index'] + \
-                    [c for c in temp.columns if c.startswith('Quasi_Rating_')]
-            self.unidata = self.unidata.merge(temp[keeps], 
-                           on  = ['query_index', 'original_index'], 
-                           how = 'outer')
+        self.unidata = DFMerger(DataMerge)
         self.RateUnified(aggweighted  = aggweighted, 
                          weights      = weights,
                          invert_score = invert_score,
                          rating_range = rating_range)
         ASC = not invert_score
         self.unidata = self.unidata.sort_values(
-                       by        = ['query_index', 'final_rquasi'], 
-                       ascending = [True, ASC]).reset_index(drop = True)
+                       by        = ['final_rquasi'], 
+                       ascending = [ASC]).reset_index(drop = True)
         return results, self.unidata
 
 
@@ -424,16 +423,7 @@ class QuasiRate_ScaNN:
                          "when aggregation_method is 'weighted'.")
             raise ValueError()
 
-        #self.unidata = DataMerge[0]
-        #for temp in DataMerge[1:]:
-        #    keeps = ['query_index', 'original_index'] + \
-        #            [c for c in temp.columns if c.startswith('Quasi_Rating_')]
-        #    self.unidata = self.unidata.merge(temp[keeps], 
-        #                   on  = ['original_index'],
-        #                   how = 'outer')
         self.unidata = DFMerger(DataMerge)
-        #set_trace()
-        
         self.RateUnified(aggweighted  = aggweighted, 
                          weights      = weights,
                          invert_score = invert_score,
@@ -443,6 +433,32 @@ class QuasiRate_ScaNN:
                        by        = ['final_rquasi'], 
                        ascending = [ASC]).reset_index(drop = True)
         return BATCH, self.unidata
+
+
+    def __call__(self, Data : pd.DataFrame = None) -> pd.DataFrame:
+        if not self._is_fitted:
+            if not Data:
+                logger.error('The parameter Data is None.')
+                raise ValueError()
+            else:
+                assert not Data.empty, 'This is empty dataframe.'
+                self.fit(Data)
+        rrange      = _cfglist(_cfg, 'RATING', 'range')
+        _, dataBach = self.search_batch(
+                        data         = self._original, 
+                        k            = _cfg.getint('RATING', 'theK'),
+                        use_norm     = False,
+                        aggweighted  = False,
+                        weights      = dict(),
+                        invert_score = _cfg.getboolean('RATING', 'invert'),
+                        rating_range = rrange,
+                       )
+        SndBach   = dataBach[['original_index', 'final_rquasi']].copy()
+        Finaldata = SndBach.set_index('original_index').join(self._original)
+        Finaldata = Finaldata.rename_axis("index").sort_index()
+        gc.collect()
+        return Finaldata
+
 
 
 if __name__ == '__main__':
@@ -490,17 +506,21 @@ if __name__ == '__main__':
     logger.info("\n\n--- Executing Batched Search Queries ---")
     #Use sampling if just want to show
     #thedata      = DataSample[numeric_cols].sample(500)
-    thedata       = deepcopy(DataSample)
-    Btc, dataBach = model.search_batch(
-                    data         = thedata, 
-                    k            = 4,
-                    use_norm     = False,
-                    aggweighted  = False,
-                    weights      = dict(),
-                    invert_score = False,
-                    rating_range = (1.0, 5.0),
-                    )
+    #thedata       = deepcopy(DataSample)
+    #Btc, dataBach = model.search_batch(
+    #                data         = thedata, 
+    #                k            = 4,
+    #                use_norm     = False,
+    #                aggweighted  = False,
+    #                weights      = dict(),
+    #                invert_score = False,
+    #                rating_range = (1.0, 5.0),
+    #                )
+    #SndBach   = dataBach[['original_index', 'final_rquasi']].copy()
+    #Finaldata = SndBach.set_index('original_index').join(DataSample)
+    #Finaldata = Finaldata.rename_axis("index").sort_index()
+    Finaldata = model()
+    
     pd.set_option('display.max_columns', None)
-    logger.info(dataBach.head(10))
-    logger.info(dataBach.isna().sum())
-
+    logger.info(Finaldata.sample(20))
+    logger.info(Finaldata.isna().sum())
