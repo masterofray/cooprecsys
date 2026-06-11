@@ -9,3 +9,5 @@ __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-06-07"
+
+from .multi_scann import QuasiRate_ScaNN

@@ -314,13 +314,13 @@ class QuasiRate_ScaNN:
             q_vector = np.array([[query_dict[f] for f in features]], dtype=np.float32)
             q_scaled = self.scalers[group_name].transform(q_vector)
             q_scaled = np.nan_to_num(q_scaled, nan=0.0)
-            quasi = self._l2_normalize(q_scaled) if use_norm else q_scaled[0].copy()
-            neighbors, distances = self.searchers[group_name].search(quasi, final_num_neighbors=k)
-            res_df = self._reference_df.iloc[neighbors].copy()
-            res_df['original_index'] = neighbors
-            #res_df['query_index']    = 0  # 0 indicates a single query execution
+            quasi    = self._l2_normalize(q_scaled) if use_norm else q_scaled[0].copy()
+            neighbors, distances = self.searchers[group_name].search(
+                                   quasi, final_num_neighbors = k)
+            res_df   = self._reference_df.iloc[neighbors].copy()
+            res_df['original_index']             = neighbors
             res_df[f'Quasi_Rating_{group_name}'] = distances
-            results[group_name] = res_df
+            results[group_name]                  = res_df
             DataMerge.append(res_df)
         logger.debug(f'Search results generated for {len(results)} groups.')
         if not DataMerge:
@@ -404,7 +404,6 @@ class QuasiRate_ScaNN:
                 res_df = self._reference_df.iloc[row_neighbors].copy()
                 res_df['original_index']             = row_neighbors
                 res_df[f'Quasi_Rating_{group_name}'] = row_distances
-                #res_df['query_index']                = i
                 Items.append(res_df)
             if Items:
                 Tempdata          = pd.concat(Items, ignore_index = True)
@@ -453,9 +452,9 @@ class QuasiRate_ScaNN:
                         invert_score = _cfg.getboolean('RATING', 'invert'),
                         rating_range = rrange,
                        )
-        SndBach   = dataBach[['original_index', 'final_rquasi']].copy()
-        Finaldata = SndBach.set_index('original_index').join(self._original)
-        Finaldata = Finaldata.rename_axis("index").sort_index()
+        SecondBach  = dataBach[['original_index', 'final_rquasi']].copy()
+        Finaldata   = SecondBach.set_index('original_index').join(self._original)
+        Finaldata   = Finaldata.rename_axis("index").sort_index()
         gc.collect()
         return Finaldata
 
@@ -504,21 +503,7 @@ if __name__ == '__main__':
     logger.info(UnifiedTest.head(5))
 
     logger.info("\n\n--- Executing Batched Search Queries ---")
-    #Use sampling if just want to show
-    #thedata      = DataSample[numeric_cols].sample(500)
-    #thedata       = deepcopy(DataSample)
-    #Btc, dataBach = model.search_batch(
-    #                data         = thedata, 
-    #                k            = 4,
-    #                use_norm     = False,
-    #                aggweighted  = False,
-    #                weights      = dict(),
-    #                invert_score = False,
-    #                rating_range = (1.0, 5.0),
-    #                )
-    #SndBach   = dataBach[['original_index', 'final_rquasi']].copy()
-    #Finaldata = SndBach.set_index('original_index').join(DataSample)
-    #Finaldata = Finaldata.rename_axis("index").sort_index()
+    # Lazy Mode
     Finaldata = model()
     
     pd.set_option('display.max_columns', None)

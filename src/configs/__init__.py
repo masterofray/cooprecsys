@@ -27,7 +27,7 @@ from .logged          import setup_logging
 logger = setup_logging()
 
 
-def _cfglist(Config  :object, 
+def _cfglist(Config  : object, 
              section : str, 
              option  : str,
             ):
