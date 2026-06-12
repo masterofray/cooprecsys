@@ -1,10 +1,9 @@
-WITH
-raw_agg AS (
+WITH RData AS (
     SELECT
-        "{{ user_col }}"                              AS uid,
-        "{{ item_col }}"                              AS iid,
-        COUNT(*)                                      AS freq,
-        SUM(CAST("{{ quantity_col }}" AS DOUBLE))     AS total_qty
+        "{{ user_col }}" AS uid,
+        "{{ item_col }}" AS iid,
+        COUNT(*) AS freq,
+        SUM(CAST("{{ quantity_col }}" AS DOUBLE)) AS total_qty
         {% if total_price_col %}
         ,SUM(CAST("{{ total_price_col }}" AS DOUBLE)) AS total_spend
         {% endif %}
@@ -12,10 +11,12 @@ raw_agg AS (
         ,1.0 - AVG(CAST("{{ discount_col }}" AS DOUBLE)) AS loyalty_raw
         {% endif %}
         {% if date_col %}
-        ,MAX(CAST("{{ date_col }}" AS DATE))          AS last_date
+        ,MAX(CAST("{{ date_col }}" AS DATE)) AS last_date
         {% endif %}
-    FROM RAW
-    GROUP BY "{{ user_col }}", "{{ item_col }}"
+    FROM
+        FirstData
+    GROUP BY
+        "{{ user_col }}", "{{ item_col }}"
 )
 
 {% if date_col %}
@@ -23,7 +24,7 @@ raw_agg AS (
     SELECT *,
         DATEDIFF('day', last_date, MAX(last_date) OVER ()) AS days_ago,
         MAX(DATEDIFF('day', last_date, MAX(last_date) OVER ())) OVER () AS max_days_ago
-    FROM raw_agg
+    FROM RData
 )
 {% endif %}
 
@@ -44,7 +45,7 @@ raw_agg AS (
                        / CAST(max_days_ago AS DOUBLE)
         END AS recency
         {% endif %}
-    FROM {% if date_col %}with_recency{% else %}raw_agg{% endif %}
+    FROM {% if date_col %}with_recency{% else %}RData{% endif %}
 )
 
 ,normalized AS (
@@ -67,4 +68,4 @@ raw_agg AS (
     FROM signals
 )
 
-SELECT * FROM normalized
+SELECT * FROM normalized;

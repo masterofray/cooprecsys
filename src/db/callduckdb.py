@@ -52,6 +52,9 @@ class DuckDBManager:
             threads      : Number of CPU threads to use
             memory_limit : Memory limit (e.g., '4GB', '1TB')
         """
+        if db_path is None:
+            logger.warning('Your dpath is Empty, send data into memory!')
+            db_path    = ':memory:'
         self.db_path   = str(db_path)
         self.read_only = read_only
         self.conn      = None
@@ -118,19 +121,17 @@ class DuckDBManager:
             self.conn.register(name, df)
             logger.warning('Register Dataframe is success.')
 
-    def ListedTable(self,
-                    verbose : bool = False) -> pd.DataFrame:
-        tables = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
-        data = list()
+    def ListedTable(self) -> pd.DataFrame:
+        data    = list()
+        tables  = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
         for table in tables['table_name']:
             count = self.conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             data.append({'table_name': table, 'row_count': count})
         info_df = pd.DataFrame(data)
         info_df = info_df.sort_values(by='row_count', ascending=False)
         info_df['row_count'] = info_df['row_count'].apply(lambda x: f"{x:,}")
-        if verbose:
-            logger.info('Here is the DataFrame of table listed.')
-            logger.info(info_df)
+        logger.info('Here is the DataFrame of table listed.')
+        logger.info(info_df)
         return info_df
 
     def execute(self, 

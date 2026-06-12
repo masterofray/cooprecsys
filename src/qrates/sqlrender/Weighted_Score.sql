@@ -1,10 +1,9 @@
-WITH
-raw_agg AS (
+WITH WRData AS (
     SELECT
-        "{{ user_col }}"                              AS uid,
-        "{{ item_col }}"                              AS iid,
-        COUNT(*)                                      AS freq,
-        SUM(CAST("{{ quantity_col }}" AS DOUBLE))     AS total_qty
+        "{{ user_col }}" AS uid,
+        "{{ item_col }}" AS iid,
+        COUNT(*) AS freq,
+        SUM(CAST("{{ quantity_col }}" AS DOUBLE)) AS total_qty
         {% if total_price_col %}
         ,SUM(CAST("{{ total_price_col }}" AS DOUBLE)) AS total_spend
         {% endif %}
@@ -12,30 +11,32 @@ raw_agg AS (
         ,1.0 - AVG(CAST("{{ discount_col }}" AS DOUBLE)) AS loyalty
         {% endif %}
         {% if date_col %}
-        ,MAX(CAST("{{ date_col }}" AS DATE))          AS last_date
+        ,MAX(CAST("{{ date_col }}" AS DATE)) AS last_date
         {% endif %}
-    FROM RAW
-    GROUP BY "{{ user_col }}", "{{ item_col }}"
+    FROM
+        FirstData
+    GROUP BY
+        "{{ user_col }}", "{{ item_col }}"
 )
 
 {% if date_col %}
 ,with_recency AS (
     SELECT *,
         DATEDIFF('day', last_date,
-                 MAX(last_date) OVER ())              AS days_ago,
+            MAX(last_date) OVER ()) AS days_ago,
         MAX(DATEDIFF('day', last_date,
-                     MAX(last_date) OVER ())) OVER () AS max_days_ago
-    FROM raw_agg
+            MAX(last_date) OVER ())) OVER () AS max_days_ago
+    FROM WRData
 )
 {% endif %}
 
 ,signals AS (
     SELECT
         uid, iid,
-        LN(1.0 + CAST(freq AS DOUBLE))   AS log_freq,
-        LN(1.0 + total_qty)              AS log_qty
+        LN(1.0 + CAST(freq AS DOUBLE)) AS log_freq,
+        LN(1.0 + total_qty) AS log_qty
         {% if total_price_col %}
-        ,LN(1.0 + total_spend)           AS log_spend
+        ,LN(1.0 + total_spend) AS log_spend
         {% endif %}
         {% if discount_col %}
         ,GREATEST(0.0, LEAST(1.0, loyalty)) AS loyalty
@@ -45,9 +46,10 @@ raw_agg AS (
             WHEN max_days_ago = 0 THEN 1.0
             ELSE 1.0 - CAST(days_ago AS DOUBLE)
                      / CAST(max_days_ago AS DOUBLE)
-        END                              AS recency
+        END
+            AS recency
         {% endif %}
-    FROM {% if date_col %}with_recency{% else %}raw_agg{% endif %}
+    FROM {% if date_col %}with_recency{% else %}WRData{% endif %}
 )
 
 ,normalized AS (
@@ -70,8 +72,10 @@ raw_agg AS (
 )
 
 SELECT
-    uid   AS "{{ user_col }}",
-    iid   AS "{{ item_col }}",
+    uid AS "{{ user_col }}",
+    iid AS "{{ item_col }}",
     CAST({{ score_expression }} AS DOUBLE) AS raw_score
-FROM normalized
-ORDER BY "{{ user_col }}", "{{ item_col }}"
+FROM
+    normalized
+ORDER BY 
+    "{{ user_col }}", "{{ item_col }}";
