@@ -11,3 +11,8 @@ __status__     = "Development"
 __created__    = "2026-06-07"
 
 from .multi_scann import QuasiRate_ScaNN
+from .counterfeit import CFRatingEngine, CFRateLazy
+
+__all__ = ['QuasiRate_ScaNN', 
+           'CFRatingEngine', 
+           'CFRateLazy']

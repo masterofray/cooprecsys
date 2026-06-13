@@ -20,10 +20,10 @@ WITH RData AS (
 )
 
 {% if date_col %}
-,with_recency AS (
+,Recency_Feature AS (
     SELECT *,
         DATEDIFF('day', last_date, MAX(last_date) OVER ()) AS days_ago,
-        MAX(DATEDIFF('day', last_date, MAX(last_date) OVER ())) OVER () AS max_days_ago
+        DATEDIFF('day', MIN(last_date) OVER (), MAX(last_date) OVER ()) AS max_days_ago
     FROM RData
 )
 {% endif %}
@@ -45,7 +45,7 @@ WITH RData AS (
                        / CAST(max_days_ago AS DOUBLE)
         END AS recency
         {% endif %}
-    FROM {% if date_col %}with_recency{% else %}RData{% endif %}
+    FROM {% if date_col %}Recency_Feature{% else %}RData{% endif %}
 )
 
 ,normalized AS (

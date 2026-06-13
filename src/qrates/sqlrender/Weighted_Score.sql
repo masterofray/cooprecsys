@@ -20,7 +20,7 @@ WITH WRData AS (
 )
 
 {% if date_col %}
-,with_recency AS (
+,Recency_Weighted AS (
     SELECT *,
         DATEDIFF('day', last_date,
             MAX(last_date) OVER ()) AS days_ago,
@@ -49,7 +49,7 @@ WITH WRData AS (
         END
             AS recency
         {% endif %}
-    FROM {% if date_col %}with_recency{% else %}WRData{% endif %}
+    FROM {% if date_col %}Recency_Weighted{% else %}WRData{% endif %}
 )
 
 ,normalized AS (

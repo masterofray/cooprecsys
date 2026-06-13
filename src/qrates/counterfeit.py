@@ -19,6 +19,7 @@ import pandas    as pd
 from   pathlib   import Path
 from   tqdm.auto import tqdm
 from   enum      import Enum
+from   copy      import deepcopy
 from   typing    import Dict, Optional, Tuple, List
 from   jinja2                import Environment, BaseLoader
 from   sklearn.linear_model  import Lasso, Ridge
@@ -32,11 +33,10 @@ from prepare import DetectReco_Identifier
 from db      import DuckDBManager
 
 
-
-fp01 = LocDir.parent/"Weighted_Score.sql"
+fp01 = LocDir.parent/'sqlrender'/"Weighted_Score.sql"
 with fp01.open("r", encoding = "utf-8") as f01:
     WEIGHTED_SCORING_SQL = f01.read()
-fp02 = LocDir.parent/"Features_Aggs.sql"
+fp02 = LocDir.parent/'sqlrender'/"Features_Aggs.sql"
 with fp02.open("r", encoding = "utf-8") as f02:
     FEATURES_SQL = f02.read()
 
@@ -58,7 +58,7 @@ class ScoringMethod(Enum):
     EQUAL    = "equal"
 
 
-class CounterFeitRatingEngine:
+class CFRatingEngine:
     """
     Derive implicit *pseudo-ratings* from transactional data when no explicit
     rating column is present. The engine automatically detects which columns 
@@ -184,8 +184,8 @@ class CounterFeitRatingEngine:
 
 
     def _setup_weights(self, 
-        weights: Optional[Dict[str, float]]
-        ) -> Dict[str, float]:
+                       weights: Optional[Dict[str, float]],
+                      ) -> Dict[str, float]:
         logger.debug("setting up weights")
         w       = {**self._DEFAULT_WEIGHTS, **(weights or {})}
         avail   = set(self.available_signals)
@@ -229,7 +229,7 @@ class CounterFeitRatingEngine:
                     'date_col'         : self.date_col,
                     'score_expression' : self._build_score_expression()}
         sql      = template.render(**context)
-        logger.debug(f"rendered Weighted SQL Result \n{sql}\n")
+        #logger.debug(f"rendered Weighted SQL Result \n{sql}\n")
         return sql
 
 
@@ -243,7 +243,7 @@ class CounterFeitRatingEngine:
                     'discount_col'    : self.discount_col,
                     'date_col'        : self.date_col}
         sql      = template.render(**context)
-        logger.debug(f"rendered Features SQL Result \n{sql}\n")
+        #logger.debug(f"rendered Features SQL Result \n{sql}\n")
         return sql
 
 
@@ -279,7 +279,7 @@ class CounterFeitRatingEngine:
     def _extract_features(self) -> Tuple[pd.DataFrame, List[str]]:
         logger.debug("extracting feature matrix for ML scoring")
         sql       = self._render_features_sql()
-        df        = self._run_sql(sql, desc = "feature extraction")
+        Data        = self._run_sql(sql, desc = "feature extraction")
         feat_cols = ['n_freq', 'n_qty']
         i         = 0
         if self.total_price_col : feat_cols.append('n_spend')
@@ -287,25 +287,25 @@ class CounterFeitRatingEngine:
         if self.date_col        : feat_cols.append('n_recency')
         while i < len(feat_cols):
             col            = feat_cols[i]
-            if col in df.columns and df[col].isna().any():
-                n_null     = int(df[col].isna().sum())
+            if col in Data.columns and Data[col].isna().any():
+                n_null     = int(Data[col].isna().sum())
                 fill_value = None
                 strategy   = str()
 
                 # 1. Category check
-                if df[col].dtype == 'category':
-                    modes      = df[col].mode()
+                if Data[col].dtype == 'category':
+                    modes      = Data[col].mode()
                     fill_value = modes.iloc[0] if not modes.empty else None
                     strategy   = "mode"
                     
                 # 2. Integer check (np.int32 or np.int64)
-                elif df[col].dtype in [np.int32, np.int64, 'int32', 'int64']:
-                    fill_value = df[col].median()
+                elif Data[col].dtype in [np.int32, np.int64, 'int32', 'int64']:
+                    fill_value = Data[col].median()
                     strategy   = "median"
                     
                 # 3. Floating check (np.float32 or np.float64)
-                elif df[col].dtype in [np.float32, np.float64, 'float32', 'float64']:
-                    fill_value = df[col].mean()
+                elif Data[col].dtype in [np.float32, np.float64, 'float32', 'float64']:
+                    fill_value = Data[col].mean()
                     strategy   = "mean"
 
                 # Apply the fill if a strategy was matched
@@ -313,14 +313,14 @@ class CounterFeitRatingEngine:
                     logger.warning(
                     "feature '%s' has %d NaN ->> filling with %s (%s)", 
                      col, n_null, strategy, str(fill_value))
-                    df[col]    = df[col].fillna(fill_value)
+                    Data[col]    = Data[col].fillna(fill_value)
                 else:
                     logger.warning(
                     "feature '%s' has %d NaN ->> no matching type strategy found", 
                      col, n_null)
             i += 1
-        logger.info("extracted %d features for %d pairs", len(feat_cols), len(df))
-        return df, feat_cols
+        logger.debug("extracted %d features for %d pairs", len(feat_cols), len(Data))
+        return Data, feat_cols
 
 
     def _score_lasso(self) -> pd.DataFrame:
@@ -351,7 +351,9 @@ class CounterFeitRatingEngine:
             pbar.update(1)
         if n_zero:
             logger.warning("Lasso zeroed %d/%d coefficients", n_zero, len(feat_cols))
-        out              = feat_df[[self.user_col, self.item_col]].copy()
+        logger.warning("Actual columns in feat_df: %s", feat_df.columns.tolist())
+        out              = deepcopy(feat_df[['uid', 'iid']])
+        out.columns      = [self.user_col, self.item_col]
         out['raw_score'] = scores.astype(np.float32)
         self._log_score_stats("Lasso", scores)
         return out
@@ -361,7 +363,7 @@ class CounterFeitRatingEngine:
         logger.debug("scoring method = RIDGE  alpha=%.4f", self.ridge_alpha)
         feat_df, feat_cols = self._extract_features()
         X      = feat_df[feat_cols].values.astype(np.float64)
-        y      = X.sum(axis=1)
+        y      = X.sum(axis = 1)
         scaler = MinMaxScaler()
         X_s    = scaler.fit_transform(X)
         with tqdm(total       = 3,
@@ -379,7 +381,8 @@ class CounterFeitRatingEngine:
             pbar.update(1)
             scores = self._minmax_1d(scores)
             pbar.update(1)
-        out              = feat_df[[self.user_col, self.item_col]].copy()
+        out              = deepcopy(feat_df[['uid', 'iid']])
+        out.columns      = [self.user_col, self.item_col]
         out['raw_score'] = scores.astype(np.float32)
         self._log_score_stats("Ridge", scores)
         return out
@@ -408,7 +411,8 @@ class CounterFeitRatingEngine:
             pbar.update(1)
             scores = self._minmax_1d(scores)
             pbar.update(1)
-        out              = feat_df[[self.user_col, self.item_col]].copy()
+        out              = deepcopy(feat_df[['uid', 'iid']])
+        out.columns      = [self.user_col, self.item_col]
         out['raw_score'] = scores.astype(np.float32)
         self._log_score_stats("PCA", scores)
         return out
@@ -416,8 +420,8 @@ class CounterFeitRatingEngine:
 
     def _score_equal(self) -> pd.DataFrame:
         logger.debug("scoring method = EQUAL (unweighted mean)")
-        feat_df, feat_cols = self._extract_features()
-        X = feat_df[feat_cols].values.astype(np.float64)
+        feat_df, feat_cols    = self._extract_features()
+        X                     = feat_df[feat_cols].values.astype(np.float64)
         with tqdm(total       = 2,
                   desc        = "Equal-Weight Scoring",
                   colour      = _cfg.get('tqdm', 'colour'),
@@ -445,11 +449,11 @@ class CounterFeitRatingEngine:
 
 
     @staticmethod
-    def _check_nan_scores(df: pd.DataFrame) -> None:
-        if df["raw_score"].isna().any():
-            n               = int(df["raw_score"].isna().sum())
-            mean_score      = df["raw_score"].mean()
-            df["raw_score"] = df["raw_score"].fillna(mean_score)
+    def _check_nan_scores(Data: pd.DataFrame) -> None:
+        if Data["raw_score"].isna().any():
+            n                 = int(Data["raw_score"].isna().sum())
+            mean_score        = Data["raw_score"].mean()
+            Data["raw_score"] = Data["raw_score"].fillna(mean_score)
             logger.warning("%d raw_score NaN ->> filling mean", n)
 
 
@@ -466,72 +470,96 @@ class CounterFeitRatingEngine:
     def fit(self) -> pd.DataFrame:
         logger.debug("fit() starting | method=%s | scenario=%s",
                       self.method.value, self.scenario.value)
-        dispatch = {ScoringMethod.WEIGHTED: self._score_weighted,
-                    ScoringMethod.LASSO:    self._score_lasso,
-                    ScoringMethod.RIDGE:    self._score_ridge,
-                    ScoringMethod.PCA:      self._score_pca,
-                    ScoringMethod.EQUAL:    self._score_equal}
+        dispatch = {ScoringMethod.WEIGHTED : self._score_weighted,
+                    ScoringMethod.LASSO    : self._score_lasso,
+                    ScoringMethod.RIDGE    : self._score_ridge,
+                    ScoringMethod.PCA      : self._score_pca,
+                    ScoringMethod.EQUAL    : self._score_equal}
         scorer   = dispatch.get(self.method)
         if scorer is None:
-            logger.error("unknown method: %s", self.method)
-            raise ValueError(f"Unknown scoring method: {self.method}")
-
-        result_df = scorer()
-
-        r_min, r_max = float(self.rating_range[0]), float(self.rating_range[1])
-        with tqdm(total=1, desc="scaling to rating range", leave=False, ncols=90) as pbar:
-            result_df["pseudo_rating"] = (
-                r_min + result_df["raw_score"] * (r_max - r_min)
-            ).round(4).astype(np.float32)
-            result_df = result_df.drop(columns=["raw_score"])
-            pbar.update(1)
-
-        self._log_summary(result_df)
+            logger.error("Unknown Method: %s", self.method)
+            raise ValueError()
+        fitdata = scorer()
+        r_min   = float(self.rating_range[0])
+        r_max   = float(self.rating_range[1])
+        try:
+            arcsca    = MinMaxScaler(feature_range = (r_min, r_max))
+            scores    = fitdata['raw_score'].to_numpy()
+            scores_2d = scores.reshape(-1, 1)
+            fitdata["pseudo_rating"] = np.round(
+                arcsca.fit_transform(scores_2d).flatten(), 
+                decimals = 4).astype(np.float32)
+        except Exception as arc:
+            logger.error('Failed to calculate Rating from RawScore, try another method.')
+            fitdata["pseudo_rating"] = (r_min + \
+                fitdata["raw_score"] * (r_max - r_min)
+                ).round(4).astype(np.float32)
+        fitdata.drop(columns = ["raw_score"], inplace = True)
+        self._log_summary(fitdata)
         gc.collect()
-        logger.info("fit() completed  rows=%d", len(result_df))
-        return result_df
+        logger.debug("fit() completed | rows = %d", len(fitdata))
+        return fitdata
 
-    def _log_summary(self, df: pd.DataFrame) -> None:
+
+    def _log_summary(self, Data: pd.DataFrame) -> None:
         logger.debug("computing summary statistics")
-        n_pairs = len(df)
-        n_users = df[self.user_col].nunique()
-        n_items = df[self.item_col].nunique()
-        pr      = df["pseudo_rating"]
-
-        logger.info(
-            "summary  pairs=%d  users=%d  items=%d  "
+        n_pairs = len(Data)
+        n_users = Data[self.user_col].nunique()
+        n_items = Data[self.item_col].nunique()
+        pr      = Data["pseudo_rating"]
+        logger.debug(
+            "summary | pairs=%d | users=%d | items=%d | "
             "rating[min=%.3f  mean=%.3f  max=%.3f  std=%.3f]",
             n_pairs, n_users, n_items,
-            pr.min(), pr.mean(), pr.max(), pr.std(),
-        )
-
-        cold_users = int((df.groupby(self.user_col)["pseudo_rating"].count() == 1).sum())
-        cold_items = int((df.groupby(self.item_col)["pseudo_rating"].count() == 1).sum())
+            pr.min(), pr.mean(), pr.max(), pr.std())
+        cold_users = int((Data.groupby(self.user_col)["pseudo_rating"].count() == 1).sum())
+        cold_items = int((Data.groupby(self.item_col)["pseudo_rating"].count() == 1).sum())
         if cold_users:
             logger.warning("%d user(s) in only 1 pair ->> cold-start risk", cold_users)
         if cold_items:
             logger.warning("%d item(s) in only 1 pair ->> cold-start risk", cold_items)
 
     @classmethod
-    def run(cls, data: pd.DataFrame, method: str = "weighted", **kwargs) -> pd.DataFrame:
-        logger.info("CounterFeitRatingEngine.run()  method=%s", method)
-        engine = cls(data=data, method=method, **kwargs)
+    def run(cls, 
+            data   : pd.DataFrame, 
+            method : str = None, 
+            **kwargs,
+           ) -> pd.DataFrame:
+        logger.info("CounterFeitRatingEngine.run() | method=%s", method)
+        engine = cls(data = data, method = method, **kwargs)
         return engine.fit()
 
 
-
-
-def CounterFeit_RateGen(
-        data            : pd.DataFrame,
-        discount_col    : str = None,
-        date_col        : str = "SalesDate",
-        weights         : Dict[str, float] = None,
-    ):
-    #DetectReco_Identifier
-    #
-    pass
-
-
+def CFRateLazy(data    : pd.DataFrame,
+               method  : str = None,
+              ) -> pd.DataFrame:
+    '''
+    Sample weights is {'frequency': 0.30, 'quantity': 0.10, 
+    'spend': 0.40, 'recency': 0.15, 'loyalty': 0.05}!
+    '''
+    assert isinstance(data, pd.DataFrame), 'This is not a dataframe.'
+    assert not data.empty, 'The data is empty'
+    assert data.shape[0] >= 20, 'The data lenght is too small.'
+    ColmCollect   = DetectReco_Identifier(data.columns.to_numpy())
+    NoneKeys      = [key for key, value in ColmCollect.items() if value is None]
+    logger.info(f'There are {len(NoneKeys)} keys that already Null.')
+    RatingDF  = CFRatingEngine.run(
+                    data            = data,
+                    user_col        = ColmCollect["user_col"],
+                    item_col        = ColmCollect["item_col"],
+                    quantity_col    = ColmCollect["quantity_col"],
+                    total_price_col = ColmCollect["total_col"],
+                    discount_col    = ColmCollect["discount_col"],
+                    date_col        = ColmCollect["sales_date_col"],
+                    method          = method)
+    logger.debug('Here is the sample result of Rating Calculation!')
+    logger.debug('\n' + RatingDF.head())
+    return RatingDF
 
 if __name__ == "__main__":
-    pass
+    logger.debug('Test Counterfeit algorithm')
+    pathdf     = LocDir.parents[2] / 'data' / 'sampledata.parquet'
+    print(pathdf)
+    assert pathdf.exists(), 'data is not exist.'
+    data       = pd.read_parquet(str(pathdf))
+    Hasil      = CFRateLazy(data)

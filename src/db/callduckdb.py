@@ -39,10 +39,10 @@ class DuckDBManager:
             df = db.query("SELECT * FROM users")
     """
     def __init__(self,
-                 db_path      : Union[str, Path],
-                 read_only    : bool          = True,
-                 threads      : Optional[int] = None,
-                 memory_limit : Optional[str] = '2GB'):
+                 db_path      : Union[str, Path] = None,
+                 read_only    : bool             = True,
+                 threads      : Optional[int]    = None,
+                 memory_limit : Optional[str]    = '4GB'):
         """
         Initialize DuckDB manager.
 
@@ -58,16 +58,16 @@ class DuckDBManager:
         self.db_path   = str(db_path)
         self.read_only = read_only
         self.conn      = None
-
-        # Create connection
         self._create_connection(threads, memory_limit)
+
 
     def _create_connection(self, 
         threads      : Optional[int] = None,
         memory_limit : Optional[str] = None):
         """Create DuckDB connection with optional settings."""
-        self.conn = duckdb.connect(database  = self.db_path, 
-                                   read_only = self.read_only)
+        is_read_only = False if self.db_path == ':memory:' else self.read_only
+        self.conn    = duckdb.connect(database  = self.db_path, 
+                                      read_only = is_read_only)
         if threads:
             self.conn.execute(f"SET threads = {threads}")
         if memory_limit:
@@ -122,14 +122,15 @@ class DuckDBManager:
             logger.warning('Register Dataframe is success.')
 
     def ListedTable(self) -> pd.DataFrame:
-        data    = list()
-        tables  = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
+        data      = list()
+        tables    = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
         for table in tables['table_name']:
             count = self.conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             data.append({'table_name': table, 'row_count': count})
-        info_df = pd.DataFrame(data)
-        info_df = info_df.sort_values(by='row_count', ascending=False)
-        info_df['row_count'] = info_df['row_count'].apply(lambda x: f"{x:,}")
+        info_df   = pd.DataFrame(data, columns=['table_name', 'row_count'])
+        if not info_df.empty:
+            info_df              = info_df.sort_values(by = 'row_count', ascending = False)
+            info_df['row_count'] = info_df['row_count'].apply(lambda x: f"{x:,}")
         logger.info('Here is the DataFrame of table listed.')
         logger.info(info_df)
         return info_df
