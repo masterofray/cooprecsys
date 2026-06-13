@@ -533,10 +533,6 @@ class CFRatingEngine:
 def CFRateLazy(data    : pd.DataFrame,
                method  : str = None,
               ) -> pd.DataFrame:
-    '''
-    Sample weights is {'frequency': 0.30, 'quantity': 0.10, 
-    'spend': 0.40, 'recency': 0.15, 'loyalty': 0.05}!
-    '''
     assert isinstance(data, pd.DataFrame), 'This is not a dataframe.'
     assert not data.empty, 'The data is empty'
     assert data.shape[0] >= 20, 'The data lenght is too small.'
