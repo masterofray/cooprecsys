@@ -109,7 +109,8 @@ class DuckDBManager:
 
     def register_dataframe(self, 
                            name: str, 
-                           df  : pd.DataFrame):
+                           df  : pd.DataFrame,
+                          ):
         """Register pandas DataFrame as temporary table (table_view)."""
         try:
             self.conn.register(name, df)
@@ -203,15 +204,9 @@ if __name__ == '__main__':
     logger.info("Initializing DuckDB Manager...")
 
     with duckdb_connection(':memory:') as db:
-        # Register the pandas DataFrame
         logger.info("Registering local DataFrame as 'koperasi_products'...")
         db.register_dataframe('koperasi_products', df_products)
-        #db.conn.execute("CREATE TABLE koperasi_products AS SELECT * FROM df_products")
-        
-        # Create a persistent table from the registered view
         db.execute("CREATE TABLE inventory AS SELECT * FROM koperasi_products")
-        
-        # Check if table exists
         if db.table_exists('inventory'):
             logger.info("Success: Table 'inventory' created.")
 

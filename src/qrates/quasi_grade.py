@@ -15,6 +15,7 @@ import gc
 import sys
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 from pathlib import Path
 from typing import Optional, Tuple, List
 
@@ -54,7 +55,7 @@ def GenQuasi_Grade(data              : pd.DataFrame,
 
     # Query Compression of Transaction per user-item
     with duckdb_connection() as con:
-        con.register_dataframe(name = "RAW_DATA", df = sdata)
+        con.register_dataframe(name = "RAW_DATA", df = data)
         logger.debug('Formula Pseudo Rating - Log-scaling!')
         query = f'''
         SELECT 
@@ -111,29 +112,34 @@ def build_collaborative_features_v2(
         item_ids      : np.ndarray (mapping index -> original item ID)
     """
     logger.info("Initializing build_collaborative_features_v2...")
-    user_feature_cols = user_feature_cols or []
-    item_feature_cols = item_feature_cols or []
+    user_feature_cols = user_feature_cols or list()
+    item_feature_cols = item_feature_cols or list()
 
     # 1. Enkodasi ID User & Item Menggunakan DuckDB
     logger.debug("Encoding user and item IDs with DENSE_RANK in DuckDB...")
-    with duckdb.connect(database=':memory:') as con:
-        con.register("ENCODED_RAW", data)
+    existing_columns = data.columns.tolist()
+    if weight_col in existing_columns:
+        weight_sql = '"total_quantity"'
+    else:
+        weight_sql = "1.0"
+    with duckdb_connection() as con:
+        con.register_dataframe("ENCODED_RAW", data)
         
         # Buat mapping index sequential dari 0
-        encoded_df = con.execute(f"""
+        encoded_df = con.query(f"""
             SELECT
                 DENSE_RANK() OVER (ORDER BY "{user_col}") - 1 AS user_idx,
                 DENSE_RANK() OVER (ORDER BY "{item_col}") - 1 AS item_idx,
                 "{rating_col}",
-                "{weight_col}" if "{weight_col}" in columns(ENCODED_RAW) else 1.0 AS weight_val,
+                {weight_sql} AS weight_val,
                 "{user_col}" AS user_id,
                 "{item_col}" AS item_id
             FROM ENCODED_RAW
-        """).df()
-        
+        """)
+        con.register_dataframe("encoded_df", encoded_df)
         # Ambil list mapping unik untuk index NumPy array
-        user_map = con.execute("SELECT DISTINCT user_idx, user_id FROM encoded_df ORDER BY user_idx").df()
-        item_map = con.execute("SELECT DISTINCT item_idx, item_id FROM encoded_df ORDER BY item_idx").df()
+        user_map = con.query("SELECT DISTINCT user_idx, user_id FROM encoded_df ORDER BY user_idx")
+        item_map = con.query("SELECT DISTINCT item_idx, item_id FROM encoded_df ORDER BY item_idx")
 
     n_users = len(user_map)
     n_items = len(item_map)
@@ -153,18 +159,18 @@ def build_collaborative_features_v2(
     logger.info("Processing User Features...")
     if user_feature_cols:
         # Cari representasi unik fitur per user. Jika user punya multi-value, ambil nilai modus/terakhir
-        with duckdb.connect(database=':memory:') as con:
-            con.register("RAW_CONN", data)
-            con.register("USER_MAP_CONN", user_map)
+        with duckdb_connection() as con:
+            con.register_dataframe("RAW_CONN", data)
+            con.register_dataframe("USER_MAP_CONN", user_map)
             select_feats = ", ".join([f'MAX("{col}") AS "{col}"' for col in user_feature_cols])
             
-            user_features_df = con.execute(f"""
+            user_features_df = con.query(f"""
                 SELECT m.user_idx, {select_feats}
                 FROM USER_MAP_CONN m
                 JOIN RAW_CONN r ON m.user_id = r."{user_col}"
                 GROUP BY m.user_idx
                 ORDER BY m.user_idx
-            """).df()
+            """)
         
         # One-hot encoding untuk fitur kategori
         logger.debug("One-hot encoding user features...")
@@ -178,18 +184,18 @@ def build_collaborative_features_v2(
     # 4. Bangun Item Features (CSR Matrix)
     logger.info("Processing Item Features...")
     if item_feature_cols:
-        with duckdb.connect(database=':memory:') as con:
-            con.register("RAW_CONN", data)
-            con.register("ITEM_MAP_CONN", item_map)
+        with duckdb_connection() as con:
+            con.register_dataframe("RAW_CONN", data)
+            con.register_dataframe("ITEM_MAP_CONN", item_map)
             select_feats = ", ".join([f'MAX("{col}") AS "{col}"' for col in item_feature_cols])
             
-            item_features_df = con.execute(f"""
+            item_features_df = con.query(f"""
                 SELECT m.item_idx, {select_feats}
                 FROM ITEM_MAP_CONN m
                 JOIN RAW_CONN r ON m.item_id = r."{item_col}"
                 GROUP BY m.item_idx
                 ORDER BY m.item_idx
-            """).df()
+            """)
             
         logger.debug("One-hot encoding item features...")
         item_encoded_feats = pd.get_dummies(item_features_df[item_feature_cols], dtype=np.float32)
@@ -212,9 +218,6 @@ def build_collaborative_features_v2(
 
 
 if __name__ == "__main__":
-    # Setup log level ke DEBUG agar bisa melihat pesan internal data tracker
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
-    
     # 1. Load Data Contoh Anda (Simulasi data input)
     raw_data = pd.DataFrame({
         'SalesID': [843861, 3633024, 458339, 5845137],
