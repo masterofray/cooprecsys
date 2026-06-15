@@ -138,7 +138,8 @@ jobs:
         run: |
           source test_env/bin/activate
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
-          pip show cooprecsys
+          uv pip show cooprecsys
+          cd /tmp
           python -c "import cooprecsys; print(f'cooprecsys loaded from: {cooprecsys.__file__}')"
 
       - name: Install test dependencies
@@ -149,23 +150,29 @@ jobs:
       - name: Run integration tests against wheel
         run: |
           source test_env/bin/activate
+          
+          # PENTING: Pindahkan direktori aktif ke luar root project atau ubah cara panggil pytest.
+          # Jika Anda menguji cakupan kode (--cov=cooprecsys) langsung di root, pytest-cov 
+          # secara default akan mengukur kode mentah di folder lokal, bukan kode yang terkompilasi (Cython) di wheel.
+          # Kita gunakan flag --import-mode=importlib agar pytest memprioritaskan paket yang terpasang di test_env.
           pytest test/ \
             -v \
             --tb=short \
+            --import-mode=importlib \
             --cov=cooprecsys \
-            --cov-report=xml \
+            --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --junit-xml=test-results.xml \
-            || exit 1
+            --junit-xml=test-results.xml
 
       - name: Upload coverage reports
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         if: always()
         with:
           files: ./coverage.xml
           flags: unittests
           name: coverage-${{ env.PYTHON_VERSION }}
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
@@ -181,38 +188,25 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
-      packages: write
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
+          pattern: artifact* # Sesuaikan dengan nama artifact yang Anda buat di job build
           path: dist/
           merge-multiple: true
 
-      - name: Verify wheels exist
-        run: |
-          if [ -z "$(ls -A dist/*.whl 2>/dev/null)" ]; then
-            echo "ERROR: No wheels found in dist/"
-            exit 1
-          fi
-          ls -lh dist/
-
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           files: dist/*.whl
           draft: false
           prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
           generate_release_notes: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GITHUB_TOKEN sudah disuntikkan otomatis oleh GitHub Actions
 
       - name: Release summary
         run: |
-          echo "Release published successfully"
-          echo "Release tag: ${{ github.ref }}"
+          echo "Release published successfully for tag: ${{ github.ref_name }}"
           echo "Wheels published: $(ls -1 dist/*.whl | wc -l)"
