@@ -59,37 +59,6 @@ jobs:
             "numpy>=1.21" \
             build
 
-      - name: Display Python & Build tool versions
-        run: |
-          python --version
-          pip --version
-          cython --version
-          uv --version
-
-      # STEP DEBUGGING PENTING: Ini akan mencetak isi folder proyek Anda
-      - name: DEBUG - Print Directory Structure
-        run: |
-          echo "========================================="
-          echo "DEBUGGING: Struktur Direktori Proyek"
-          echo "========================================="
-          echo "Root directory:"
-          ls -la
-          echo ""
-          echo "Contents of src/ (if exists):"
-          if [ -d "src" ]; then
-            ls -la src/
-            echo ""
-            echo "Full tree of src/ (max 50 files):"
-            find src/ -type f | head -50
-          else
-            echo "FOLDER 'src/' TIDAK DITEMUKAN!"
-            echo "Mungkin kode Anda ada di root, bukan di dalam folder src/."
-          fi
-          echo ""
-          echo "Mencari semua file __init__.py:"
-          find . -name "__init__.py" || echo "Tidak ada __init__.py"
-          echo "========================================="
-
       - name: Build wheel via uv
         run: |
           uv pip install --system build
@@ -99,7 +68,7 @@ jobs:
         run: |
           ls -lh dist/
           echo "========================================="
-          echo " MEMBEDAH ISI FILE WHEEL:"
+          echo "MEMBEDAH ISI FILE WHEEL:"
           echo "========================================="
           unzip -l dist/*.whl
           echo "========================================="
@@ -162,12 +131,12 @@ jobs:
           source test_env/bin/activate
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           
-          echo "Mencoba import cooprecsys."
+          echo "Mencoba import cooprecsys..."
           if ./test_env/bin/python -c "import cooprecsys; print(f'Success: {cooprecsys.__file__}')"; then
             echo "Import berhasil!"
           else
             echo "Import gagal! Membongkar isi site-packages untuk debug:"
-            ls -R test_env/lib/python3.10/site-packages/ | grep -i cooprecsys || echo "Folder cooprecsys tidak ditemukan di site-packages."
+            ls -R test_env/lib/python3.10/site-packages/ | grep -i cooprecsys || echo "Folder cooprecsys tidak ditemukan."
             exit 1
           fi
 

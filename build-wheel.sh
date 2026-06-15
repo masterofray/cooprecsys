@@ -102,14 +102,14 @@ log_info "Size: $(du -h "$WHEEL_FILE" | cut -f1)"
 if [ "$TEST_WHEEL" = true ]; then
     log_info "Creating test environment..."
     TEST_ENV="test_env_$$"
-    uv venv "$TEST_ENV" --python 3.11
+    uv venv "$TEST_ENV" --python 3.10
     
     log_info "Installing wheel into test environment..."
     source "$TEST_ENV/bin/activate"
     uv pip install "$WHEEL_FILE"
     
     log_info "Verifying wheel installation..."
-    python -c "import cooprecsys; print(f'✓ cooprecsys loaded from: {cooprecsys.__file__}')"
+    python -c "import cooprecsys; print(f'cooprecsys loaded from: {cooprecsys.__file__}')"
     
     log_info "Running tests..."
     uv pip install pytest pytest-cov

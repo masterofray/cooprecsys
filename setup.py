@@ -18,7 +18,7 @@ to preserve production-grade OpenMP and compiler flags.
 import os
 import sys
 import subprocess
-from setuptools import setup, find_namespace_packages, Extension
+from setuptools import setup, find_packages, Extension
 from setuptools.command.build_ext import build_ext
 
 class ProxyBuildExt(build_ext):
@@ -27,27 +27,47 @@ class ProxyBuildExt(build_ext):
     secara mutlak ke cysetup.py milik arsitektur arycolbring.
     """
     def run(self):
-        target_dir  = os.path.abspath(
-                      os.path.join("src", "models", "arycolbring"))
+        possible_dirs = [
+        os.path.abspath(os.path.join("src", "models", "arycolbring")),
+        os.path.abspath(os.path.join("models", "arycolbring")),
+        os.path.abspath(os.path.join("cooprecsys", "models", "arycolbring")),
+        os.path.abspath(os.path.join("cooprecsys", "src", "models", "arycolbring"))]
+        target_dir    = None
+        for d in possible_dirs:
+            if os.path.exists(os.path.join(d, "cysetup.py")):
+                target_dir = d
+                break
+
         script_name = "cysetup.py"
-        print(f"->> Delegating Cython kernel compilation to:"
-              f"{script_name} in {target_dir}")
-        if not os.path.exists(target_dir):
-            raise FileNotFoundError(f"FATAL: Cython Target dir is not found: {target_dir}")
-        subprocess.check_call(
-        [sys.executable, script_name, "build_ext", "--inplace"],
-        cwd = target_dir)
+        if target_dir:
+            print(f"->> Delegating Cython kernel compilation to:"
+                  f"{script_name} in {target_dir}")
+            subprocess.check_call(
+            [sys.executable, script_name, "build_ext", "--inplace"],
+            cwd = target_dir)
+        else:
+            print(f"WARNING: Cython Target dir {target_dir} is not found.")
+        super().run()
 
 if __name__ == '__main__':
+    if os.path.exists("src/cooprecsys") or \
+       os.path.exists("src/cooprecsys/__init__.py"):
+        PACKAGE_DIR = {"": "src"}
+        WHERE = "src"
+    else:
+        PACKAGE_DIR = {"": "."}
+        WHERE = "."
+
     setup(
         name         = "cooprecsys",
         version      = "0.0.1rc",
         description  = "Koperasi Recommender System Core Engine",
         package_dir  = {"": "src"},
-        packages     = find_namespace_packages(
-                       where   ="src", 
+        packages     = find_packages(
+                       where   = PACKAGE_DIR, 
                        include = ["cooprecsys*"]),
-        package_data = {"": ["*.so", "*.pyd", "*.dll", "*.dylib", "*.pyx", "*.pxd"]},
+        package_data = {"": ["*.so", "*.pyd", "*.dll", "*.dylib", 
+                             "*.pyx", "*.pxd", "config.ini", "py.typed"]},
         include_package_data = True,
         ext_modules          = [Extension("arycolbring_proxy", sources=[])],
         cmdclass             = {"build_ext": ProxyBuildExt},
