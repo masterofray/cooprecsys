@@ -10,24 +10,21 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-06-06"
 
-
 import gc
-import logging
-from typing import Dict, List, NamedTuple, Optional, Tuple
-
+import sys
 import numpy  as np
 import pandas as pd
 import scipy.sparse as sp
-from tqdm import tqdm
+from   tqdm.auto import tqdm
+from   pathlib   import Path
+from   typing    import List, NamedTuple, Optional
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
 from configs import logger, _cfg
+from db      import duckdb_connection
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# Public function 2 – extended norm_exchange
-# ══════════════════════════════════════════════════════════════════════════════
 
 def extended_norm_exchange(
     data              : pd.DataFrame,
@@ -131,7 +128,7 @@ def extended_norm_exchange(
             logger.debug("norm_exchange: registering DataFrame in DuckDB as RAW")
             con.register("RAW", data)
 
-            encoded = con.execute(f"""
+            encoded = con.query(f"""
                 SELECT
                     DENSE_RANK() OVER (ORDER BY "{user_col}") - 1  AS user_idx,
                     DENSE_RANK() OVER (ORDER BY "{item_col}") - 1  AS item_idx,
@@ -139,7 +136,7 @@ def extended_norm_exchange(
                     "{user_col}"                                    AS user_id,
                     "{item_col}"                                    AS item_id
                 FROM RAW
-            """).df()
+            """)
 
             n_rows = len(encoded)
             logger.debug(

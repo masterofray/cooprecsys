@@ -28,10 +28,10 @@ LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
 from configs import _cfg, logger
 from models.arycolbring import AryColBringModelTrainer, RunTrainer
-from db import duckdb_connection
+from db import DuckDBManager, duckdb_connection
 
 
-from db.callduckdb import DuckDBManager
+from db.callduckdb import 
 from models.arycolbring.trainer import AryColBringModelTrainer, RunTrainer
 from models.arycolbring.assist import fileload_interactions, describe_interactions
 
