@@ -1,38 +1,39 @@
 [build-system]
 requires = [
-    "setuptools>=61",
-    "wheel",
-    "cython>=0.29",
+    "setuptools>=70.0",
+    "wheel>=0.42",
+    "cython>=3.0",
     "numpy>=1.21",
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
-name            = "arycolbring"
-version         = "0.0.1"
-description     = "Ultra-optimised user-to-item collaborative filtering (Cython + OpenMP)"
-readme          = "README.md"
+name = "cooprecsys"
+version = "0.1.0"
+description = "Cooperative Recommender System - Ultra-optimized collaborative filtering using Cython + OpenMP"
+readme = "README.md"
 requires-python = ">=3.8"
-authors         = [{ name = "Aryanto" }]
-license         = { text = "MIT" }
-
+authors = [{ name = "Aryanto", email = "aryanto.dandan@gmail.com" }]
+license = { text = "GPL-3.0" }
 keywords = [
     "collaborative-filtering",
-    "recommendation",
+    "recommendation-system",
     "machine-learning",
     "cython",
     "sparse-matrix",
+    "cooperative",
 ]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Programming Language :: Cython",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -44,36 +45,102 @@ dependencies = [
     "duckdb>=0.8",
     "tqdm>=4.60",
     "joblib>=1.1",
-    "cython>=0.29",
     "seaborn>=0.12",
     "lightgbm>=4.0.0",
     "xgboost>=2.0.0",
-    "catboost>=1.2.0",
     "optuna>=3.5.0",
     "shap>=0.44.0",
-    "pandas>=2.0.0",
+    "faiss-cpu>=1.7.0",
+    "annoy>=1.17.0",
+    "mlflow>=2.0.0",
+    "matplotlib>=3.7.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7",
-    "pytest-cov>=4",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0",
+]
+test = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/masterofray/cooprecsys"
+Documentation = "https://github.com/masterofray/cooprecsys#readme"
+Repository = "https://github.com/masterofray/cooprecsys.git"
+Issues = "https://github.com/masterofray/cooprecsys/issues"
+
+[tool.setuptools]
+package-dir = { "" = "." }
+
 [tool.setuptools.packages.find]
-where   = ["."]
-include = ["arycolbring*"]
+where = ["."]
+include = ["cooprecsys*", "src*"]
+exclude = ["tests*", "test*", "data*", "img*", "*.egg-info*"]
 
 [tool.setuptools.package-data]
-"arycolbring"    = ["config.ini"]
-"arycolbring.cy" = ["*.pxd", "*.pyx"]
+cooprecsys = ["py.typed", "config.ini"]
+"cooprecsys.models.fpgrowth" = ["*.pyx", "*.pxd"]
 
 [tool.pytest.ini_options]
-testpaths    = ["tests"]
-addopts      = "-v --tb=short"
-log_cli      = true
-log_cli_level = "DEBUG"
+testpaths = ["test", "tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = "-v --tb=short --cov=cooprecsys --cov-report=xml --cov-report=term-missing"
+log_cli = true
+log_cli_level = "INFO"
+markers = [
+    "integration: marks tests as integration tests (deselect with '-m \"not integration\"')",
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
-[tool.cython-lint]
-max-line-length = 120
+[tool.black]
+line-length = 100
+target-version = ["py38", "py39", "py310", "py311", "py312"]
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+  | \.egg-info
+)/
+'''
 
+[tool.ruff]
+line-length = 100
+target-version = "py38"
+select = ["E", "F", "W", "I", "N"]
+ignore = ["E501"]
+
+[tool.coverage.run]
+branch = true
+source = ["cooprecsys"]
+omit = [
+    "*/site-packages/*",
+    "*/__pycache__/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+precision = 2
+show_missing = true
+skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]

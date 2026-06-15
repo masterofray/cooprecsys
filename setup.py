@@ -1,74 +1,65 @@
-from setuptools import setup, Extension
-from Cython.Build import cythonize
-import numpy as np
+#!/usr/bin/env python3
 
-ext_modules = [
-    Extension(
-        "fpgrowth_core",
-        sources=["./src/models/fpgrowth/fpgrowth_core.pyx"],
-        include_dirs=[np.get_include()],
-        extra_compile_args=['-fopenmp'],
-        extra_link_args=['-fopenmp'],
-        annotate=True,
-        quiet=True,
-    )
-]
+__author__     = "Aryanto"
+__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
+__credits__    = ["aryanto"]
+__license__    = "GNU_Public"
+__version__    = "0.0.1"
+__maintainer__ = "Aryanto"
+__email__      = "aryanto.dandan@gmail.com"
+__status__     = "Development"
+__created__    = "2026-06-15"
+
+"""
+Root setup.py wrapper for cooprecsys.
+Delegates Cython compilation strictly to src/models/arycolbring/cysetup.py
+to preserve production-grade OpenMP and compiler flags.
+"""
+
+import os
+import sys
+import subprocess
+from setuptools import setup, find_packages, Extension
+from setuptools.command.build_ext import build_ext
+
+class ProxyBuildExt(build_ext):
+    """
+    Membajak instruksi build_ext standar untuk mendelegasikan eksekusi
+    secara mutlak ke cysetup.py milik arsitektur arycolbring.
+    """
+    def run(self):
+        # Mengarahkan eksekusi ke direktori target yang spesifik
+        target_dir = os.path.abspath(os.path.join("src", "models", "arycolbring"))
+        script_name = "cysetup.py"
+
+        print(f"==> Mendelegasikan kompilasi kernel Cython ke: {script_name} di {target_dir}")
+
+        # Menjalankan cysetup.py secara in-place dengan flag spesifiknya
+        subprocess.check_call(
+            [sys.executable, script_name, "build_ext", "--inplace"],
+            cwd=target_dir
+        )
 
 setup(
-    ext_modules=cythonize(ext_modules, 
-                          language_level=3,
-                          annotate=True),
+    name="cooprecsys",
+    version="0.1.0",
+    description="Cooperative Recommender System Core Engine",
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
+    
+    # INSTRUKSI KRITIKAL: Memastikan file binari (.so) hasil kompilasi eksternal
+    # dari cysetup.py dipaksa masuk ke dalam arsip wheel final.
+    package_data={
+        "": ["*.so", "*.pyd", "*.dll", "*.dylib"],
+    },
+    include_package_data=True,
+    
+    # Ekstensi 'dummy' ini diperlukan agar setuptools mengidentifikasi distribusi 
+    # ini sebagai platform-specific wheel (misal: linux_x86_64) alih-alih pure-python wheel.
+    # Jika wheel terbaca sebagai murni Python, penyertaan file binari berisiko tidak valid.
+    ext_modules=[Extension("arycolbring_proxy", sources=[])],
+    cmdclass={
+        "build_ext": ProxyBuildExt,
+    },
     zip_safe=False,
-)
-
-# Dari LTR LGBM
-"""
-setup.py
-========
-Package installation script for ltr_framework.
-"""
-
-from setuptools import setup, find_packages
-
-setup(
-    name             = "ltr_framework",
-    version          = "1.0.0",
-    description      = "Production-grade Learning-to-Rank pipeline built on LightGBM",
-    author           = "Aryanto",
-    author_email     = "aryanto.dandan@gmail.com",
-    python_requires  = ">=3.10",
-    packages         = find_packages(),
-    install_requires = [
-        "lightgbm>=4.0.0",
-        "optuna>=3.0.0",
-        "duckdb>=0.9.0",
-        "mlflow>=2.0.0",
-        "pandas>=2.0.0",
-        "numpy>=1.24.0",
-        "matplotlib>=3.7.0",
-        "seaborn>=0.12.0",
-        "tqdm>=4.65.0",
-        "pyarrow>=12.0.0",
-    ],
-    extras_require = {
-        "dev": [
-            "pytest>=7.0",
-            "pytest-cov",
-            "black",
-            "ruff",
-            "mypy",
-        ]
-    },
-    entry_points = {
-        "console_scripts": [
-            "ltr-train=ltr_framework.main:_build_cli_parser",
-        ]
-    },
-    classifiers = [
-        "Programming Language :: Python :: 3.10",
-        "Programming Language :: Python :: 3.11",
-        "Programming Language :: Python :: 3.12",
-        "Intended Audience :: Science/Research",
-        "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    ],
 )
