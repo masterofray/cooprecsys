@@ -73,7 +73,7 @@ def MRR_rank(
                        item_features       = item_features,
                        num_threads         = num_threads,
                        check_intersections = check_intersections,
-                     548795  step_label          = "MRR")
+                       step_label          = "MRR")
     with tqdm(total       = 2, 
               desc        = "Reciprocal Rank",
               colour      = _cfg.get('tqdm', 'colour'),

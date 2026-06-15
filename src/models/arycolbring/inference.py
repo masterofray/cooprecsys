@@ -75,14 +75,14 @@ class AryColBringInference:
                                 "start_time"       : datetime.now().isoformat()}
 
 
-    def _load_model(self) -> AryColBringPredictor:
+    def _load_model(self) -> TheReasoner:
         logger.info("Loading model from: %s", self.model_path)
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model file not found: {self.model_path}")
         
         data      = np.load(self.model_path, allow_pickle = True)
         config    = json.loads(str(data["config"]))
-        predictor = AryColBringPredictor(**config)
+        predictor = TheReasoner(**config)
         predictor.item_embeddings = data["item_embeddings"]
         predictor.user_embeddings = data["user_embeddings"]
         predictor.item_biases     = data["item_biases"]

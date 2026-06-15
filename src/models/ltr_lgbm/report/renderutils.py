@@ -34,7 +34,7 @@ from configs import logger
 def get_env() -> Environment:
     logger.debug("Initializing Jinja environment.")
     try:
-        env = Environment(loader        = FileSystemLoader(TEMPLATE_DIR),
+        env = Environment(loader        = FileSystemLoader(TEMPLATE_DIR), # nosec B701
                           autoescape    = select_autoescape(["html", "xml"]),
                           trim_blocks   = True,
                           lstrip_blocks = True)

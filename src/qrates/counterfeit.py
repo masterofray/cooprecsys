@@ -124,8 +124,11 @@ class CFRatingEngine:
         self.lasso_alpha     = lasso_alpha
         self.ridge_alpha     = ridge_alpha
         self.pca_components  = pca_components
-        self.jinja_env       = Environment(loader = BaseLoader())
         self.method          = ScoringMethod(method)
+        self.jinja_env       = Environment(
+                                loader     = BaseLoader(), # nosec B701
+                                autoescape = select_autoescape(
+                                             ['html', 'xml']))
         self._validate_inputs()
 
         self.scenario          = self._detect_scenario()

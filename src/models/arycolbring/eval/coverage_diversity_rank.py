@@ -266,7 +266,7 @@ def Novelty_k(
     assert k >= 1,           "k must be >= 1"
     assert num_threads >= 1, "num_threads must be >= 1"
     assert batch_size >= 1,  "batch_size must be >= 1"
-    assert train_interactions is not None, 
+    assert train_interactions is not None, \
         "train_interactions is strictly required to derive item popularity profiles"
     
     n_users, n_items = test_interactions.shape

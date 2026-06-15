@@ -28,7 +28,7 @@ import scipy.sparse as sp
 from   tqdm.auto import tqdm
 from   pathlib   import Path
 from   typing    import Optional
-from   .Scaffold import AryColBringBase, cydtype
+from   .scaffold import AryColBringBase, cydtype
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))

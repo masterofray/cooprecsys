@@ -10,9 +10,9 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-06-04"
 
-from .trainer    import AryColBringModelTrainer, RunTrainer
-from .inference  import AryColBringInference
-from .reason2api import InferenceService
+from .trainer      import AryColBringModelTrainer, RunTrainer
+from .inference    import AryColBringInference
+from .reasoner2api import InferenceService
 
 __all__ = ['AryColBringModelTrainer', 
            'RunTrainer',
