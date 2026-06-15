@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "cooprecsys"
 version = "0.1.0"
-description = "Cooperative Recommender System - Ultra-optimized collaborative filtering using Cython + OpenMP"
+description = "Koperasi Recommender System - Ultra-optimized collaborative filtering using Cython + OpenMP"
 readme = "README.md"
 requires-python = ">=3.8"
 authors = [{ name = "Aryanto", email = "aryanto.dandan@gmail.com" }]
@@ -76,16 +76,16 @@ Repository = "https://github.com/masterofray/cooprecsys.git"
 Issues = "https://github.com/masterofray/cooprecsys/issues"
 
 [tool.setuptools]
-package-dir = { "" = "." }
+package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["cooprecsys*", "src*"]
-exclude = ["tests*", "test*", "data*", "img*", "*.egg-info*"]
+where = ["src"]
+include = ["cooprecsys*"]
+exclude = ["tests*", "test*", "img*", "*.egg-info*"]
 
 [tool.setuptools.package-data]
 cooprecsys = ["py.typed", "config.ini"]
-"cooprecsys.models.fpgrowth" = ["*.pyx", "*.pxd"]
+"cooprecsys.models.arycolbring.CLproximity" = ["*.pyx", "*.pxd"]
 
 [tool.pytest.ini_options]
 testpaths = ["test", "tests"]
