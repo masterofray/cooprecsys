@@ -1,13 +1,11 @@
 name: Build & Release Wheel
-
 on:
   push:
     branches:
       - main
-      - Claude_dev
       - dev
     tags:
-      - "v*.*.*"
+      - "v*.*"
   pull_request:
     branches:
       - main
@@ -32,7 +30,6 @@ jobs:
     permissions:
       contents: read
       checks: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,10 +54,10 @@ jobs:
       - name: Install build dependencies via uv
         run: |
           uv pip install --system \
-            setuptools>=70.0 \
-            wheel>=0.42 \
-            cython>=3.0 \
-            numpy>=1.21 \
+            "setuptools>=70.0" \
+            "wheel>=0.42" \
+            "cython>=3.0" \
+            "numpy>=1.21" \
             build
 
       - name: Display Python & Build tool versions
@@ -95,7 +92,6 @@ jobs:
     permissions:
       contents: read
       checks: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -119,15 +115,16 @@ jobs:
       - name: Resolve wheel filename
         id: wheel_info
         run: |
-          WHEEL_FILE=$(ls dist/*.whl | head -1)
+          WHEEL_FILE=$(ls -1 dist/*.whl | head -n 1)
           if [ -z "$WHEEL_FILE" ]; then
             echo "ERROR: No wheel file found in dist/"
             ls -la dist/
             exit 1
           fi
           WHEEL_NAME=$(basename "$WHEEL_FILE")
-          echo "wheel_file=$WHEEL_FILE" >> $GITHUB_OUTPUT
-          echo "wheel_name=$WHEEL_NAME" >> $GITHUB_OUTPUT
+          # PERBAIKAN: Menggunakan >> yang benar dan menghapus spasi berlebih
+          echo "wheel_file=$WHEEL_FILE" >> "$GITHUB_OUTPUT"
+          echo "wheel_name=$WHEEL_NAME" >> "$GITHUB_OUTPUT"
           echo "Resolved wheel: $WHEEL_NAME"
 
       - name: Create isolated test environment via uv
@@ -137,6 +134,7 @@ jobs:
       - name: Install wheel into isolated environment
         run: |
           source test_env/bin/activate
+          # PERBAIKAN: Menghapus spasi di akhir variabel agar path file valid
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           ./test_env/bin/python -c "import cooprecsys; print(f'cooprecsys loaded from: {cooprecsys.__file__}')"
 
@@ -149,7 +147,6 @@ jobs:
         run: |
           echo "Content of site-packages:"
           ls -l test_env/lib/python3.10/site-packages/
-          
           echo "Checking interpreter python:"
           ./test_env/bin/python -m pip list | grep cooprecsys
 
@@ -194,12 +191,11 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
-
     steps:
       - name: Download all wheels
         uses: actions/download-artifact@v4
         with:
-          pattern: artifact* # Sesuaikan dengan nama artifact yang Anda buat di job build
+          pattern: wheels-*
           path: dist/
           merge-multiple: true
 
@@ -210,7 +206,6 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
           generate_release_notes: true
-          # GITHUB_TOKEN sudah disuntikkan otomatis oleh GitHub Actions
 
       - name: Release summary
         run: |
