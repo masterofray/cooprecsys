@@ -18,7 +18,7 @@ to preserve production-grade OpenMP and compiler flags.
 import os
 import sys
 import subprocess
-from setuptools import setup, find_packages, Extension
+from setuptools import setup, find_namespace_packages, Extension
 from setuptools.command.build_ext import build_ext
 
 class ProxyBuildExt(build_ext):
