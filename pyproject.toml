@@ -78,17 +78,16 @@ package-dir = { "" = "src" }
 
 [tool.setuptools.packages.find]
 where = ["src"]
+namespaces = true
 include = ["cooprecsys*"]
 exclude = ["tests*", "test*", "img*", ".egg-info"]
 
 [tool.setuptools.package-data]
-# PERBAIKAN: Menambahkan wildcard '*' agar file .pyx dan .pxd benar-benar ter-include
 "*" = ["py.typed", "config.ini", "*.so", "*.pyd", "*.dll", "*.dylib"]
 "cooprecsys.models.arycolbring.CLproximity" = ["*.pyx", "*.pxd"]
 
 [tool.pytest.ini_options]
 testpaths = ["test", "tests"]
-# PERBAIKAN: Menambahkan wildcard '*' pada pola nama file test
 python_files = ["test_*.py", "*_test.py"]
 addopts = "-v --tb=short --cov=cooprecsys --cov-report=xml --cov-report=term-missing"
 log_cli = true
@@ -136,7 +135,6 @@ omit = [
 precision = 2
 show_missing = true
 skip_covered = false
-# PERBAIKAN: Syntax regex untuk exclude_lines (sebelumnya salah ketik/typo)
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",

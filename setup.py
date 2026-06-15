@@ -32,6 +32,8 @@ class ProxyBuildExt(build_ext):
         script_name = "cysetup.py"
         print(f"->> Delegating Cython kernel compilation to:"
               f"{script_name} in {target_dir}")
+        if not os.path.exists(target_dir):
+            raise FileNotFoundError(f"FATAL: Cython Target dir is not found: {target_dir}")
         subprocess.check_call(
         [sys.executable, script_name, "build_ext", "--inplace"],
         cwd = target_dir)
@@ -42,8 +44,10 @@ if __name__ == '__main__':
         version      = "0.0.1rc",
         description  = "Koperasi Recommender System Core Engine",
         package_dir  = {"": "src"},
-        packages     = find_packages(where="src"),
-        package_data = {"": ["*.so", "*.pyd", "*.dll", "*.dylib"]},
+        packages     = find_namespace_packages(
+                       where   ="src", 
+                       include = ["cooprecsys*"]),
+        package_data = {"": ["*.so", "*.pyd", "*.dll", "*.dylib", "*.pyx", "*.pxd"]},
         include_package_data = True,
         ext_modules          = [Extension("arycolbring_proxy", sources=[])],
         cmdclass             = {"build_ext": ProxyBuildExt},
