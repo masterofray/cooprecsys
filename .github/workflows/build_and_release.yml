@@ -136,7 +136,7 @@ jobs:
 
       - name: Install wheel into isolated environment
         run: |
-          #source test_env/bin/activate
+          source test_env/bin/activate
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           ./test_env/bin/python -c "import cooprecsys; print(f'cooprecsys loaded from: {cooprecsys.__file__}')"
 
@@ -144,6 +144,14 @@ jobs:
         run: |
           source test_env/bin/activate
           uv pip install pytest pytest-cov
+
+      - name: Debug Installation
+        run: |
+          echo "Content of site-packages:"
+          ls -l test_env/lib/python3.10/site-packages/
+          
+          echo "Checking interpreter python:"
+          ./test_env/bin/python -m pip list | grep cooprecsys
 
       - name: Run integration tests against wheel
         run: |
