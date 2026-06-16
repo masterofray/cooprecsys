@@ -73,16 +73,20 @@ jobs:
           echo "=================================================="
           echo "[STEP 5/8] Build Raw Package via UV"
           echo "=================================================="
-          uv build
+          export CFLAGS="-Wno-array-bounds -Wno-format"
+          uv build --no-build-isolation
 
       - name: Repair Wheel (Auditwheel to Manylinux)
         run: |
           echo "=================================================="
           echo "[STEP 6/8] Repair Wheel via Auditwheel"
           echo "=================================================="
+          # Garansi auditwheel terinstal di dalam scope Python 3.10 yang aktif
+          uv pip install --system auditwheel
+          
           mkdir -p final_dist
           
-          # Mengubah tag dari linux_x86_64 menjadi manylinux_2_28_x86_64
+          # Mengubah tag dari linux_x86_64 menjadi manylinux_2_28_x86_64 yang valid untuk PyPI
           auditwheel repair dist/*.whl --wheel-dir final_dist/
           
           # Salin source distribution (.tar.gz) jika ada ke folder final
