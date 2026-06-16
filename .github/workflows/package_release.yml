@@ -1,93 +1,105 @@
-name: CoopRecSys Release Candidate
+name: CoopRecSys Package Publisher
 
 on:
   push:
     branches:
-      - master
+      - dev
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  release:
-    if: contains(github.event.head_commit.message, 'release')
-    name: Build & Publish
+  publish:
+    if: startsWith(github.event.head_commit.message, 'release:')
+    name: Build, Test and Publish
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Setup Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
-      - name: Install UV
-        run: |
-          echo "=================================================="
-          echo "[STEP 1/10] Installing UV"
-          echo "=================================================="
-
-          python -m pip install --upgrade pip
-          pip install uv
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v2
+        with:
+          enable-cache: true
+          cache-dependency-glob: pyproject.toml
 
       - name: Verify Environment
         run: |
           echo "=================================================="
-          echo "[STEP 2/10] Verifying Environment"
+          echo "[STEP 1/8] Verify Environment"
           echo "=================================================="
 
           python --version
           uv --version
 
-      - name: Install Dependencies
+      - name: Install Build Tools
         run: |
           echo "=================================================="
-          echo "[STEP 3/10] Installing Dependencies"
+          echo "[STEP 2/8] Install Build Tools"
           echo "=================================================="
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            gcc \
+            g++
 
-          uv sync --frozen --all-extras
+      - name: Build AryColBring Cython Extensions
+        working-directory: ./src/models/arycolbring
+        run: |
+          echo "=================================================="
+          echo "[STEP 3/8] Build Cython Extensions"
+          echo "=================================================="
+          chmod +x ./cysetup.sh
+          bash ./cysetup.sh
+
+      - name: Install Project Dependencies
+        run: |
+          echo "=================================================="
+          echo "[STEP 4/8] Install Dependencies"
+          echo "=================================================="
+          uv pip install --system -e ".[dev,test]"
 
       - name: Run Unit Tests
         run: |
           echo "=================================================="
-          echo "[STEP 4/10] Running Tests"
+          echo "[STEP 5/8] Run Tests"
           echo "=================================================="
 
-          uv run pytest -v
+          pytest
 
       - name: Build Package
         run: |
           echo "=================================================="
-          echo "[STEP 5/10] Building Package"
+          echo "[STEP 6/8] Build Package"
           echo "=================================================="
-
           uv build
 
-      - name: Verify Build Artifacts
+      - name: Validate Package
         run: |
           echo "=================================================="
-          echo "[STEP 6/10] Verifying Artifacts"
+          echo "[STEP 7/8] Validate Package"
           echo "=================================================="
-
-          ls -lah dist/
-
-      - name: Check Package Metadata
-        run: |
-          echo "=================================================="
-          echo "[STEP 7/10] Validating Package"
-          echo "=================================================="
-
-          pip install twine
+          python -m pip install --upgrade twine
           twine check dist/*
 
-      - name: Upload Wheel Asset
-        uses: softprops/action-gh-release@v2
+          echo ""
+          echo "Generated Files:"
+          ls -lah dist/
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: cooprecsys-distribution
+          path: |
             dist/*.whl
             dist/*.tar.gz
+          retention-days: 14
 
       - name: Publish To PyPI
         env:
@@ -95,23 +107,17 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
           echo "=================================================="
-          echo "[STEP 8/10] Publishing To PyPI"
+          echo "[STEP 8/8] Publish To PyPI"
           echo "=================================================="
-
           python -m pip install --upgrade twine
-          twine upload dist/*
+          twine upload \
+            --skip-existing \
+            dist/*
 
       - name: Release Summary
         run: |
           echo "=================================================="
-          echo "[STEP 9/10] Release Completed"
+          echo "Release Completed"
           echo "=================================================="
-
           echo "Artifacts uploaded to GitHub Release"
           echo "Package published to PyPI"
-
-      - name: Done
-        run: |
-          echo "=================================================="
-          echo "[STEP 10/10] Pipeline Finished"
-          echo "=================================================="
