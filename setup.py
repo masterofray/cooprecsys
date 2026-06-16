@@ -66,7 +66,7 @@ if __name__ == '__main__':
         description  = "Koperasi Recommender System Core Engine",
         package_dir  = {"cooprecsys": "src"},
         packages     = Discover(),
-        package_data = {"": ["*.so", "*.pyd", "*.dll", "*.dylib", 
+        package_data = {"": ["*.c", "*.so", "*.pyd", "*.dll", "*.dylib", 
                              "*.pyx", "*.pxd", "config.ini", "py.typed"]},
         include_package_data = True,
         ext_modules          = [Extension("cooprecsys", sources=[])],

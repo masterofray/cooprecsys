@@ -59,6 +59,17 @@ jobs:
             "numpy>=1.21" \
             build
 
+      - name: Verify GCC/OpenMP
+        run: |
+          gcc --version
+          g++ --version
+
+      - name: Build AryColBring Cython Extensions
+        working-directory: ./src/models/arycolbring
+        run: |
+          chmod +x ./cysetup.sh
+          bash ./cysetup.sh
+
       - name: Build wheel via uv
         run: |
           uv pip install --system build
@@ -262,10 +273,9 @@ jobs:
       - name: Install wheel into isolated environment
         run: |
           source test_env/bin/activate
-          python -m pip install --upgrade pip
-          python -m pip install \
-            "${{ steps.wheel_info.outputs.wheel_file }}"
-          python -m pip show cooprecsys
+          # Menggunakan uv untuk install langsung ke venv tanpa butuh pip bawaan
+          uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
+          uv pip show cooprecsys
           python - <<'PY'
           import cooprecsys
           print("SUCCESS")
