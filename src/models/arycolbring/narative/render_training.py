@@ -41,8 +41,8 @@ import pandas as pd
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[3]))
 
-TEMPLATE_DIR = LocDir / "templates"
-STATIC_DIR   = LocDir / "static"
+TEMPLATE_DIR = LocDir.parent / "templates"
+STATIC_DIR   = LocDir.parent / "static"
 
 # Try to import from configs, fallback to basic logging
 try:
@@ -304,6 +304,7 @@ def render_training_report(context: Dict[str, Any], output_path: str | Path) -> 
     try:
         env = get_env()
         logger.debug("Loading template=training_report.html.j2")
+        logger.info(f"TEMPLATE_DIR = {TEMPLATE_DIR} and STATIC_DIR = {STATIC_DIR}.")
         template = env.get_template("training_report.html.j2")
         ctx = dict(context)
         

@@ -41,8 +41,8 @@ LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[3]))
 from configs import logger
 
-TEMPLATE_DIR = LocDir / "templates"
-STATIC_DIR   = LocDir / "static"
+TEMPLATE_DIR = LocDir.parent / "templates"
+STATIC_DIR   = LocDir.parent / "static"
 
 # Try to import from configs, fallback to basic logging
 try:

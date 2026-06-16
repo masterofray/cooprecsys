@@ -1,0 +1,116 @@
+name: CoopRecSys Release Candidate
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install UV
+        run: |
+          echo "=================================================="
+          echo "[STEP 1/10] Installing UV"
+          echo "=================================================="
+
+          python -m pip install --upgrade pip
+          pip install uv
+
+      - name: Verify Environment
+        run: |
+          echo "=================================================="
+          echo "[STEP 2/10] Verifying Environment"
+          echo "=================================================="
+
+          python --version
+          uv --version
+
+      - name: Install Dependencies
+        run: |
+          echo "=================================================="
+          echo "[STEP 3/10] Installing Dependencies"
+          echo "=================================================="
+
+          uv sync --frozen --all-extras
+
+      - name: Run Unit Tests
+        run: |
+          echo "=================================================="
+          echo "[STEP 4/10] Running Tests"
+          echo "=================================================="
+
+          uv run pytest -v
+
+      - name: Build Package
+        run: |
+          echo "=================================================="
+          echo "[STEP 5/10] Building Package"
+          echo "=================================================="
+
+          uv build
+
+      - name: Verify Build Artifacts
+        run: |
+          echo "=================================================="
+          echo "[STEP 6/10] Verifying Artifacts"
+          echo "=================================================="
+
+          ls -lah dist/
+
+      - name: Check Package Metadata
+        run: |
+          echo "=================================================="
+          echo "[STEP 7/10] Validating Package"
+          echo "=================================================="
+
+          pip install twine
+          twine check dist/*
+
+      - name: Upload Wheel Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.whl
+            dist/*.tar.gz
+
+      - name: Publish To PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          echo "=================================================="
+          echo "[STEP 8/10] Publishing To PyPI"
+          echo "=================================================="
+
+          python -m pip install --upgrade twine
+          twine upload dist/*
+
+      - name: Release Summary
+        run: |
+          echo "=================================================="
+          echo "[STEP 9/10] Release Completed"
+          echo "=================================================="
+
+          echo "Artifacts uploaded to GitHub Release"
+          echo "Package published to PyPI"
+
+      - name: Done
+        run: |
+          echo "=================================================="
+          echo "[STEP 10/10] Pipeline Finished"
+          echo "=================================================="

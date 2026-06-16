@@ -18,13 +18,14 @@ import scipy.sparse as sp
 from   tqdm.auto import tqdm
 from   pathlib   import Path
 from   typing    import List, NamedTuple, Optional
+from  .ersetz    import ExchangeResult
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
 from configs import logger, _cfg
 from db      import duckdb_connection
 
-
+DType = _cfg.get('model', 'dtype')
 
 def extended_norm_exchange(
     data              : pd.DataFrame,
@@ -321,3 +322,6 @@ def extended_norm_exchange(
         item_features = item_features,
         sample_weight = sample_weight,
     )
+
+if __name__ == "__main__":
+    print('This is Ostensible!')
