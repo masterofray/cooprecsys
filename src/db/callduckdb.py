@@ -39,32 +39,35 @@ class DuckDBManager:
             df = db.query("SELECT * FROM users")
     """
     def __init__(self,
-                 db_path: Union[str, Path],
-                 read_only: bool = True,
-                 threads: Optional[int] = None,
-                 memory_limit: Optional[str] = '2GB'):
+                 db_path      : Union[str, Path] = None,
+                 read_only    : bool             = True,
+                 threads      : Optional[int]    = None,
+                 memory_limit : Optional[str]    = '4GB'):
         """
         Initialize DuckDB manager.
 
         Args:
-            db_path: Path to database file (use ':memory:' for in-memory DB)
-            read_only: Open in read-only mode
-            threads: Number of CPU threads to use
-            memory_limit: Memory limit (e.g., '4GB', '1TB')
+            db_path      : Path to database file (use ':memory:' for in-memory DB)
+            read_only    : Open in read-only mode
+            threads      : Number of CPU threads to use
+            memory_limit : Memory limit (e.g., '4GB', '1TB')
         """
-        self.db_path = str(db_path)
+        if db_path is None:
+            logger.warning('Your dpath is Empty, send data into memory!')
+            db_path    = ':memory:'
+        self.db_path   = str(db_path)
         self.read_only = read_only
-        self.conn = None
-
-        # Create connection
+        self.conn      = None
         self._create_connection(threads, memory_limit)
+
 
     def _create_connection(self, 
         threads      : Optional[int] = None,
         memory_limit : Optional[str] = None):
         """Create DuckDB connection with optional settings."""
-        self.conn = duckdb.connect(database  = self.db_path, 
-                                   read_only = self.read_only)
+        is_read_only = False if self.db_path == ':memory:' else self.read_only
+        self.conn    = duckdb.connect(database  = self.db_path, 
+                                      read_only = is_read_only)
         if threads:
             self.conn.execute(f"SET threads = {threads}")
         if memory_limit:
@@ -96,7 +99,7 @@ class DuckDBManager:
             raise Exception(f"Query failed: {e}\nQuery: {query}")
 
     def query_arrow(self, 
-                    query: str, 
+                    query : str, 
                     params: Optional[Union[List, Dict]] = None,
                    ):
         """Execute query and return Arrow table (faster for large datasets)."""
@@ -106,7 +109,8 @@ class DuckDBManager:
 
     def register_dataframe(self, 
                            name: str, 
-                           df: pd.DataFrame):
+                           df  : pd.DataFrame,
+                          ):
         """Register pandas DataFrame as temporary table (table_view)."""
         try:
             self.conn.register(name, df)
@@ -118,19 +122,18 @@ class DuckDBManager:
             self.conn.register(name, df)
             logger.warning('Register Dataframe is success.')
 
-    def ListedTable(self,
-                    verbose : bool = False) -> pd.DataFrame:
-        tables = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
-        data = list()
+    def ListedTable(self) -> pd.DataFrame:
+        data      = list()
+        tables    = self.conn.execute("SELECT table_name FROM duckdb_tables()").df()
         for table in tables['table_name']:
             count = self.conn.execute(f"SELECT count(*) FROM {table}").fetchone()[0]
             data.append({'table_name': table, 'row_count': count})
-        info_df = pd.DataFrame(data)
-        info_df = info_df.sort_values(by='row_count', ascending=False)
-        info_df['row_count'] = info_df['row_count'].apply(lambda x: f"{x:,}")
-        if verbose:
-            logger.info('Here is the DataFrame of table listed.')
-            logger.info(info_df)
+        info_df   = pd.DataFrame(data, columns=['table_name', 'row_count'])
+        if not info_df.empty:
+            info_df              = info_df.sort_values(by = 'row_count', ascending = False)
+            info_df['row_count'] = info_df['row_count'].apply(lambda x: f"{x:,}")
+        logger.info('Here is the DataFrame of table listed.')
+        logger.info(info_df)
         return info_df
 
     def execute(self, 
@@ -175,13 +178,14 @@ class DuckDBManager:
 
 
 @contextmanager
-def duckdb_connection(db_path   : Union[str, Path] = './dbprocess.duckdb',
+def duckdb_connection(db_path   : Union[str, Path] = ':memory:',
                       read_only : bool = False,
                       **kwargs) -> DuckDBManager:
     """
     Context manager for DuckDB connection.
+    use ':memory:' for in-memory DB
     Example:
-        with duckdb_connection('mydb.duckdb') as db:
+        with duckdb_connection('./dbprocess.duckdb') as db:
             df = db.query("SELECT * FROM users")
     """
     db = DuckDBManager(db_path, read_only, **kwargs)
@@ -200,15 +204,9 @@ if __name__ == '__main__':
     logger.info("Initializing DuckDB Manager...")
 
     with duckdb_connection(':memory:') as db:
-        # Register the pandas DataFrame
         logger.info("Registering local DataFrame as 'koperasi_products'...")
         db.register_dataframe('koperasi_products', df_products)
-        #db.conn.execute("CREATE TABLE koperasi_products AS SELECT * FROM df_products")
-        
-        # Create a persistent table from the registered view
         db.execute("CREATE TABLE inventory AS SELECT * FROM koperasi_products")
-        
-        # Check if table exists
         if db.table_exists('inventory'):
             logger.info("Success: Table 'inventory' created.")
 

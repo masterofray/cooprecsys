@@ -1,0 +1,356 @@
+name: Build & Release Wheel
+on:
+  push:
+    branches:
+      - main
+      - dev
+    tags:
+      - "v*.*"
+  pull_request:
+    branches:
+      - main
+      - dev
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.10"
+  UV_CACHE_DIR: ${{ github.workspace }}/.cache/uv
+  PIP_NO_INPUT: "1"
+  CYTHON_COVERAGE: "0"
+
+jobs:
+  build:
+    name: Build Wheel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: "pip"
+
+      - name: Create UV cache directory
+        run: mkdir -p "${{ env.UV_CACHE_DIR }}"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Install build dependencies via uv
+        run: |
+          uv pip install --system \
+            "setuptools>=70.0" \
+            "wheel>=0.42" \
+            "cython>=3.0" \
+            "numpy>=1.21" \
+            build
+
+      - name: Verify GCC/OpenMP
+        run: |
+          gcc --version
+          g++ --version
+
+      - name: Build AryColBring Cython Extensions
+        working-directory: ./src/models/arycolbring
+        run: |
+          chmod +x ./cysetup.sh
+          bash ./cysetup.sh
+
+      - name: Build wheel via uv
+        run: |
+          uv pip install --system build
+          python -m build --wheel --outdir dist/
+
+      - name: List generated artifacts & INSPECT WHEEL
+        run: |
+          ls -lh dist/
+          echo "========================================="
+          echo "MEMBEDAH ISI FILE WHEEL:"
+          echo "========================================="
+          unzip -l dist/*.whl
+          echo "========================================="
+
+      - name: Upload wheel as build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-ubuntu-latest
+          path: dist/*.whl
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: Test Installed Wheel
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      checks: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v2
+        with:
+          enable-cache: true
+
+      - name: Download wheel artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wheels-ubuntu-latest
+          path: dist/
+
+      - name: Resolve wheel filename
+        id: wheel_info
+        run: |
+          WHEEL_FILE=$(ls -1 dist/*.whl | head -n 1)
+          if [ -z "$WHEEL_FILE" ]; then
+            echo "ERROR: No wheel file found in dist/"
+            ls -la dist/
+            exit 1
+          fi
+          WHEEL_NAME=$(basename "$WHEEL_FILE")
+          echo "wheel_file=$WHEEL_FILE" >> "$GITHUB_OUTPUT"
+          echo "wheel_name=$WHEEL_NAME" >> "$GITHUB_OUTPUT"
+          echo "Resolved wheel: $WHEEL_NAME"
+
+      - name: Create isolated test environment via uv
+        run: |
+          uv venv test_env --python ${{ env.PYTHON_VERSION }}
+
+
+      - name: RAY FULL PACKAGE DEBUG
+        run: |
+          set +e
+      
+          source test_env/bin/activate
+      
+          echo "======================================================"
+          echo "PYTHON INFO"
+          echo "======================================================"
+          which python
+          python --version
+      
+          echo ""
+          echo "======================================================"
+          echo "SYS.PATH"
+          echo "======================================================"
+          python - <<'PY'
+          import sys
+          
+          for i, p in enumerate(sys.path):
+              print(f"{i:02d}: {p}")
+          PY
+      
+          echo ""
+          echo "======================================================"
+          echo "SITE-PACKAGES LOCATION"
+          echo "======================================================"
+          python - <<'PY'
+          import site
+          
+          for p in site.getsitepackages():
+              print(p)
+          PY
+          echo ""
+          echo "======================================================"
+          echo "INSTALLED PACKAGES"
+          echo "======================================================"
+          pip list
+      
+          echo ""
+          echo "======================================================"
+          echo "COOPRECSYS PACKAGE INFO"
+          echo "======================================================"
+          pip show cooprecsys || true
+      
+          echo ""
+          echo "======================================================"
+          echo "COOPRECSYS INSTALLED FILES"
+          echo "======================================================"
+          pip show -f cooprecsys || true
+      
+          echo ""
+          echo "======================================================"
+          echo "SITE-PACKAGES TREE"
+          echo "======================================================"
+          find test_env/lib -type d | sort
+      
+          echo ""
+          echo "======================================================"
+          echo "FILES CONTAINING cooprecsys"
+          echo "======================================================"
+          find test_env/lib -iname "*cooprecsys*" | sort
+      
+          echo ""
+          echo "======================================================"
+          echo "DIST-INFO CONTENT"
+          echo "======================================================"
+          find test_env/lib -path "*cooprecsys*.dist-info*" | sort
+      
+          echo ""
+          echo "======================================================"
+          echo "TOP_LEVEL.TXT"
+          echo "======================================================"
+          find test_env/lib -name top_level.txt -path "*cooprecsys*" -exec cat {} \; || true
+      
+          echo ""
+          echo "======================================================"
+          echo "RECORD FILE"
+          echo "======================================================"
+          find test_env/lib -name RECORD -path "*cooprecsys*" -exec cat {} \; || true
+      
+          echo ""
+          echo "======================================================"
+          echo "IMPORT TEST"
+          echo "======================================================"
+          python - <<'PY'
+          try:
+              import cooprecsys
+              print("SUCCESS")
+              print(cooprecsys.__file__)
+          except Exception as e:
+              import traceback
+              traceback.print_exc()
+          PY
+
+      - name: RAY INSPECT WHEEL CONTENT
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+          
+          wheels = glob.glob("dist/*.whl")
+          
+          if not wheels:
+              raise RuntimeError("No wheel found in dist/")
+          
+          wheel = wheels[0]
+          
+          print("=" * 80)
+          print("WHEEL:", wheel)
+          print("=" * 80)
+          
+          with zipfile.ZipFile(wheel) as z:
+              for name in sorted(z.namelist()):
+                  print(name)
+          PY
+
+      - name: RAY TREE SITE-PACKAGES
+        run: |
+          SITE=$(find test_env/lib -type d -name site-packages | head -1)
+          echo "SITE_PACKAGES=$SITE"
+          tree "$SITE" -L 4
+          echo "PWD:"
+          pwd
+          echo ""
+          unzip -l dist/*.whl | head -100
+          echo ""
+          echo "PROJECT TREE:"
+          tree -L 6
+
+
+
+      - name: Install wheel into isolated environment
+        run: |
+          source test_env/bin/activate
+          # Menggunakan uv untuk install langsung ke venv tanpa butuh pip bawaan
+          uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
+          uv pip show cooprecsys
+          python - <<'PY'
+          import cooprecsys
+          print("SUCCESS")
+          print(cooprecsys.__file__)
+          PY
+
+      - name: Validate wheel content
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as z:
+              print("\n".join(sorted(z.namelist())))
+          PY
+
+
+      - name: Install test dependencies
+        run: |
+          source test_env/bin/activate
+          uv pip install pytest pytest-cov
+
+      #- name: Run integration tests against wheel
+      #  run: |
+      #    source test_env/bin/activate
+      #    pytest test/ \
+      #      -v \
+      #      --tb=short \
+      #      --import-mode=importlib \
+      #      --cov=cooprecsys \
+      #      --cov-report=xml:coverage.xml \
+      #      --cov-report=term-missing \
+      #      --junit-xml=test-results.xml
+      #
+      #- name: Upload coverage reports
+      #  uses: codecov/codecov-action@v4
+      #  if: always()
+      #  with:
+      #    files: ./coverage.xml
+      #    flags: unittests
+      #    name: coverage-${{ env.PYTHON_VERSION }}
+      #    fail_ci_if_error: false
+      #    token: ${{ secrets.CODECOV_TOKEN }}
+      #
+      #- name: Publish test results
+      #  uses: EnricoMi/publish-unit-test-result-action@v2
+      #  if: always()
+      #  with:
+      #    files: test-results.xml
+      #    check_name: "Test Results (${{ env.PYTHON_VERSION }})"
+
+  publish:
+    name: Publish to Release
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist/
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.whl
+          draft: false
+          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          generate_release_notes: true
+
+      - name: Release summary
+        run: |
+          echo "Release published successfully for tag: ${{ github.ref_name }}"
+          echo "Wheels published: $(ls -1 dist/*.whl | wc -l)"

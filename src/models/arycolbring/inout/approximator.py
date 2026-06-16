@@ -33,7 +33,7 @@ import numpy as np
 from pathlib import Path
 import scipy.sparse as sp
 from typing import Optional, Union
-from .Scaffold import AryColBringBase, cydtype
+from .scaffold import AryColBringBase, cydtype
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))

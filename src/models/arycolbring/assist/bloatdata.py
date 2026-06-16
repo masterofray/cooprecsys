@@ -14,16 +14,16 @@ import gc
 import sys
 import numpy as np
 import pandas as pd
-from pathlib import Path
 import scipy.sparse as sp
+from pathlib   import Path
 from tqdm.auto import tqdm
-from typing import Optional, Tuple
+from typing    import Optional, Tuple
 
 LocDir = Path(__file__).resolve().parents[3]
 sys.path.append(str(LocDir))
-from db      import duckdb_connection
-from configs import _cfg, logger
-from feature import load_data
+from db       import duckdb_connection
+from configs  import _cfg, logger
+from features import load_data
 
 DType = _cfg.get("model", "dtype", fallback = "float32")
 
@@ -147,7 +147,7 @@ def fileload_interactions(path       : str,
     Load interactions directly from a flatfiles.
     _________________________________________________________
     Parameters
-    path       : Absolute or relative path to the CSV file.
+    path       : Absolute or relative path to the DuckDB/Parquet/CSV file.
     user_col   : Column name for user identifiers.
     item_col   : Column name for item identifiers.
     rating_col : Optional rating column name.
@@ -156,7 +156,7 @@ def fileload_interactions(path       : str,
     path = Path(path)
     logger.info("load_interactions_from_csv: path = %s", path)
     if not path.is_file():
-        raise FileNotFoundError(f"Interaction CSV not found: {path}")
+        raise FileNotFoundError(f"Interaction data (CSV/parquet/db) not found: {path}")
     datague = load_data(data_path = path)
     result  = norm_exchange(datague,
                             user_col   = user_col,

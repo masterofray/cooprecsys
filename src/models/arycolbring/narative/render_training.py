@@ -62,11 +62,10 @@ def get_env() -> Environment:
     logger.debug("Initializing Jinja environment.")
     try:
         env = Environment(
-            loader=FileSystemLoader(TEMPLATE_DIR),
-            autoescape=select_autoescape(["html", "xml"]),
-            trim_blocks=True,
-            lstrip_blocks=True
-        )
+            loader        = FileSystemLoader(TEMPLATE_DIR), # nosec B701
+            autoescape    = select_autoescape(["html", "xml"]),
+            trim_blocks   = True,
+            lstrip_blocks = True)
         logger.info("Jinja environment initialized successfully.")
         return env
     except Exception as exc:

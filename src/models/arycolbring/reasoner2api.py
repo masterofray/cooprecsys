@@ -16,7 +16,7 @@ import time
 from   pathlib    import Path
 from   tqdm.auto  import tqdm
 from   datetime   import datetime
-from   typing     import Any, Dict
+from   typing     import Any, Dict, List
 from   .inference import AryColBringInference
 
 LocDir = Path(__file__).resolve()

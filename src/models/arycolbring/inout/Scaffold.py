@@ -246,9 +246,9 @@ class AryColBringBase(ABC):
         self.item_bias_momentum       = np.zeros_like(self.item_biases)
 
         # User embeddings: same scheme
-        self.user_embeddings = ((self._random_state.rand(
-                               no_user_features, no_components) - 0.5)
-                               / no_components).astype(cydtype)
+        self.user_embeddings          = ((self._random_state.rand(
+                                        no_user_features, no_components) - 0.5)
+                                        / no_components).astype(cydtype)
         self.user_embedding_gradients = np.zeros_like(self.user_embeddings)
         self.user_embedding_momentum  = np.zeros_like(self.user_embeddings)
         self.user_biases              = np.zeros(no_user_features, dtype=cydtype)
@@ -261,7 +261,6 @@ class AryColBringBase(ABC):
             self.item_bias_gradients      += 1
             self.user_embedding_gradients += 1
             self.user_bias_gradients      += 1
-
 
 
     # ── static helpers ───────────────────────────
@@ -284,7 +283,6 @@ class AryColBringBase(ABC):
                         unit        = 'batch',
                         mininterval = 0.1)
         return range(n_epochs)
-
 
 
     # ── feature matrix helpers ────────────────────────────────────────────────
