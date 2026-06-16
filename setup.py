@@ -4,7 +4,7 @@ __author__     = "Aryanto"
 __copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
 __credits__    = ["aryanto"]
 __license__    = "GNU_Public"
-__version__    = "0.0.1"
+__version__    = "0.0.1rc2"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
@@ -62,7 +62,7 @@ class Proxies(build_ext):
 if __name__ == '__main__':
     setup(
         name         = "cooprecsys",
-        version      = "0.0.1rc",
+        version      = "0.0.1rc2",
         description  = "Koperasi Recommender System Core Engine",
         package_dir  = {"cooprecsys": "src"},
         packages     = Discover(),
