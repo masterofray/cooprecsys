@@ -59,7 +59,8 @@ jobs:
           echo "=================================================="
           echo "[STEP 4/8] Install Dependencies"
           echo "=================================================="
-          uv pip install --system -e ".[dev,test]"
+          # Install dependensi tanpa ikut mengompilasi paket lokal
+          uv pip install --system --no-deps -r <(uv pip compile pyproject.toml --extra dev --extra test)
 
       - name: Build Raw Package
         run: |
