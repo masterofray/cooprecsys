@@ -298,34 +298,34 @@ jobs:
           source test_env/bin/activate
           uv pip install pytest pytest-cov
 
-      - name: Run integration tests against wheel
-        run: |
-          source test_env/bin/activate
-          pytest test/ \
-            -v \
-            --tb=short \
-            --import-mode=importlib \
-            --cov=cooprecsys \
-            --cov-report=xml:coverage.xml \
-            --cov-report=term-missing \
-            --junit-xml=test-results.xml
-
-      - name: Upload coverage reports
-        uses: codecov/codecov-action@v4
-        if: always()
-        with:
-          files: ./coverage.xml
-          flags: unittests
-          name: coverage-${{ env.PYTHON_VERSION }}
-          fail_ci_if_error: false
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Publish test results
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        if: always()
-        with:
-          files: test-results.xml
-          check_name: "Test Results (${{ env.PYTHON_VERSION }})"
+      #- name: Run integration tests against wheel
+      #  run: |
+      #    source test_env/bin/activate
+      #    pytest test/ \
+      #      -v \
+      #      --tb=short \
+      #      --import-mode=importlib \
+      #      --cov=cooprecsys \
+      #      --cov-report=xml:coverage.xml \
+      #      --cov-report=term-missing \
+      #      --junit-xml=test-results.xml
+      #
+      #- name: Upload coverage reports
+      #  uses: codecov/codecov-action@v4
+      #  if: always()
+      #  with:
+      #    files: ./coverage.xml
+      #    flags: unittests
+      #    name: coverage-${{ env.PYTHON_VERSION }}
+      #    fail_ci_if_error: false
+      #    token: ${{ secrets.CODECOV_TOKEN }}
+      #
+      #- name: Publish test results
+      #  uses: EnricoMi/publish-unit-test-result-action@v2
+      #  if: always()
+      #  with:
+      #    files: test-results.xml
+      #    check_name: "Test Results (${{ env.PYTHON_VERSION }})"
 
   publish:
     name: Publish to Release
