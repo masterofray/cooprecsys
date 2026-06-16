@@ -92,7 +92,7 @@ class AryColBringBase(ABC):
         if not (0 < rho < 1):
             raise ValueError("rho must be in (0, 1)")
         if epsilon < 0:
-            raise ValueError("epsilon must be ≥ 0")
+            raise ValueError("epsilon must be >= 0")
         if max_sampled < 1:
             raise ValueError("max_sampled must be a positive integer")
         if learning_schedule not in ("adagrad", "adadelta"):
@@ -124,7 +124,6 @@ class AryColBringBase(ABC):
             raise TypeError(
             "random_state must be None, an int, or np.random.RandomState")
         self._reset_state()
-
 
 
     # ── properties ───────────────────────────
@@ -205,7 +204,6 @@ class AryColBringBase(ABC):
         self.user_biases              = None
         self.user_bias_gradients      = None
         self.user_bias_momentum       = None
-
 
     def _check_initialized(self) -> None:
         """Raise RuntimeError if embeddings have not been initialised yet."""

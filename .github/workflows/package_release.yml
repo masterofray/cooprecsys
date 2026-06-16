@@ -3,7 +3,7 @@ name: CoopRecSys Package Publisher
 on:
   push:
     branches:
-      - dev
+      - master
 
 permissions:
   contents: read

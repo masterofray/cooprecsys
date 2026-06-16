@@ -34,10 +34,12 @@ def Discover():
         packages.append(pkg)
     return packages
 
+
 class Proxies(build_ext):
     """
-    Membajak instruksi build_ext standar untuk mendelegasikan eksekusi
-    secara mutlak ke cysetup.py milik arsitektur arycolbring.
+    Hijacking the standard build_ext instruction to 
+    delegate execution to the arycolbring 
+    architecture's cysetup.py.
     """
     def run(self):
         possible_dirs = [
@@ -71,15 +73,12 @@ class Proxies(build_ext):
 
 if __name__ == '__main__':
     setup(
-        name         = "cooprecsys",
-        version      = "0.0.1rc2",
-        description  = "Koperasi Recommender System Core Engine",
         package_dir  = {"cooprecsys": "src"},
         packages     = Discover(),
         package_data = {"": ["*.c", "*.so", "*.pyd", "*.dll", "*.dylib", 
                              "*.pyx", "*.pxd", "config.ini", "py.typed",
                              "*.html", "*.j2", "*.png", "*.css", "*.js",
-                             "*.ico", "*.sh", "*.md", "*.sql",
+                             "*.ico", "*.sh", "*.md", "*.sql", "*.jpg",
                              ]},
         include_package_data = True,
         ext_modules          = [Extension("cooprecsys", sources=[])],
