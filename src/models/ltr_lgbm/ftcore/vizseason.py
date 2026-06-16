@@ -43,7 +43,6 @@ from copy import deepcopy
 from datetime import datetime
 import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Optional
-from ipdb import set_trace
 
 matplotlib.use("Agg")
 LocDir = Path(__file__).resolve().parents[3]
