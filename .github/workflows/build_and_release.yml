@@ -126,6 +126,134 @@ jobs:
         run: |
           uv venv test_env --python ${{ env.PYTHON_VERSION }}
 
+
+      - name: RAY FULL PACKAGE DEBUG
+        run: |
+          set +e
+      
+          source test_env/bin/activate
+      
+          echo "======================================================"
+          echo "PYTHON INFO"
+          echo "======================================================"
+          which python
+          python --version
+      
+          echo ""
+          echo "======================================================"
+          echo "SYS.PATH"
+          echo "======================================================"
+          python - <<'PY'
+      import sys
+      
+      for i, p in enumerate(sys.path):
+          print(f"{i:02d}: {p}")
+      PY
+      
+          echo ""
+          echo "======================================================"
+          echo "SITE-PACKAGES LOCATION"
+          echo "======================================================"
+          python - <<'PY'
+      import site
+      
+      for p in site.getsitepackages():
+          print(p)
+      PY
+          echo ""
+          echo "======================================================"
+          echo "INSTALLED PACKAGES"
+          echo "======================================================"
+          pip list
+      
+          echo ""
+          echo "======================================================"
+          echo "COOPRECSYS PACKAGE INFO"
+          echo "======================================================"
+          pip show cooprecsys || true
+      
+          echo ""
+          echo "======================================================"
+          echo "COOPRECSYS INSTALLED FILES"
+          echo "======================================================"
+          pip show -f cooprecsys || true
+      
+          echo ""
+          echo "======================================================"
+          echo "SITE-PACKAGES TREE"
+          echo "======================================================"
+          find test_env/lib -type d | sort
+      
+          echo ""
+          echo "======================================================"
+          echo "FILES CONTAINING cooprecsys"
+          echo "======================================================"
+          find test_env/lib -iname "*cooprecsys*" | sort
+      
+          echo ""
+          echo "======================================================"
+          echo "DIST-INFO CONTENT"
+          echo "======================================================"
+          find test_env/lib -path "*cooprecsys*.dist-info*" | sort
+      
+          echo ""
+          echo "======================================================"
+          echo "TOP_LEVEL.TXT"
+          echo "======================================================"
+          find test_env/lib -name top_level.txt -path "*cooprecsys*" -exec cat {} \; || true
+      
+          echo ""
+          echo "======================================================"
+          echo "RECORD FILE"
+          echo "======================================================"
+          find test_env/lib -name RECORD -path "*cooprecsys*" -exec cat {} \; || true
+      
+          echo ""
+          echo "======================================================"
+          echo "IMPORT TEST"
+          echo "======================================================"
+          python - <<'PY'
+      try:
+          import cooprecsys
+          print("SUCCESS")
+          print(cooprecsys.__file__)
+      except Exception as e:
+          import traceback
+          traceback.print_exc()
+      PY
+
+      - name: INSPECT WHEEL CONTENT
+        run: |
+          python - <<'PY'
+      import glob
+      import zipfile
+      
+      wheels = glob.glob("dist/*.whl")
+      
+      if not wheels:
+          raise RuntimeError("No wheel found in dist/")
+      
+      wheel = wheels[0]
+      
+      print("=" * 80)
+      print("WHEEL:", wheel)
+      print("=" * 80)
+      
+      with zipfile.ZipFile(wheel) as z:
+          for name in sorted(z.namelist()):
+              print(name)
+      PY
+
+      - name: RAY TREE SITE-PACKAGES
+        run: |
+          SITE=$(find test_env/lib -type d -name site-packages | head -1)
+      
+          echo "SITE_PACKAGES=$SITE"
+      
+          tree "$SITE" -L 4
+
+
+
       - name: Install wheel into isolated environment
         run: |
           source test_env/bin/activate

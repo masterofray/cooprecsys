@@ -34,63 +34,25 @@ Private helpers
 ───────────────
 _split_cat_num        – dtype-based column partitioning
 _aggregate_features   – per-entity DuckDB aggregation (MODE / AVG)
-_encode_to_sparse     – one-hot + min-max → CSR sparse matrix
+_encode_to_sparse     – one-hot + min-max -> CSR sparse matrix
 """
 
 import gc
-import logging
-from typing import Dict, List, NamedTuple, Optional, Tuple
-
+import sys
 import numpy  as np
 import pandas as pd
 import scipy.sparse as sp
-from tqdm import tqdm
+from pathlib   import Path
+from tqdm.auto import tqdm
+from typing    import Dict, List, NamedTuple, Tuple
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
 from configs import logger, _cfg
+from db      import duckdb_connection
 
+DType = _cfg.get('model', 'dtype')
 
-# ── project-level (already defined elsewhere in the codebase) ────────────────
-# from project.db   import duckdb_connection
-# from project.conf import _cfg
-# ─────────────────────────────────────────────────────────────────────────────
-
-logger = logging.getLogger(__name__)
-DType  = "float32"
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Module-level defaults
-# ══════════════════════════════════════════════════════════════════════════════
-
-_DEFAULT_RATING_WEIGHTS: Dict[str, float] = {
-    "frequency": 0.25,   # log1p(# transactions per user-item pair)
-    "quantity" : 0.25,   # log1p(Σ Quantity)
-    "spend"    : 0.30,   # log1p(Σ TotalPrice) — strongest signal
-    "recency"  : 0.10,   # how recently the user last bought this item
-    "loyalty"  : 0.10,   # 1 - mean_discount  (willingness to pay full price)
-}
-
-#: Columns used to describe each *user* (one feature vector per CustomerID).
-_DEFAULT_USER_FEAT_COLS: List[str] = [
-    "CityName",
-    "CountryName",
-]
-
-#: Columns used to describe each *item* (one feature vector per CategoryID).
-_DEFAULT_ITEM_FEAT_COLS: List[str] = [
-    "Class",          # categorical: High / Medium / Low
-    "Resistant",      # categorical: Weak / Durable / Unknown
-    "IsAllergic",     # categorical: True / False / Unknown
-    "VitalityDays",   # numeric
-    "ProductPrice",   # numeric
-]
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-# Named return container
-# ══════════════════════════════════════════════════════════════════════════════
 
 class ExchangeResult(NamedTuple):
     """
@@ -100,8 +62,8 @@ class ExchangeResult(NamedTuple):
     ----------
     interactions  : coo_matrix  shape (n_users, n_items)
                     Observed user-item interactions (ratings or 1.0).
-    user_ids      : ndarray     int-index → original user identifier.
-    item_ids      : ndarray     int-index → original item identifier.
+    user_ids      : ndarray     int-index -> original user identifier.
+    item_ids      : ndarray     int-index -> original item identifier.
     user_features : csr_matrix  shape (n_users, F_u)
                     One feature row per user; columns = one-hot + normalised
                     numeric features derived from *user_feature_cols*.
@@ -142,25 +104,25 @@ def _split_cat_num(
     -------
     cat_cols, num_cols
     """
-    cat, num = [], []
+    cat, num = list(), list()
     for c in cols:
         if c == id_col:
-            logger.debug("_split_cat_num: skipping id column '%s'", c)
+            logger.debug("skipping id column '%s'", c)
             continue
         if c not in df.columns:
             logger.warning(
-                "_split_cat_num: column '%s' not found in DataFrame – skipping", c
+                "column '%s' not found in DataFrame – skipping", c
             )
             continue
         if df[c].dtype == object or str(df[c].dtype) == "category":
             cat.append(c)
-            logger.debug("_split_cat_num: '%s' → categorical", c)
+            logger.debug("'%s' -> categorical", c)
         else:
             num.append(c)
-            logger.debug("_split_cat_num: '%s' → numerical (dtype=%s)", c, df[c].dtype)
+            logger.debug("'%s' -> numerical (dtype=%s)", c, df[c].dtype)
 
     logger.debug(
-        "_split_cat_num [id=%s]: cat=%s  num=%s", id_col, cat, num
+        "[id=%s]: cat=%s  num=%s", id_col, cat, num
     )
     return cat, num
 
@@ -179,8 +141,8 @@ def _aggregate_features(
 
     Aggregation strategy
     ─────────────────────
-    Categorical  →  ``MODE()``  — most frequent non-null value.
-    Numerical    →  ``AVG()``   — mean across all transactions.
+    Categorical  ->  ``MODE()``  — most frequent non-null value.
+    Numerical    ->  ``AVG()``   — mean across all transactions.
 
     Parameters
     ----------
@@ -202,10 +164,10 @@ def _aggregate_features(
             "_aggregate_features [%s]: no valid feature columns found; "
             "returning bare id-only DataFrame", id_col,
         )
-        return pd.DataFrame({id_col: data[id_col].unique()}), [], []
+        return pd.DataFrame({id_col: data[id_col].unique()}), list(), list()
 
     cat_exprs = ",\n            ".join(
-        [f'MODE("{c}") AS "{c}"'                for c in cat_cols]
+        [f'MODE("{c}") AS "{c}"' for c in cat_cols]
     )
     num_exprs = ",\n            ".join(
         [f'AVG(CAST("{c}" AS DOUBLE)) AS "{c}"' for c in num_cols]
@@ -269,11 +231,11 @@ def _encode_to_sparse(
 
     Encoding rules
     ──────────────
-    Categorical  →  ``pd.get_dummies`` one-hot expansion.
-                    NaN → imputed with column mode (or ``'__unknown__'``).
-    Numerical    →  min-max normalisation to [0, 1].
-                    NaN → imputed with column median.
-                    Constant columns → set to 0.5 with a warning.
+    Categorical  ->  ``pd.get_dummies`` one-hot expansion.
+                    NaN -> imputed with column mode (or ``'__unknown__'``).
+    Numerical    ->  min-max normalisation to [0, 1].
+                    NaN -> imputed with column median.
+                    Constant columns -> set to 0.5 with a warning.
 
     Parameters
     ----------
@@ -309,10 +271,10 @@ def _encode_to_sparse(
     else:
         logger.debug("_encode_to_sparse [%s]: merge OK – no orphan entities", id_col)
 
-    blocks: List[sp.csr_matrix] = []
-    feature_names: List[str]    = []
+    blocks: List[sp.csr_matrix] = list()
+    feature_names: List[str]    = list()
 
-    # ── categorical → one-hot ─────────────────────────────────────────────────
+    # ── categorical -> one-hot ─────────────────────────────────────────────────
     for col in cat_cols:
         n_na     = int(agg_df[col].isna().sum())
         n_unique = agg_df[col].nunique(dropna=True)
@@ -326,7 +288,7 @@ def _encode_to_sparse(
                 if agg_df[col].notna().any() else "__unknown__"
             )
             logger.warning(
-                "_encode_to_sparse: '%s' – %d NaN → imputed with mode='%s'",
+                "_encode_to_sparse: '%s' – %d NaN -> imputed with mode='%s'",
                 col, n_na, fill_val,
             )
             agg_df[col] = agg_df[col].fillna(fill_val)
@@ -334,13 +296,13 @@ def _encode_to_sparse(
         agg_df[col] = agg_df[col].astype(str)
         dummies     = pd.get_dummies(agg_df[col], prefix=col, dtype=np.float32)
         logger.debug(
-            "_encode_to_sparse: '%s' → %d one-hot dims: %s",
+            "_encode_to_sparse: '%s' -> %d one-hot dims: %s",
             col, dummies.shape[1], list(dummies.columns),
         )
         feature_names.extend(dummies.columns.tolist())
         blocks.append(sp.csr_matrix(dummies.values, dtype=dtype))
 
-    # ── numerical → min-max normalise ────────────────────────────────────────
+    # ── numerical -> min-max normalise ────────────────────────────────────────
     for col in num_cols:
         n_na = int(agg_df[col].isna().sum())
         logger.debug(
@@ -350,7 +312,7 @@ def _encode_to_sparse(
         if n_na:
             med = float(np.nanmedian(agg_df[col].values.astype(float)))
             logger.warning(
-                "_encode_to_sparse: '%s' – %d NaN → imputed with median=%.4f",
+                "_encode_to_sparse: '%s' – %d NaN -> imputed with median=%.4f",
                 col, n_na, med,
             )
             agg_df[col] = agg_df[col].fillna(med)
