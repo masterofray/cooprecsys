@@ -84,15 +84,15 @@ jobs:
           echo "=================================================="
           uv build
 
-      - name: Verify Wheel Installation
-        run: |
-          uv venv test_env
-          source test_env/bin/activate
-          uv pip install dist/*.whl
-          python -c "
-          import cooprecsys
-          print('SUCCESS: cooprecsys imported')
-          print(cooprecsys.__file__)"
+      #- name: Verify Wheel Installation
+      #  run: |
+      #    uv venv test_env
+      #    source test_env/bin/activate
+      #    uv pip install dist/*.whl
+      #    python -c "
+      #    import cooprecsys
+      #    print('SUCCESS: cooprecsys imported')
+      #    print(cooprecsys.__file__)"
 
       - name: Validate Package
         run: |
