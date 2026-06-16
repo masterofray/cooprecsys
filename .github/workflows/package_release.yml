@@ -13,56 +13,32 @@ jobs:
     if: startsWith(github.event.head_commit.message, 'release:')
     name: JackRay Build and Publish
     runs-on: ubuntu-latest
-    #container: quay.io/pypa/manylinux_2_28_x86_64
+    container: quay.io/pypa/manylinux_2_28_x86_64
 
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-
-      - name: Setup UV
-        uses: astral-sh/setup-uv@v2
-        with:
-          enable-cache: true
-          cache-dependency-glob: pyproject.toml
+      - name: Setup Python 3.10 & UV
+        run: |
+          echo "=================================================="
+          echo "[STEP 1/8] Setup Python and UV Toolchain"
+          echo "=================================================="
+          # Daftarkan Python 3.10 bawaan manylinux ke GITHUB_PATH
+          echo "/opt/python/cp310-cp310/bin" >> $GITHUB_PATH
+          
+          # Install uv secara standalone ke dalam container
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Verify Environment
         run: |
           echo "=================================================="
-          echo "[STEP 1/8] Verify Environment"
+          echo "[STEP 2/8] Verify Environment"
           echo "=================================================="
           python --version
           uv --version
-
-      - name: Install cibuildwheel
-        run: uv pip install --system cibuildwheel==2.22.0
-
-      - name: Build Package (cibuildwheel + uv)
-        run: |
-          echo "=================================================="
-          echo "[STEP 6/8] Build Package via cibuildwheel"
-          echo "=================================================="
-          cibuildwheel --output-dir dist
-        env:
-          # Menginstruksikan cibuildwheel untuk menggunakan uv sebagai build engine
-          CIBW_BUILD_FRONTEND: "uv"
-          # Batasi target build ke Python 3.10 64-bit sesuai kebutuhan proyek Anda
-          CIBW_BUILD: "cp310-manylinux_x86_64"
-
-      - name: Install Build Tools
-        run: |
-          echo "=================================================="
-          echo "[STEP 2/8] Install Build Tools"
-          echo "=================================================="
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            gcc \
-            g++
+          gcc --version
 
       - name: Build AryColBring Cython Extensions
         working-directory: ./src/models/arycolbring
@@ -71,10 +47,10 @@ jobs:
           echo "[STEP 3/8] Build Cython Extensions"
           echo "=================================================="
           uv pip install --system \
-          numpy \
-          cython \
-          setuptools \
-          wheel
+            numpy \
+            cython \
+            setuptools \
+            wheel
           chmod +x ./cysetup.sh
           bash ./cysetup.sh
 
@@ -85,50 +61,45 @@ jobs:
           echo "=================================================="
           uv pip install --system -e ".[dev,test]"
 
-      #- name: Run Unit Tests
-      #  run: |
-      #    echo "=================================================="
-      #    echo "[STEP 5/8] Run Tests"
-      #    echo "=================================================="
-      #
-      #    pytest
-
-      - name: Build Package
+      - name: Build Raw Package
         run: |
           echo "=================================================="
-          echo "[STEP 6/8] Build Package"
+          echo "[STEP 5/8] Build Raw Package via UV"
           echo "=================================================="
           uv build
 
-      #- name: Verify Wheel Installation
-      #  run: |
-      #    uv venv test_env
-      #    source test_env/bin/activate
-      #    uv pip install dist/*.whl
-      #    python -c "
-      #    import cooprecsys
-      #    print('SUCCESS: cooprecsys imported')
-      #    print(cooprecsys.__file__)"
+      - name: Repair Wheel (Auditwheel to Manylinux)
+        run: |
+          echo "=================================================="
+          echo "[STEP 6/8] Repair Wheel via Auditwheel"
+          echo "=================================================="
+          mkdir -p final_dist
+          
+          # Mengubah tag dari linux_x86_64 menjadi manylinux_2_28_x86_64
+          auditwheel repair dist/*.whl --wheel-dir final_dist/
+          
+          # Salin source distribution (.tar.gz) jika ada ke folder final
+          cp dist/*.tar.gz final_dist/ || true
 
       - name: Validate Package
         run: |
           echo "=================================================="
           echo "[STEP 7/8] Validate Package"
           echo "=================================================="
-          python -m pip install --upgrade twine
-          twine check dist/*
+          uv pip install --system twine
+          twine check final_dist/*
 
           echo ""
-          echo "Generated Files:"
-          ls -lah dist/
+          echo "Generated & Repaired Files:"
+          ls -lah final_dist/
 
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cooprecsys-distribution
           path: |
-            dist/*.whl
-            dist/*.tar.gz
+            final_dist/*.whl
+            final_dist/*.tar.gz
           retention-days: 14
 
       - name: Publish To PyPI
@@ -139,15 +110,14 @@ jobs:
           echo "=================================================="
           echo "[STEP 8/8] Publish To PyPI"
           echo "=================================================="
-          python -m pip install --upgrade twine
           twine upload \
             --skip-existing \
-            dist/*
+            final_dist/*
 
       - name: Release Summary
         run: |
           echo "=================================================="
           echo "Release Completed"
           echo "=================================================="
-          echo "Artifacts uploaded to GitHub Release"
-          echo "Package published to PyPI"
+          echo "Artifacts successfully compliant with Manylinux standard."
+          echo "Package published to PyPI."
