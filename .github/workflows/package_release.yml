@@ -34,7 +34,6 @@ jobs:
           echo "=================================================="
           echo "[STEP 1/8] Verify Environment"
           echo "=================================================="
-
           python --version
           uv --version
 
@@ -55,6 +54,11 @@ jobs:
           echo "=================================================="
           echo "[STEP 3/8] Build Cython Extensions"
           echo "=================================================="
+          uv pip install --system \
+          numpy \
+          cython \
+          setuptools \
+          wheel
           chmod +x ./cysetup.sh
           bash ./cysetup.sh
 
