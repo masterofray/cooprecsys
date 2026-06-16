@@ -257,35 +257,31 @@ jobs:
           echo "PROJECT TREE:"
           tree -L 6
 
-      - name: RAY SHOW TOP LEVEL
-        run: |
-          python - <<'PY'
-          import zipfile
-          import glob
-          
-          wheel = glob.glob("dist/*.whl")[0]
-          
-          with zipfile.ZipFile(wheel) as z:
-              print(z.read(
-                  "cooprecsys-0.1.0.dist-info/top_level.txt"
-              ).decode())
-          PY
-
 
 
       - name: Install wheel into isolated environment
         run: |
           source test_env/bin/activate
-          uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
-          
-          echo "Mencoba import cooprecsys..."
-          if ./test_env/bin/python -c "import cooprecsys; print(f'Success: {cooprecsys.__file__}')"; then
-            echo "Import berhasil!"
-          else
-            echo "Import gagal! Membongkar isi site-packages untuk debug:"
-            ls -R test_env/lib/python3.10/site-packages/ | grep -i cooprecsys || echo "Folder cooprecsys tidak ditemukan."
-            exit 1
-          fi
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "${{ steps.wheel_info.outputs.wheel_file }}"
+          python -m pip show cooprecsys
+          python - <<'PY'
+          import cooprecsys
+          print("SUCCESS")
+          print(cooprecsys.__file__)
+          PY
+
+      - name: Validate wheel content
+        run: |
+          python - <<'PY'
+          import glob
+          import zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as z:
+              print("\n".join(sorted(z.namelist())))
+          PY
+
 
       - name: Install test dependencies
         run: |

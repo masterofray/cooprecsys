@@ -21,16 +21,6 @@ dependencies = [
 dev = ["pytest>=7.0", "pytest-cov>=4.0", "black>=23.0", "ruff>=0.1.0", "mypy>=1.0"]
 test = ["pytest>=7.0", "pytest-cov>=4.0"]
 
-[tool.setuptools]
-package-dir = {"" = "."}
-
-[tool.setuptools.packages.find]
-where = [".", "src"]
-include = ["cooprecsys*"]
-
-[tool.setuptools.package-data]
-"*" = ["*.so", "*.pyd", "*.dll", "*.dylib", "*.pyx", "*.pxd", "config.ini", "py.typed"]
-
 [tool.pytest.ini_options]
 testpaths = ["test", "tests"]
 python_files = ["test_*.py", "*_test.py"]
