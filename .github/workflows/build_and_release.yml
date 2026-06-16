@@ -144,22 +144,22 @@ jobs:
           echo "SYS.PATH"
           echo "======================================================"
           python - <<'PY'
-      import sys
-      
-      for i, p in enumerate(sys.path):
-          print(f"{i:02d}: {p}")
-      PY
+          import sys
+          
+          for i, p in enumerate(sys.path):
+              print(f"{i:02d}: {p}")
+          PY
       
           echo ""
           echo "======================================================"
           echo "SITE-PACKAGES LOCATION"
           echo "======================================================"
           python - <<'PY'
-      import site
-      
-      for p in site.getsitepackages():
-          print(p)
-      PY
+          import site
+          
+          for p in site.getsitepackages():
+              print(p)
+          PY
           echo ""
           echo "======================================================"
           echo "INSTALLED PACKAGES"
@@ -213,36 +213,36 @@ jobs:
           echo "IMPORT TEST"
           echo "======================================================"
           python - <<'PY'
-      try:
-          import cooprecsys
-          print("SUCCESS")
-          print(cooprecsys.__file__)
-      except Exception as e:
-          import traceback
-          traceback.print_exc()
-      PY
+          try:
+              import cooprecsys
+              print("SUCCESS")
+              print(cooprecsys.__file__)
+          except Exception as e:
+              import traceback
+              traceback.print_exc()
+          PY
 
       - name: INSPECT WHEEL CONTENT
         run: |
           python - <<'PY'
-      import glob
-      import zipfile
-      
-      wheels = glob.glob("dist/*.whl")
-      
-      if not wheels:
-          raise RuntimeError("No wheel found in dist/")
-      
-      wheel = wheels[0]
-      
-      print("=" * 80)
-      print("WHEEL:", wheel)
-      print("=" * 80)
-      
-      with zipfile.ZipFile(wheel) as z:
-          for name in sorted(z.namelist()):
-              print(name)
-      PY
+          import glob
+          import zipfile
+          
+          wheels = glob.glob("dist/*.whl")
+          
+          if not wheels:
+              raise RuntimeError("No wheel found in dist/")
+          
+          wheel = wheels[0]
+          
+          print("=" * 80)
+          print("WHEEL:", wheel)
+          print("=" * 80)
+          
+          with zipfile.ZipFile(wheel) as z:
+              for name in sorted(z.namelist()):
+                  print(name)
+          PY
 
       - name: RAY TREE SITE-PACKAGES
         run: |
