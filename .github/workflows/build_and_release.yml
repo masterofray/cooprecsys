@@ -222,7 +222,7 @@ jobs:
               traceback.print_exc()
           PY
 
-      - name: INSPECT WHEEL CONTENT
+      - name: RAY INSPECT WHEEL CONTENT
         run: |
           python - <<'PY'
           import glob
@@ -247,10 +247,27 @@ jobs:
       - name: RAY TREE SITE-PACKAGES
         run: |
           SITE=$(find test_env/lib -type d -name site-packages | head -1)
-      
           echo "SITE_PACKAGES=$SITE"
-      
           tree "$SITE" -L 4
+          echo "PWD:"
+          pwd
+          echo ""
+          echo "PROJECT TREE:"
+          tree -L 6
+
+      - name: RAY SHOW TOP LEVEL
+        run: |
+          python - <<'PY'
+          import zipfile
+          import glob
+          
+          wheel = glob.glob("dist/*.whl")[0]
+          
+          with zipfile.ZipFile(wheel) as z:
+              print(z.read(
+                  "cooprecsys-0.1.0.dist-info/top_level.txt"
+              ).decode())
+          PY
 
 
 
