@@ -74,7 +74,8 @@ jobs:
           echo "[STEP 5/8] Build Raw Package via UV"
           echo "=================================================="
           export CFLAGS="-Wno-array-bounds -Wno-format"
-          uv build --wheel --no-build-isolation
+          #uv build --wheel --no-build-isolation
+          python3 setup.py bdist_wheel
 
       - name: Repair Wheel (Auditwheel to Manylinux)
         run: |
