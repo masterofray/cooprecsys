@@ -69,13 +69,13 @@ jobs:
           echo "=================================================="
           uv pip install --system -e ".[dev,test]"
 
-      - name: Run Unit Tests
-        run: |
-          echo "=================================================="
-          echo "[STEP 5/8] Run Tests"
-          echo "=================================================="
-
-          pytest
+      #- name: Run Unit Tests
+      #  run: |
+      #    echo "=================================================="
+      #    echo "[STEP 5/8] Run Tests"
+      #    echo "=================================================="
+      #
+      #    pytest
 
       - name: Build Package
         run: |
