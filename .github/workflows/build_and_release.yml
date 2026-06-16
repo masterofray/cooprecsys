@@ -252,6 +252,8 @@ jobs:
           echo "PWD:"
           pwd
           echo ""
+          unzip -l dist/*.whl | head -100
+          echo ""
           echo "PROJECT TREE:"
           tree -L 6
 
