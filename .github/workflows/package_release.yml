@@ -9,10 +9,11 @@ permissions:
   contents: read
 
 jobs:
-  publish:
+  build-and-publish:
     if: startsWith(github.event.head_commit.message, 'release:')
-    name: Build, Test and Publish
+    name: JackRay Build and Publish
     runs-on: ubuntu-latest
+    #container: quay.io/pypa/manylinux_2_28_x86_64
 
     steps:
       - name: Checkout Repository
@@ -36,6 +37,21 @@ jobs:
           echo "=================================================="
           python --version
           uv --version
+
+      - name: Install cibuildwheel
+        run: uv pip install --system cibuildwheel==2.22.0
+
+      - name: Build Package (cibuildwheel + uv)
+        run: |
+          echo "=================================================="
+          echo "[STEP 6/8] Build Package via cibuildwheel"
+          echo "=================================================="
+          cibuildwheel --output-dir dist
+        env:
+          # Menginstruksikan cibuildwheel untuk menggunakan uv sebagai build engine
+          CIBW_BUILD_FRONTEND: "uv"
+          # Batasi target build ke Python 3.10 64-bit sesuai kebutuhan proyek Anda
+          CIBW_BUILD: "cp310-manylinux_x86_64"
 
       - name: Install Build Tools
         run: |
