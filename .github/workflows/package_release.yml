@@ -84,6 +84,14 @@ jobs:
           echo "=================================================="
           uv build
 
+      - name: Verify Wheel Installation
+        run: |
+          uv pip install dist/*.whl
+          python -c "
+          import cooprecsys
+          print('SUCCESS: cooprecsys imported')
+          print(cooprecsys.__file__)"
+
       - name: Validate Package
         run: |
           echo "=================================================="
