@@ -363,3 +363,6 @@ def _encode_to_sparse(
             "(density=%.2f%%) – verify column selection", id_col, density,
         )
     return mat
+
+if __name__ == "__main__":
+    print('This is Ersetz!')
