@@ -134,6 +134,7 @@ class CFRatingEngine:
         self.scenario          = self._detect_scenario()
         self.available_signals = self._get_available_signals()
         self.weights           = self._setup_weights(weights)
+        self._ratec            = _cfg.get('RATING', 'ColumnName')
         logger.info("engine ready  signals=%s  scenario=%s",
                     self.available_signals, self.scenario.value)
 
@@ -489,12 +490,12 @@ class CFRatingEngine:
             arcsca    = MinMaxScaler(feature_range = (r_min, r_max))
             scores    = fitdata['raw_score'].to_numpy()
             scores_2d = scores.reshape(-1, 1)
-            fitdata["pseudo_rating"] = np.round(
+            fitdata[self._ratec] = np.round(
                 arcsca.fit_transform(scores_2d).flatten(), 
                 decimals = 4).astype(np.float32)
         except Exception as arc:
             logger.error('Failed to calculate Rating from RawScore, try another method.')
-            fitdata["pseudo_rating"] = (r_min + \
+            fitdata[self._ratec] = (r_min + \
                 fitdata["raw_score"] * (r_max - r_min)
                 ).round(4).astype(np.float32)
         fitdata.drop(columns = ["raw_score"], inplace = True)
@@ -509,14 +510,14 @@ class CFRatingEngine:
         n_pairs = len(Data)
         n_users = Data[self.user_col].nunique()
         n_items = Data[self.item_col].nunique()
-        pr      = Data["pseudo_rating"]
+        pr      = Data[self._ratec]
         logger.debug(
             "summary | pairs=%d | users=%d | items=%d | "
             "rating[min=%.3f  mean=%.3f  max=%.3f  std=%.3f]",
             n_pairs, n_users, n_items,
             pr.min(), pr.mean(), pr.max(), pr.std())
-        cold_users = int((Data.groupby(self.user_col)["pseudo_rating"].count() == 1).sum())
-        cold_items = int((Data.groupby(self.item_col)["pseudo_rating"].count() == 1).sum())
+        cold_users = int((Data.groupby(self.user_col)[self._ratec].count() == 1).sum())
+        cold_items = int((Data.groupby(self.item_col)[self._ratec].count() == 1).sum())
         if cold_users:
             logger.warning("%d user(s) in only 1 pair ->> cold-start risk", cold_users)
         if cold_items:

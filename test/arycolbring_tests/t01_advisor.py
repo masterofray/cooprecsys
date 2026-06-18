@@ -19,21 +19,23 @@ This script provides a comprehensive training pipeline for the AryColBring model
 with integrated logging, progress tracking, and model persistence.
 """
 
+import gc
 import sys
-import pandas as pd
-from pathlib import Path
-from typing import Optional, Tuple, Union
+import pandas       as pd
+import scipy.sparse as sp
+from pathlib  import Path
+from copy     import deepcopy
+from typing   import Optional, Tuple, Union
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
-from configs import _cfg, logger
+from configs  import _cfg, logger
+from db       import duckdb_connection
+from features import load_data
+from qrates   import GenQuasi_Lazy
 from models.arycolbring import AryColBringModelTrainer, RunTrainer
-from db import DuckDBManager, duckdb_connection
-
-
-from db.callduckdb import 
-from models.arycolbring.trainer import AryColBringModelTrainer, RunTrainer
 from models.arycolbring.assist import fileload_interactions, describe_interactions
+
 
 
 class AryColBring_Reasoner_Test:
@@ -41,92 +43,83 @@ class AryColBring_Reasoner_Test:
     High-level training pipeline wrapper for AryColBring model.
     Handles data loading, training, evaluation, and reporting.
     """
-
     def __init__(self,
-                 data_dir: Union[str, Path],
+                 data_dir  : Union[str, Path],
                  output_dir: Union[str, Path] = "artifacts",
-                 config_section: str = "model"):
+                ):
         """
         Initialize training pipeline.
-
-        Args:
-            data_dir: Directory containing training data
-            output_dir: Directory for output models and reports
-            config_section: Configuration section to load from INI
+        - data_dir  : Directory containing training data
+        - output_dir: Directory for output models and reports
         """
-        self.data_dir = Path(data_dir)
+        self.data_dir   = Path(data_dir)
         self.output_dir = Path(output_dir)
-        self.config_section = config_section
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-
-        # Load configuration
-        self.config = self._load_config()
+        self.config     = self._load_config()
+        self._TRAIN     = None
+        self._TEST      = None
+        self.output_dir.mkdir(parents = True, exist_ok = True)
         logger.info("Training pipeline initialized with output_dir=%s", self.output_dir)
 
+
     def _load_config(self) -> dict:
-        """Load model configuration from INI file."""
         config = {
-            "no_components": _cfg.getint(self.config_section, "no_components", fallback=10),
-            "loss": _cfg.get(self.config_section, "loss", fallback="warp"),
-            "learning_rate": _cfg.getfloat(self.config_section, "learning_rate", fallback=0.05),
-            "epochs": _cfg.getint(self.config_section, "epochs", fallback=10),
-            "num_threads": _cfg.getint(self.config_section, "num_threads", fallback=4),
-            "dtype": _cfg.get(self.config_section, "dtype", fallback="float32"),
-            "learning_schedule": _cfg.get(self.config_section, "learning_schedule", fallback="adagrad"),
-        }
+        "no_components"    : _cfg.getint('model', "no_components", fallback=10),
+        "loss"             : _cfg.get(model, "loss", fallback="warp"),
+        "learning_rate"    : _cfg.getfloat(model, "learning_rate", fallback=0.05),
+        "epochs"           : _cfg.getint(model, "epochs", fallback=10),
+        "num_threads"      : _cfg.getint(model, "num_threads", fallback=4),
+        "dtype"            : _cfg.get(model, "dtype", fallback="float32"),
+        "learning_schedule": _cfg.get(model, "learning_schedule", fallback="adagrad")}
         logger.debug("Configuration loaded: %s", config)
         return config
 
+
     def load_training_data(self,
-                           data_file: Union[str, Path],
-                           test_split: float = 0.2,
-                           random_state: int = 42) -> Tuple[sp.spmatrix, Optional[sp.spmatrix]]:
-        """
-        Load training data from file.
-
-        Args:
-            data_file: Path to data file (CSV or Parquet)
-            test_split: Fraction of data to use for validation
-            random_state: Random seed for reproducibility
-
-        Returns:
-            Tuple of (train_interactions, validation_interactions)
-        """
-        data_file = Path(data_file)
-        logger.info("Loading data from: %s", data_file)
-
-        if not data_file.exists():
-            raise FileNotFoundError(f"Data file not found: {data_file}")
-
-        # Load data
-        if data_file.suffix == ".parquet":
-            df = pd.read_parquet(data_file)
-        elif data_file.suffix == ".csv":
-            df = pd.read_csv(data_file)
-        else:
-            raise ValueError(f"Unsupported file format: {data_file.suffix}")
-
-        logger.info("Data loaded: shape=%s", df.shape)
-        logger.debug("Columns: %s", df.columns.tolist())
-
-        # Split into train/test if requested
-        if test_split > 0:
-            np.random.seed(random_state)
-            mask = np.random.random(len(df)) > test_split
-            train_df = df[mask].copy()
-            test_df = df[~mask].copy()
-            logger.info("Data split: train=%d, test=%d", len(train_df), len(test_df))
-        else:
-            train_df = df.copy()
-            test_df = None
+                           DataPath   : Union[str, Path],
+                           test_split : float = 0.2,
+                          ) -> Tuple[sp.spmatrix, Optional[sp.spmatrix]]:
+        np.random.seed(4)
+        DataPath = Path(DataPath)
+        if not (1e-3 <= float(test_split) <= 0.7):
+            logger.warning('Your test_split value outside our range!')
+            test_split = 0.3
+        logger.debug("Loading data from: %s", DataPath)
+        if not DataPath.exists():
+            logger.error(f"Data file not found: {DataPath}")
+            raise FileNotFoundError()
+        dataLD = load_data(data_path    = DataPath, 
+                           memory_limit = "16GB")
+        datafr = GenQuasi_Lazy(dataLD)
+        logger.info("Data loaded: shape = %s", datafr.shape)
+        logger.debug("Columns: %s", datafr.columns.tolist())
+        mask = np.random.random(len(datafr)) > test_split
+        train_df = deepcopy(datafr[mask])
+        test_df  = deepcopy(datafr[~mask])
+        logger.info("Data split: train = %d, test = %d",
+                     len(train_df), len(test_df))
 
         # Convert to sparse matrix (user-item interactions)
-        train_interactions, _, _ = fileload_interactions(train_df)
-        test_interactions = None
-        if test_df is not None:
-            test_interactions, _, _ = fileload_interactions(test_df)
+        self._TRAIN, _, _ = fileload_interactions(train_df)
+        self._TEST, _, _  = fileload_interactions(test_df)
+        gc.collect()
 
-        return train_interactions, test_interactions
+
+    def _RateProgres(self):
+        Collect       = DetectReco_Identifier(data.columns.to_numpy())
+        MergeData     = DataGrade.merge(data,
+                        on = [Collect['user_col'], Collect['item_col']])
+        UserFeats     = ['EmployeeAge', 'EmployeeGender','Resistant', 'IsAllergic', 'VitalityDays']
+        ItemFeats     = ['ProductPrice', 'Quantity', 'Discount', 'TotalPrice', 'Class']
+        Results       = Decomposition_Matrix_Dev(
+                        data              = MergeData,
+                        user_col          = Collect['user_col'],
+                        item_col          = Collect['item_col'],
+                        user_feature_cols = UserFeats,
+                        item_feature_cols = ItemFeats,)
+        interactions  = Results[0]
+        user_features = Results[1]
+        item_features = Results[2]
+
 
     # def train(self,
               # train_data: sp.spmatrix,

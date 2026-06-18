@@ -38,9 +38,7 @@ def GenQuasi_Lazy(data : pd.DataFrame) -> pd.DataFrame:
                     user_col          = ColmCollect['user_col'],
                     item_col          = ColmCollect['item_col'],
                     quantity_col      = ColmCollect['quantity_col'],
-                    total_col         = ColmCollect['total_col'],
-                    output_rating_col = "pseudo_rating",
-                    )
+                    total_col         = ColmCollect['total_col'])
     return Quasi
 
 
@@ -49,13 +47,15 @@ def GenQuasi_Grade(data              : pd.DataFrame,
                    item_col          : str,
                    quantity_col      : str,
                    total_col         : str,
-                   output_rating_col : str = "pseudo_rating",
+                   output_rating_col : str = None,
                   ) -> pd.DataFrame:
     """
     Generate pseudo-ratings from implicit transaction data using DuckDB.
     Formula: ln(1 + sum(Quantity)) weighted by interaction frequency.
     """
     logger.debug("Starting pseudo-rating generation. Input shape: %s", data.shape)
+    if output_rating_col is None:
+        output_rating_col = _cfg.get('RATING', 'ColumnName')
     req     = {user_col, item_col, quantity_col, total_col}
     missing = req - set(data.columns)
     if missing:
@@ -111,7 +111,7 @@ def Decomposition_Matrix_Dev(
         data              : pd.DataFrame,
         user_col          : str,
         item_col          : str,
-        rating_col        : str,
+        rating_col        : str                 = None,
         user_feature_cols : Optional[List[str]] = None,
         item_feature_cols : Optional[List[str]] = None,
         weight_col        : Optional[str]       = "total_quantity",
@@ -131,6 +131,8 @@ def Decomposition_Matrix_Dev(
     logger.info("Initializing parameter to build Interaction Matrix")
     user_feature_cols = user_feature_cols or list()
     item_feature_cols = item_feature_cols or list()
+    if rating_col is None:
+        rating_col    = _cfg.get('RATING', 'ColumnName')
 
     # 1. Enkodasi ID User & Item Menggunakan DuckDB
     logger.debug("Encoding user and item IDs with DENSE_RANK in DuckDB.")
@@ -259,7 +261,6 @@ if __name__ == "__main__":
                     data              = MergeData,
                     user_col          = Collect['user_col'],
                     item_col          = Collect['item_col'],
-                    rating_col        = "pseudo_rating",
                     user_feature_cols = UserFeats,
                     item_feature_cols = ItemFeats,)
     interactions  = Results[0]

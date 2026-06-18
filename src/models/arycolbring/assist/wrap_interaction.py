@@ -42,7 +42,7 @@ def describe_interactions(interactions: sp.spmatrix) -> pd.DataFrame:
     with duckdb_connection() as con:
         con.register("RowCounts",
                      pd.DataFrame({"nnz_per_user": row_counts}))
-        stats = con.execute(query).df()
+        stats = con.query(query)
     n_users, n_items = interactions.shape
     nnz     = interactions.nnz
     density = nnz / (n_users * n_items) if n_users * n_items > 0 else 0.0
@@ -57,7 +57,7 @@ def describe_interactions(interactions: sp.spmatrix) -> pd.DataFrame:
               "max_interactions_per_user" : [stats["max_interactions_per_user"].iloc[0]],
               })
     logger.debug("describe_interactions: %s", 
-                  summary.to_dict(orient="records")[0])
+                  summary.to_dict(orient = "records")[0])
     return summary
 
 
@@ -71,30 +71,26 @@ def validate_sparse_matrix(mat  : sp.spmatrix,
     RuntimeError   - if mat has zero rows or columns
     ReferenceError - if mat.data is None or empty unexpectedly
     """
-    logger.debug("validate_sparse_matrix: name = %s type = %s", name, type(mat))
+    logger.debug("Validated: name = %s type = %s", name, type(mat))
     if not sp.issparse(mat):
         logger.error(f"Expected a scipy sparse matrix for '{name}', "
                      f"got {type(mat).__name__}.")
         raise TypeError()
-
     if mat.shape[0] == 0 or mat.shape[1] == 0:
         logger.error(f"Sparse matrix '{name}' has degenerate shape {mat.shape}.")
         raise RuntimeError()
     if mat.nnz == 0:
-        logger.warning("validate_sparse_matrix: '%s' has zero non-zero entries", name)
+        logger.warning("Validated: '%s' has zero non-zero entries", name)
         return None
-
     data = mat.data
     if data is None:
         logger.error(f"Sparse matrix '{name}' has None data array.")
         raise ReferenceError()
-
     if not np.isfinite(data).all():
         logger.error(f"Sparse matrix '{name}' contains NaN or Inf values. "
                       "Check your input data.")
         raise ValueError()
-
-    logger.info("validate_sparse_matrix: '%s' OK - nnz = %d", name, mat.nnz)
+    logger.info("Validated: '%s' OK - nnz = %d", name, mat.nnz)
 
 
 if __name__ == '__main__':
