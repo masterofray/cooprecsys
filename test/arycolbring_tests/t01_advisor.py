@@ -33,6 +33,7 @@ from configs  import _cfg, logger
 from db       import duckdb_connection
 from features import load_data
 from qrates   import GenQuasi_Lazy
+from prepare  import DetectReco_Identifier
 from models.arycolbring import AryColBringModelTrainer, RunTrainer
 from models.arycolbring.assist import fileload_interactions, describe_interactions
 
@@ -44,22 +45,71 @@ class AryColBring_Reasoner_Test:
     Handles data loading, training, evaluation, and reporting.
     """
     def __init__(self,
-                 data_dir  : Union[str, Path],
                  output_dir: Union[str, Path] = "artifacts",
                 ):
-        """
-        Initialize training pipeline.
-        - data_dir  : Directory containing training data
-        - output_dir: Directory for output models and reports
-        """
-        self.data_dir   = Path(data_dir)
         self.output_dir = Path(output_dir)
         self.config     = self._load_config()
         self._TRAIN     = None
         self._TEST      = None
+        self._Data      = pd.DataFrame([])
         self.output_dir.mkdir(parents = True, exist_ok = True)
-        logger.info("Training pipeline initialized with output_dir=%s", self.output_dir)
+        logger.info("Training pipeline initialized in %s", self.output_dir)
 
+
+    @property
+    def Data(self) -> Path | pd.DataFrame:
+        return self._Data
+
+    @Data.setter
+    def Data(self, value: str | Path | pd.DataFrame) -> None:
+        if not isinstance(value, (str, Path, pd.DataFrame)):
+            msg = f"Invalid data type: {type(value).__name__}."\
+                   "Expected str, Path, or pandas.DataFrame."
+            logger.error(msg)
+            raise TypeError()
+        if isinstance(value, (str, Path)):
+            path_obj = Path(value)
+            if not path_obj.exists():
+                msg = f"Validation failed: File does not exist at '{path_obj}'."
+                logger.error(msg)
+                raise FileNotFoundError()
+            if not path_obj.is_file():
+                msg = f"Validation failed: Target path is a "\
+                      f"directory, not a file -> '{path_obj}'."
+                logger.error(msg)
+                raise ValueError()
+            if path_obj.stat().st_size == 0:
+                msg = f"Validation failed: The file '{path_obj.name}' is empty."
+                logger.error(msg)
+                raise ValueError()
+            try:
+                with path_obj.open("r", encoding = "utf-8", errors = "ignore") as f:
+                    line_count = sum(1 for _ in f)
+                if line_count < 20:
+                    msg = f"Validation failed: File has only {line_count} "\
+                           "lines. A minimum of 20 lines is required."
+                    logger.error(msg)
+                    raise ValueError()
+            except Exception as arc:
+                msg = f"An error occurred while reading: {arg}"
+                logger.error(msg)
+                raise ValueError()
+            finally:
+                self._Data = load_data(data_path    = path_obj, 
+                                       memory_limit = "16GB")
+                logger.debug(f"Successfully assigned Data: '{path_obj}'.")
+        elif isinstance(value, pd.DataFrame):
+            if value.empty:
+                msg = "Validation failed: The provided DataFrame is empty."
+                logger.error(msg)
+                raise ValueError()
+            row_count = len(value)
+            if row_count < 20:
+                msg = f"Validation failed: DataFrame has only {row_count} rows."
+                logger.error(msg)
+                raise ValueError()
+            self._Data = value
+            logger.debug("Successfully assigned Data to pandas DataFrame.")
 
     def _load_config(self) -> dict:
         config = {
@@ -73,52 +123,53 @@ class AryColBring_Reasoner_Test:
         logger.debug("Configuration loaded: %s", config)
         return config
 
-
-    def load_training_data(self,
-                           DataPath   : Union[str, Path],
-                           test_split : float = 0.2,
-                          ) -> Tuple[sp.spmatrix, Optional[sp.spmatrix]]:
-        np.random.seed(4)
-        DataPath = Path(DataPath)
-        if not (1e-3 <= float(test_split) <= 0.7):
-            logger.warning('Your test_split value outside our range!')
-            test_split = 0.3
-        logger.debug("Loading data from: %s", DataPath)
-        if not DataPath.exists():
-            logger.error(f"Data file not found: {DataPath}")
-            raise FileNotFoundError()
-        dataLD = load_data(data_path    = DataPath, 
-                           memory_limit = "16GB")
-        datafr = GenQuasi_Lazy(dataLD)
-        logger.info("Data loaded: shape = %s", datafr.shape)
-        logger.debug("Columns: %s", datafr.columns.tolist())
-        mask = np.random.random(len(datafr)) > test_split
-        train_df = deepcopy(datafr[mask])
-        test_df  = deepcopy(datafr[~mask])
-        logger.info("Data split: train = %d, test = %d",
-                     len(train_df), len(test_df))
-
         # Convert to sparse matrix (user-item interactions)
         self._TRAIN, _, _ = fileload_interactions(train_df)
         self._TEST, _, _  = fileload_interactions(test_df)
         gc.collect()
 
+    def _RateProgress(self):
+        self.data_rate = GenQuasi_Lazy(self.Data)
+        logger.info("Data loaded: shape = %s", self.data_rate.shape)
+        logger.debug("Columns: %s", self.data_rate.columns.tolist())
 
-    def _RateProgres(self):
-        Collect       = DetectReco_Identifier(data.columns.to_numpy())
-        MergeData     = DataGrade.merge(data,
+    def _RatePosthoc(self,
+                     UserFeats: List = None,
+                     ItemFeats: List = None,
+                    ):
+        Collect       = DetectReco_Identifier(self.Data.columns.to_numpy())
+        MergeData     = self.data_rate.merge(self.Data,
                         on = [Collect['user_col'], Collect['item_col']])
-        UserFeats     = ['EmployeeAge', 'EmployeeGender','Resistant', 'IsAllergic', 'VitalityDays']
-        ItemFeats     = ['ProductPrice', 'Quantity', 'Discount', 'TotalPrice', 'Class']
+        if UserFeats is None:
+            UserFeats = ['EmployeeAge', 'EmployeeGender','Resistant', 'IsAllergic', 'VitalityDays']
+        if ItemFeats is None:
+            it01      = [Collect["quantity_col"], Collect["total_col"], Collect["discount_col"]]
+            ItemFeats = ['ProductPrice', 'Quantity', 'Discount', 'TotalPrice', 'Class']
+            ItemFeats.extend(it01)
+            ItemFeats = list(set([it02 for it02 in ItemFeats if it02 is not None]))
         Results       = Decomposition_Matrix_Dev(
                         data              = MergeData,
                         user_col          = Collect['user_col'],
                         item_col          = Collect['item_col'],
                         user_feature_cols = UserFeats,
                         item_feature_cols = ItemFeats,)
-        interactions  = Results[0]
-        user_features = Results[1]
-        item_features = Results[2]
+        self.interactions  = Results[0]
+        self.user_features = Results[1]
+        self.item_features = Results[2]
+
+    def load_training_data(self,
+                           test_split : float = 0.2,
+                          ) -> Tuple[sp.spmatrix, Optional[sp.spmatrix]]:
+        np.random.seed(4)
+        if not (1e-3 <= float(test_split) <= 0.7):
+            logger.warning('Your test_split value outside our range!')
+            test_split = 0.3
+        
+        mask = np.random.random(len(datafr)) > test_split
+        train_df = deepcopy(datafr[mask])
+        test_df  = deepcopy(datafr[~mask])
+        logger.info("Data split: train = %d, test = %d",
+                     len(train_df), len(test_df))
 
 
     # def train(self,
