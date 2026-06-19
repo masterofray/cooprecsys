@@ -84,54 +84,68 @@ class ExchangeResult(NamedTuple):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _split_cat_num(
-    df     : pd.DataFrame,
-    cols   : List[str],
-    id_col : str,
-) -> Tuple[List[str], List[str]]:
+        df     : pd.DataFrame,
+        cols   : List[str],
+        id_col : str,
+    ) -> Tuple[List[str], List[str]]:
     """
-    Partition *cols* into (categorical_cols, numerical_cols) by pandas dtype.
-
-    Parameters
-    ----------
-    df     : source DataFrame used only for dtype inspection.
-    cols   : candidate columns to classify.
-    id_col : entity-ID column; always excluded from output lists.
-
-    Returns
-    -------
-    cat_cols, num_cols
+    Partition column names into categorical and numerical groups by evaluating 
+    actual data content, completely eliminating type distortions caused by null values.
+    df     : Source DataFrame used for data content inspection.
+    cols   : List[str], Target columns evaluated for classification.
+    id_col : str, Entity identification column, permanently excluded from the output.
+    It will return tuple containing lists of verified categorical and numerical columns.
     """
     cat, num = list(), list()
     for c in cols:
         if c == id_col:
-            logger.debug("skipping id column '%s'", c)
+            logger.debug("Skipping identification column '%s'", c)
             continue
         if c not in df.columns:
-            logger.warning(
-                "column '%s' not found in DataFrame – skipping", c
-            )
+            logger.warning("Column '%s' missing from reference DataFrame;"
+                           " skipping classification", c)
             continue
-        if df[c].dtype == object or str(df[c].dtype) == "category":
+        
+        # 1. Safeguard: Respect explicit developer declarations
+        if isinstance(df[c].dtype, pd.CategoricalDtype) or str(df[c].dtype) == "category":
             cat.append(c)
-            logger.debug("'%s' -> categorical", c)
-        else:
-            num.append(c)
-            logger.debug("'%s' -> numerical (dtype=%s)", c, df[c].dtype)
+            logger.debug("'%s' -> categorical (Explicit category dtype detected)", c)
+            continue
 
-    logger.debug(
-        "[id=%s]: cat=%s  num=%s", id_col, cat, num
-    )
+        # 2. Isolate actual content by dropping null values
+        non_null_content = df[c].dropna()
+        
+        # 3. Safeguard against All-Null Columns
+        if non_null_content.empty:
+            logger.warning(
+            "'%s' contains only null values. Routing to categorical "
+            "to prevent downstream numerical scaling matrix corruption.", c)
+            cat.append(c)
+            continue
+            
+        # 4. Content Inspection: Test if the actual elements are inherently numeric
+        converted_numeric = pd.to_numeric(non_null_content, errors='coerce')
+        if not converted_numeric.isna().any():
+            num.append(c)
+            logger.debug("'%s' -> numerical (Validated by "
+                         "content evaluation, dtype=%s)", c, df[c].dtype)
+        else:
+            cat.append(c)
+            logger.debug("'%s' -> categorical (Textual elements "
+            "present, dtype=%s)", c, df[c].dtype)
+    logger.debug("[id=%s]: Categorical features = %s | "
+                 "Numerical features = %s", id_col, cat, num)
     return cat, num
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _aggregate_features(
-    data         : pd.DataFrame,
-    id_col       : str,
-    feature_cols : List[str],
-    con,
-) -> Tuple[pd.DataFrame, List[str], List[str]]:
+        data         : pd.DataFrame,
+        id_col       : str,
+        feature_cols : List[str],
+        con          : object,
+    ) -> Tuple[pd.DataFrame, List[str], List[str]]:
     """
     Collapse multiple transaction rows into **one feature row per entity**
     using DuckDB (assumes ``RAW`` is already registered on *con*).
@@ -155,7 +169,6 @@ def _aggregate_features(
     num_cols : numerical  columns actually included.
     """
     cat_cols, num_cols = _split_cat_num(data, feature_cols, id_col)
-
     if not cat_cols and not num_cols:
         logger.warning(
         "_aggregate_features [%s]: no valid feature columns found; "
@@ -170,14 +183,16 @@ def _aggregate_features(
         SELECT
             "{id_col}",
             {all_exprs}
-        FROM RAW
-        GROUP BY "{id_col}"
-        ORDER BY "{id_col}"
+        FROM
+            RAW
+        GROUP BY
+            "{id_col}"
+        ORDER BY
+            "{id_col}"
     """
-    logger.debug(
-        "[%s]: executing SQL | cat = %d | num = %d",
-        id_col, len(cat_cols), len(num_cols))
-    agg_df = con.query(sql)
+    logger.debug("[%s]: executing SQL | cat = %d | num = %d",
+                  id_col, len(cat_cols), len(num_cols))
+    agg_df    = con.query(sql)
     n_rows    = len(agg_df)
     nan_frac  = agg_df.isnull().values.mean()
     logger.debug(
@@ -185,17 +200,16 @@ def _aggregate_features(
         id_col, n_rows, 100 * nan_frac)
     if nan_frac > 0.05:
         logger.warning(
-            "[%s]: %.1f%% NaN values in aggregated "
-            "feature frame – verify source data quality (sparse records, "
-            "wrong column mappings, or MODE on all-null groups)",
-            id_col, 100 * nan_frac)
+        "[%s]: %.1f%% NaN values in aggregated "
+        "feature frame – verify source data quality (sparse records, "
+        "wrong column mappings, or MODE on all-null groups)",
+        id_col, 100 * nan_frac)
     if n_rows == 0:
         logger.error(
-            "[%s]: aggregation returned 0 rows! "
-            "Check that '%s' column exists in RAW and contains data.",
-            id_col, id_col)
+        "[%s]: aggregation returned 0 rows! "
+        "Check that '%s' column exists in RAW and contains data.",
+        id_col, id_col)
         raise RuntimeError(f"Empty result for id_col = '{id_col}'")
-
     return agg_df, cat_cols, num_cols
 
 

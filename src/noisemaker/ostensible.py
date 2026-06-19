@@ -18,13 +18,14 @@ import scipy.sparse as sp
 from   tqdm.auto import tqdm
 from   pathlib   import Path
 from   typing    import List, NamedTuple, Optional
-from  .ersetz    import ExchangeResult
+from  .ersetz    import (ExchangeResult,
+                         _aggregate_features,
+                         _encode_to_sparse)
 
 LocDir = Path(__file__).resolve().parents[1]
 sys.path.append(str(LocDir))
 from configs import logger, _cfg
 from db      import duckdb_connection
-
 DType = _cfg.get('model', 'dtype')
 
 def extended_norm_exchange(
@@ -32,6 +33,7 @@ def extended_norm_exchange(
         user_col          : str                 = "CustomerID",
         item_col          : str                 = "CategoryID",
         rating_col        : Optional[str]       = None,
+        weight_col        : Optional[str]       = "TotalPrice",
         dtype             : str                 = DType,
         user_feature_cols : Optional[List[str]] = None,
         item_feature_cols : Optional[List[str]] = None,
@@ -45,19 +47,19 @@ def extended_norm_exchange(
 
     New outputs (vs original)
     ──────────────────────────
-    user_features : CSR matrix (n_users × F_u)
+    user_features : CSR matrix (n_users x F_u)
         One row per user.  Built by aggregating *user_feature_cols*
         per CustomerID (MODE for categoricals, AVG for numericals),
         then one-hot encoding categoricals and min-max normalising
         numericals.  Default columns: ``CityName``, ``CountryName``.
 
-    item_features : CSR matrix (n_items × F_i)
+    item_features : CSR matrix (n_items x F_i)
         One row per item (category).  Default columns: ``Class``,
         ``Resistant``, ``IsAllergic``, ``VitalityDays``, ``ProductPrice``.
 
-    sample_weight : COO matrix (n_users × n_items)
+    sample_weight : COO matrix (n_users x n_items)
         Same sparsity pattern as *interactions*.  Values are
-        normalised ``log1p(Σ TotalPrice) × log1p(freq)`` per
+        normalised ``log1p(sum of TotalPrice) x log1p(freq)`` per
         (user, item) pair — capturing both monetary commitment and
         interaction frequency as a confidence score.
 
@@ -84,8 +86,8 @@ def extended_norm_exchange(
 
     logger.info(
         "norm_exchange: shape=%s  user_col='%s'  item_col='%s'  "
-        "rating_col=%s  user_feature_cols=%s  item_feature_cols=%s",
-        data.shape, user_col, item_col, rating_col,
+        "rating_col=%s  weight_col=%s  user_feature_cols=%s  item_feature_cols=%s",
+        data.shape, user_col, item_col, rating_col, weight_col,
         u_feat_cols, i_feat_cols,
     )
 
@@ -93,10 +95,14 @@ def extended_norm_exchange(
     required = {user_col, item_col}
     if rating_col:
         required.add(rating_col)
+    if weight_col:
+        required.add(weight_col)
+        
     missing = required - set(data.columns)
     if missing:
         logger.error("norm_exchange: missing required columns: %s", missing)
         raise ValueError(f"DataFrame is missing columns: {missing}")
+        
     for col_list, label in [(u_feat_cols, "user_feature_cols"),
                              (i_feat_cols, "item_feature_cols")]:
         extra = set(col_list) - set(data.columns)
@@ -104,7 +110,9 @@ def extended_norm_exchange(
             logger.warning(
             "%s contains columns not in DataFrame: %s "
             "– they will be dropped during aggregation", label, extra)
+            
     rating_expr = (f'CAST("{rating_col}" AS DOUBLE)' if rating_col else "1.0")
+    
     with tqdm(total      = 6,
               desc       = "norm_exchange",
               colour     = _cfg.get("tqdm", "colour"),
@@ -117,14 +125,29 @@ def extended_norm_exchange(
             # ── Step 1 : register DataFrame, encode IDs ────────────────────
             pbar.set_postfix_str("registering DataFrame + encoding IDs")
             logger.debug("norm_exchange: registering DataFrame in DuckDB as RAW")
-            con.register("RAW", data)
+            con.register_dataframe("RAW", data)
+            
+            # Using Window Functions maps the cumulative pair weight back to row-level 
+            # coordinates, perfectly maintaining 1:1 matrix alignment without grouping.
+            if weight_col in data.columns:
+                weight_expr = f"""
+                    LN(1.0 + SUM(CAST("{weight_col}" AS DOUBLE)) OVER (
+                    PARTITION BY "{user_col}", "{item_col}"))
+                    * LN(1.0 + COUNT(*) OVER (PARTITION BY "{user_col}", "{item_col}"))
+                """
+            else:
+                weight_expr = f"""
+                    LN(1.0 + COUNT(*) OVER (PARTITION BY "{user_col}", "{item_col}"))
+                """
+
             encoded = con.query(f"""
                 SELECT
                     DENSE_RANK() OVER (ORDER BY "{user_col}") - 1  AS user_idx,
                     DENSE_RANK() OVER (ORDER BY "{item_col}") - 1  AS item_idx,
-                    {rating_expr}                                   AS rating,
-                    "{user_col}"                                    AS user_id,
-                    "{item_col}"                                    AS item_id
+                    {rating_expr} AS rating,
+                    "{user_col}"  AS user_id,
+                    "{item_col}"  AS item_id,
+                    {weight_expr} AS raw_weight
                 FROM RAW
             """)
 
@@ -147,6 +170,7 @@ def extended_norm_exchange(
 
             # ── Step 2 : extract ID maps ────────────────────────────────────
             pbar.set_postfix_str("extracting ID maps")
+            con.register_dataframe('encoded', encoded)
             user_map = con.query("""
                 SELECT DISTINCT user_idx, user_id FROM encoded ORDER BY user_idx
             """)
@@ -163,31 +187,17 @@ def extended_norm_exchange(
             # ── Step 3 : compute sample weights ────────────────────────────
             pbar.set_postfix_str("computing sample weights")
             logger.debug("norm_exchange [step 3]: computing confidence weights")
-            if "TotalPrice" in data.columns:
-                weight_sql = f"""
-                    SELECT
-                        DENSE_RANK() OVER (ORDER BY "{user_col}") - 1 AS user_idx,
-                        DENSE_RANK() OVER (ORDER BY "{item_col}") - 1 AS item_idx,
-                        LN(1.0 + SUM(CAST("TotalPrice" AS DOUBLE)))
-                            * LN(1.0 + COUNT(*))                      AS raw_weight
-                    FROM RAW
-                    GROUP BY "{user_col}", "{item_col}"
-                """
+            if weight_col in data.columns:
+                weight_sql = "SELECT user_idx, item_idx, raw_weight FROM encoded"
                 logger.debug(
-                "norm_exchange [step 3]: weight = log1p(Σ TotalPrice) x log1p(freq)")
+                f"norm_exchange [step 3]: weight = log1p(Σ {weight_col}) x log1p(freq)")
             else:
-                weight_sql = f"""
-                    SELECT
-                        DENSE_RANK() OVER (ORDER BY "{user_col}") - 1 AS user_idx,
-                        DENSE_RANK() OVER (ORDER BY "{item_col}") - 1 AS item_idx,
-                        LN(1.0 + COUNT(*))                            AS raw_weight
-                    FROM RAW
-                    GROUP BY "{user_col}", "{item_col}"
-                """
+                weight_sql = "SELECT user_idx, item_idx, raw_weight FROM encoded"
                 logger.warning(
-                "norm_exchange [step 3]: 'TotalPrice' not found – "
+                f"norm_exchange [step 3]: '{weight_col}' not found – "
                 "sample_weight will use log1p(frequency) only")
-            w_df         = con.execute(weight_sql).df()
+                
+            w_df         = con.query(weight_sql)
             raw_w        = w_df["raw_weight"].values.astype(np.float64)
             w_min, w_max = raw_w.min(), raw_w.max()
             span         = w_max - w_min
@@ -261,7 +271,7 @@ def extended_norm_exchange(
         user_features.shape, user_features.nnz,
         item_features.shape, item_features.nnz,
         sample_weight.shape, sample_weight.nnz)
-    logger.debug("norm_exchange: user_ids[:5]=%s  item_ids[:5]=%s",
+    logger.debug("norm_exchange: user_ids[:5]=%s | item_ids[:5]=%s",
                  user_ids[:5], item_ids[:5])
     return ExchangeResult(
         interactions  = interactions,

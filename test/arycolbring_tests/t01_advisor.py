@@ -25,15 +25,15 @@ import pandas       as pd
 import scipy.sparse as sp
 from pathlib  import Path
 from copy     import deepcopy
-from typing   import Optional, Tuple, Union
+from typing   import Optional, Tuple, Union, List
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
 from configs  import _cfg, logger
 from db       import duckdb_connection
 from features import load_data
-from qrates   import GenQuasi_Lazy
 from prepare  import DetectReco_Identifier
+from qrates   import GenQuasi_Lazy, DMD
 from models.arycolbring import AryColBringModelTrainer, RunTrainer
 from models.arycolbring.assist import fileload_interactions, describe_interactions
 
@@ -45,16 +45,31 @@ class AryColBring_Reasoner_Test:
     Handles data loading, training, evaluation, and reporting.
     """
     def __init__(self,
+                 UserFeats : List = None,
+                 ItemFeats : List = None,
                  output_dir: Union[str, Path] = "artifacts",
                 ):
-        self.output_dir = Path(output_dir)
-        self.config     = self._load_config()
-        self._TRAIN     = None
-        self._TEST      = None
-        self._Data      = pd.DataFrame([])
+        self.output_dir    = Path(output_dir)
+        self.config        = self._load_config()
+        self._Data         = pd.DataFrame([])
+        self.UserFeats     = UserFeats
+        self.ItemFeats     = ItemFeats
+        if self.UserFeats is None:
+            self.UserFeats = ['EmployeeAge', 'EmployeeGender', 
+                              'Resistant', 'IsAllergic', 'VitalityDays']
+        if self.ItemFeats is None:
+            self.ItemFeats = ['ProductPrice', 'Quantity', 'Discount',
+                              'TotalPrice', 'Class']
+        self._TRAIN        = None
+        self._TEST         = None
+        self.interactions  = None
+        self.user_features = None
+        self.item_features = None
+        self.weight        = None
+        self.user_ids      = None
+        self.item_ids      = None
         self.output_dir.mkdir(parents = True, exist_ok = True)
         logger.info("Training pipeline initialized in %s", self.output_dir)
-
 
     @property
     def Data(self) -> Path | pd.DataFrame:
@@ -123,39 +138,31 @@ class AryColBring_Reasoner_Test:
         logger.debug("Configuration loaded: %s", config)
         return config
 
-        # Convert to sparse matrix (user-item interactions)
-        self._TRAIN, _, _ = fileload_interactions(train_df)
-        self._TEST, _, _  = fileload_interactions(test_df)
-        gc.collect()
-
     def _RateProgress(self):
         self.data_rate = GenQuasi_Lazy(self.Data)
         logger.info("Data loaded: shape = %s", self.data_rate.shape)
         logger.debug("Columns: %s", self.data_rate.columns.tolist())
 
-    def _RatePosthoc(self,
-                     UserFeats: List = None,
-                     ItemFeats: List = None,
-                    ):
-        Collect       = DetectReco_Identifier(self.Data.columns.to_numpy())
-        MergeData     = self.data_rate.merge(self.Data,
-                        on = [Collect['user_col'], Collect['item_col']])
-        if UserFeats is None:
-            UserFeats = ['EmployeeAge', 'EmployeeGender','Resistant', 'IsAllergic', 'VitalityDays']
-        if ItemFeats is None:
-            it01      = [Collect["quantity_col"], Collect["total_col"], Collect["discount_col"]]
-            ItemFeats = ['ProductPrice', 'Quantity', 'Discount', 'TotalPrice', 'Class']
-            ItemFeats.extend(it01)
-            ItemFeats = list(set([it02 for it02 in ItemFeats if it02 is not None]))
-        Results       = Decomposition_Matrix_Dev(
-                        data              = MergeData,
-                        user_col          = Collect['user_col'],
-                        item_col          = Collect['item_col'],
-                        user_feature_cols = UserFeats,
-                        item_feature_cols = ItemFeats,)
+    def _RatePosthoc(self):
+        Collect         = DetectReco_Identifier(self.Data.columns.to_numpy())
+        MergeData       = self.data_rate.merge(self.Data,
+                          on = [Collect['user_col'], Collect['item_col']])
+        it01            = [Collect["quantity_col"],
+                           Collect["total_col"], 
+                           Collect["discount_col"]]
+        self.ItemFeats.extend(it01)
+        self.ItemFeats  = list(set([it02 for it02 in self.ItemFeats if it02 is not None]))
+        Results         = DMD(data              = MergeData,
+                              user_col          = Collect['user_col'],
+                              item_col          = Collect['item_col'],
+                              user_feature_cols = UserFeats,
+                              item_feature_cols = ItemFeats,)
         self.interactions  = Results[0]
         self.user_features = Results[1]
         self.item_features = Results[2]
+        self.weight        = Results[3]
+        self.user_ids      = Results[4]
+        self.item_ids      = Results[5]
 
     def load_training_data(self,
                            test_split : float = 0.2,
@@ -170,6 +177,9 @@ class AryColBring_Reasoner_Test:
         test_df  = deepcopy(datafr[~mask])
         logger.info("Data split: train = %d, test = %d",
                      len(train_df), len(test_df))
+        self._TRAIN, _, _ = fileload_interactions(train_df)
+        self._TEST, _, _  = fileload_interactions(test_df)
+        gc.collect()
 
 
     # def train(self,

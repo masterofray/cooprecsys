@@ -12,12 +12,13 @@ __created__    = "2026-06-07"
 
 from .multi_scann import QuasiRate_ScaNN
 from .counterfeit import CFRatingEngine, CFRateLazy
-from .quasi_grade import GenQuasi_Lazy, GenQuasi_Grade, Decomposition_Matrix_Dev
+from .quasi_grade import GenQuasi_Lazy, GenQuasi_Grade
+from .quasi_grade import Decomposition_Matrix_Dev as DMD
 
 __all__ = ['QuasiRate_ScaNN', 
            'CFRatingEngine',
            'CFRateLazy',
            'GenQuasi_Lazy',
            'GenQuasi_Grade',
-           'Decomposition_Matrix_Dev',
+           'DMD',
            ]
