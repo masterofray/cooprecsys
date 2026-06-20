@@ -104,11 +104,14 @@ class AryColBringModelTrainer:
 
     def fit(self,
             interactions    : Union[sp.spmatrix, str, 'pd.DataFrame'],
-            epochs          : int = 10,
-            num_threads     : int = 4,
-            verbose         : bool = True,
+            user_features   : Optional[sp.spmatrix] = None,
+            item_features   : Optional[sp.spmatrix] = None,
+            sample_weight   : Optional[sp.spmatrix] = None,
+            epochs          : int                   = 10,
+            num_threads     : int                   = 4,
+            verbose         : bool                  = True,
             validation_data : Optional[sp.spmatrix] = None,
-            evaluate_every  : int = 1,
+            evaluate_every  : int                   = 1,
            ) -> "AryColBringModelTrainer":
         """
         Train the collaborative filtering model.
@@ -122,7 +125,7 @@ class AryColBringModelTrainer:
         evaluate_every  : int, Evaluate metrics every N epochs (default: 1)
         """
         start_time = datetime.now()
-        logger.debug("Starting training: epochs = %d threads = %d",
+        logger.debug("Starting training: epochs = %d | threads = %d",
                       epochs, num_threads)
         if isinstance(interactions, str):
             logger.info("Loading interactions from flatfile: %s",
@@ -133,15 +136,18 @@ class AryColBringModelTrainer:
         data_stats = describe_interactions(interactions)
         logger.debug(
         "Training data: users = %d items = %d interactions = %d sparsity = %.4f",
-        data_stats["n_users"],        data_stats["n_items"],
-        data_stats["n_interactions"], data_stats["sparsity"])
+        data_stats["n_users"], data_stats["n_items"],
+        data_stats["nnz"],     data_stats["density"])
+        
+        # Aktifkan variabel di bawah ini:
         self.trainer.fit(interactions  = interactions,
-                         #user_features = FeatureUsers,
-                         #item_features = FeatureItems,
-                         #sample_weight = PsudoRating,
+                         user_features = user_features,
+                         item_features = item_features,
+                         sample_weight = sample_weight,
                          epochs        = epochs,
                          num_threads   = num_threads,
                          verbose       = verbose)
+                         
         training_time = (datetime.now() - start_time).total_seconds()
         logger.info("Training completed in %.2f seconds", training_time)
         self.training_history.append({
@@ -157,7 +163,7 @@ class AryColBringModelTrainer:
             metrics = self.evaluate(validation_data, num_threads = num_threads)
             self.metrics_history.append(metrics)
             logger.debug(
-            "Validation metrics: AUC = %.4f Precision@10=%.4f Recall@10=%.4f",
+            "Validation metrics: AUC = %.4f | Precision@10=%.4f | Recall@10=%.4f",
              metrics.get("auc", 0),
              metrics.get("precision_at_10", 0),
              metrics.get("recall_at_10", 0))
@@ -182,7 +188,7 @@ class AryColBringModelTrainer:
         """
         if k_values is None:
             k_values = [5, 10, 20]
-        logger.info("Evaluating model with k=%s", k_values)
+        logger.info("Evaluating model with k = %s", k_values)
         
         # Create predictor for evaluation
         predictor                 = TheReasoner(**self.config)

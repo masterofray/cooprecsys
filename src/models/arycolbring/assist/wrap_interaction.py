@@ -40,7 +40,7 @@ def describe_interactions(interactions: sp.spmatrix) -> pd.DataFrame:
                  FROM
                     RowCounts"""
     with duckdb_connection() as con:
-        con.register("RowCounts",
+        con.register_dataframe("RowCounts",
                      pd.DataFrame({"nnz_per_user": row_counts}))
         stats = con.query(query)
     n_users, n_items = interactions.shape

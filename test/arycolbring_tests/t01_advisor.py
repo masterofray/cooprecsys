@@ -21,11 +21,15 @@ with integrated logging, progress tracking, and model persistence.
 
 import gc
 import sys
+import numpy        as np
 import pandas       as pd
 import scipy.sparse as sp
 from pathlib  import Path
 from copy     import deepcopy
+from datetime import datetime
+from pdb      import set_trace
 from typing   import Optional, Tuple, Union, List
+from argparse import ArgumentParser
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
@@ -34,24 +38,29 @@ from db       import duckdb_connection
 from features import load_data
 from prepare  import DetectReco_Identifier
 from qrates   import GenQuasi_Lazy, DMD
-from models.arycolbring import AryColBringModelTrainer, RunTrainer
+from models.arycolbring import AryColBringModelTrainer as ACBmodel
 from models.arycolbring.assist import fileload_interactions, describe_interactions
 
 
-
-class AryColBring_Reasoner_Test:
+class AryColBring_Train_Test:
     """
     High-level training pipeline wrapper for AryColBring model.
     Handles data loading, training, evaluation, and reporting.
     """
     def __init__(self,
-                 UserFeats : List = None,
-                 ItemFeats : List = None,
-                 output_dir: Union[str, Path] = "artifacts",
+                 UserFeats : List  = None,
+                 ItemFeats : List  = None,
+                 testratio : float = float(),
+                 output_dir: Union[str, Path] = None,
                 ):
-        self.output_dir    = Path(output_dir)
+        if output_dir is None:
+            self.output_dir= LocDir.parent / _cfg.get('PATHS', 'output_dir')
+        else:
+            self.output_dir= Path(output_dir)
         self.config        = self._load_config()
         self._Data         = pd.DataFrame([])
+        self.DataMerge     = pd.DataFrame([])
+        self.data_rate     = pd.DataFrame([])
         self.UserFeats     = UserFeats
         self.ItemFeats     = ItemFeats
         if self.UserFeats is None:
@@ -60,6 +69,8 @@ class AryColBring_Reasoner_Test:
         if self.ItemFeats is None:
             self.ItemFeats = ['ProductPrice', 'Quantity', 'Discount',
                               'TotalPrice', 'Class']
+        self._testratio    = testratio
+        self.Collect       = dict()
         self._TRAIN        = None
         self._TEST         = None
         self.interactions  = None
@@ -68,6 +79,7 @@ class AryColBring_Reasoner_Test:
         self.weight        = None
         self.user_ids      = None
         self.item_ids      = None
+        self._report_path  = str()
         self.output_dir.mkdir(parents = True, exist_ok = True)
         logger.info("Training pipeline initialized in %s", self.output_dir)
 
@@ -126,15 +138,28 @@ class AryColBring_Reasoner_Test:
             self._Data = value
             logger.debug("Successfully assigned Data to pandas DataFrame.")
 
+    @property
+    def testratio(self) -> float:
+        return self._testratio
+
+    @Data.setter
+    def testratio(self, value: float) -> None:
+        if isinstance(value, float) and (0.01 <= value <= 0.8):
+            self._testratio = value
+        else:
+            self._testratio = _cfg.getfloat("TRAINING", "test_ratio")
+
     def _load_config(self) -> dict:
-        config = {
-        "no_components"    : _cfg.getint('model', "no_components", fallback=10),
-        "loss"             : _cfg.get(model, "loss", fallback="warp"),
-        "learning_rate"    : _cfg.getfloat(model, "learning_rate", fallback=0.05),
-        "epochs"           : _cfg.getint(model, "epochs", fallback=10),
-        "num_threads"      : _cfg.getint(model, "num_threads", fallback=4),
-        "dtype"            : _cfg.get(model, "dtype", fallback="float32"),
-        "learning_schedule": _cfg.get(model, "learning_schedule", fallback="adagrad")}
+        verbose = True if (_cfg.get('logging', 'level') in ['DEBUG', 'INFO']) else False
+        config  = {
+        "no_components"    : _cfg.getint('model', "no_components", fallback = 10),
+        "loss"             : _cfg.get('model', "loss", fallback = "warp"),
+        "learning_rate"    : _cfg.getfloat('model', "learning_rate", fallback = 0.05),
+        "epochs"           : _cfg.getint('model', "epochs", fallback = 10),
+        "num_threads"      : _cfg.getint('model', "num_threads", fallback = 4),
+        "dtype"            : _cfg.get('model', "dtype", fallback = "float32"),
+        "learning_schedule": _cfg.get('model', "learning_schedule", fallback = "adagrad"),
+        'verbosity'        : verbose,}
         logger.debug("Configuration loaded: %s", config)
         return config
 
@@ -142,111 +167,79 @@ class AryColBring_Reasoner_Test:
         self.data_rate = GenQuasi_Lazy(self.Data)
         logger.info("Data loaded: shape = %s", self.data_rate.shape)
         logger.debug("Columns: %s", self.data_rate.columns.tolist())
+        return self
 
     def _RatePosthoc(self):
-        Collect         = DetectReco_Identifier(self.Data.columns.to_numpy())
-        MergeData       = self.data_rate.merge(self.Data,
-                          on = [Collect['user_col'], Collect['item_col']])
-        it01            = [Collect["quantity_col"],
-                           Collect["total_col"], 
-                           Collect["discount_col"]]
+        self.Collect    = DetectReco_Identifier(self.Data.columns.to_numpy())
+        self.DataMerge  = self.data_rate.merge(self.Data,
+                          on = [self.Collect['user_col'], self.Collect['item_col']])
+        it01            = [self.Collect["quantity_col"],
+                           self.Collect["total_col"], 
+                           self.Collect["discount_col"]]
         self.ItemFeats.extend(it01)
         self.ItemFeats  = list(set([it02 for it02 in self.ItemFeats if it02 is not None]))
-        Results         = DMD(data              = MergeData,
-                              user_col          = Collect['user_col'],
-                              item_col          = Collect['item_col'],
-                              user_feature_cols = UserFeats,
-                              item_feature_cols = ItemFeats,)
-        self.interactions  = Results[0]
-        self.user_features = Results[1]
-        self.item_features = Results[2]
-        self.weight        = Results[3]
-        self.user_ids      = Results[4]
-        self.item_ids      = Results[5]
+        return self
 
-    def load_training_data(self,
-                           test_split : float = 0.2,
-                          ) -> Tuple[sp.spmatrix, Optional[sp.spmatrix]]:
+    def _ttprocess(self, data: pd.DataFrame):
+        Results = DMD(data              = data,
+                      user_col          = self.Collect['user_col'],
+                      item_col          = self.Collect['item_col'],
+                      user_feature_cols = self.UserFeats,
+                      item_feature_cols = self.ItemFeats)
+        return Results
+
+    def _brokedata(self):
         np.random.seed(4)
-        if not (1e-3 <= float(test_split) <= 0.7):
-            logger.warning('Your test_split value outside our range!')
-            test_split = 0.3
-        
-        mask = np.random.random(len(datafr)) > test_split
-        train_df = deepcopy(datafr[mask])
-        test_df  = deepcopy(datafr[~mask])
-        logger.info("Data split: train = %d, test = %d",
-                     len(train_df), len(test_df))
-        self._TRAIN, _, _ = fileload_interactions(train_df)
-        self._TEST, _, _  = fileload_interactions(test_df)
+        n_rows      = self.DataMerge.shape[0]
+        mask        = (np.random.rand(n_rows)) > self._testratio
+        trainData   = deepcopy(self.DataMerge[mask])
+        testData    = deepcopy(self.DataMerge[~mask])
+        self._TRAIN = self._ttprocess(trainData)
+        self._TEST  = self._ttprocess(testData)
+        del mask, trainData, testData
         gc.collect()
+        return self
+
+    def train(self,
+              epochs : Optional[int] = None,
+              exname : str = "ACB Training Run",
+             ) -> Tuple[ACBmodel, Path]:
+        Epochs = epochs or self.config["epochs"]
+        logger.info("Starting training: epochs = %d | threads = %d", 
+                     epochs, self.config["num_threads"])
+        self.ACBmodel = ACBmodel(no_components      = self.config["no_components"],
+                                 loss               = self.config["loss"],
+                                 learning_rate      = self.config["learning_rate"],
+                                 item_alpha         = 0.01,
+                                 user_alpha         = 0.01,
+                                 learning_schedule  = self.config["learning_schedule"],
+                                 random_state       = 4)
+        self.ACBmodel.fit(interactions    = self._TRAIN[0], # Matriks Interaksi (COO)
+                          user_features   = self._TRAIN[1], # Fitur User (CSR)
+                          item_features   = self._TRAIN[2], # Fitur Item (CSR)
+                          sample_weight   = self._TRAIN[3], # Bobot Interaksi (COO)
+                          epochs          = Epochs,
+                          num_threads     = self.config["num_threads"],
+                          verbose         = self.config['verbosity'],
+                          validation_data = self._TEST[0],
+                          evaluate_every  = 1,
+                         )
+        self._report_path = self.ACBmodel.generate_training_report(
+                            output_dir      = str(self.output_dir),
+                            experiment_name = exname)
+        logger.debug("Training completed. Report: %s", self._report_path)
+        return self
+
+    def save(self) -> Path:
+        dates      = f'{datetime.now():%Y%m%d}'
+        model_path = self.output_dir / "ACBmodel" / f'{dates}_models.npz'
+        model_path.parent.mkdir(parents = True, exist_ok = True)
+        self.ACBmodel.save_model(str(model_path))
+        logger.info("Model saved: %s", model_path)
+        return model_path
 
 
-    # def train(self,
-              # train_data: sp.spmatrix,
-              # validation_data: Optional[sp.spmatrix] = None,
-              # epochs: Optional[int] = None,
-              # experiment_name: str = "AryColBring Training Run") -> Tuple[AryColBringModelTrainer, Path]:
-        # """
-        # Train the AryColBring model.
 
-        # Args:
-            # train_data: Training interaction matrix (sparse)
-            # validation_data: Optional validation interaction matrix
-            # epochs: Number of epochs (uses config if not specified)
-            # experiment_name: Name for the experiment/report
-
-        # Returns:
-            # Tuple of (trained_model, report_path)
-        # """
-        # epochs = epochs or self.config["epochs"]
-
-        # logger.info("Starting training: epochs=%d, threads=%d", epochs, self.config["num_threads"])
-
-        # # Create and train model
-        # model = AryColBringModelTrainer(
-            # no_components=self.config["no_components"],
-            # loss=self.config["loss"],
-            # learning_rate=self.config["learning_rate"],
-            # learning_schedule=self.config["learning_schedule"],
-            # random_state=42
-        # )
-
-        # model.fit(
-            # interactions=train_data,
-            # epochs=epochs,
-            # num_threads=self.config["num_threads"],
-            # verbose=True,
-            # validation_data=validation_data,
-            # evaluate_every=1
-        # )
-
-        # # Generate report
-        # report_path = model.generate_training_report(
-            # output_dir=str(self.output_dir),
-            # experiment_name=experiment_name
-        # )
-
-        # logger.info("Training completed. Report: %s", report_path)
-        # return model, report_path
-
-    # def save_model(self, model: AryColBringModelTrainer, model_name: str = "arycolbring_model.npz") -> Path:
-        # """
-        # Save trained model.
-
-        # Args:
-            # model: Trained AryColBringModelTrainer instance
-            # model_name: Output model filename
-
-        # Returns:
-            # Path to saved model
-        # """
-        # model_path = self.output_dir / "models" / model_name
-        # model_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # model.save_model(str(model_path))
-        # logger.info("Model saved: %s", model_path)
-        # return model_path
 
     # def run_full_pipeline(self,
                          # data_file: Union[str, Path],
@@ -300,10 +293,7 @@ class AryColBring_Reasoner_Test:
 
 
 def main():
-    """Main execution function for training."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Train AryColBring model")
+    parser = ArgumentParser(description="Train AryColBring model")
     parser.add_argument("--data", type=str, required=True, help="Path to training data")
     parser.add_argument("--output-dir", type=str, default="artifacts", help="Output directory")
     parser.add_argument("--epochs", type=int, default=None, help="Number of epochs")
@@ -314,7 +304,7 @@ def main():
     args = parser.parse_args()
 
     # Run pipeline
-    pipeline = AryColBringTrainingPipeline(
+    pipeline = AryColBring_Train_Test(
         data_dir="data",
         output_dir=args.output_dir
     )
@@ -358,3 +348,12 @@ if __name__ == "__main__":
     #except Exception as e:
     #    logger.exception("Training failed with error: %s", str(e))
     #    sys.exit(1)
+
+    fx = AryColBring_Train_Test()
+    fx.Data      = LocDir.parent / 'data' / 'sampledata.parquet'
+    fx.testratio = 0.25
+    fx._RateProgress()
+    fx._RatePosthoc()
+    fx._brokedata()
+    fx.train()
+    
