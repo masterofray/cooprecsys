@@ -33,16 +33,16 @@ def describe_interactions(interactions: sp.spmatrix) -> pd.DataFrame:
     row_counts = np.diff(mat.indptr).astype(np.float64)
     query      = """
                  SELECT
-                        COUNT(*)          AS n_users,
-                        AVG(nnz_per_user) AS avg_interactions_per_user,
-                        MIN(nnz_per_user) AS min_interactions_per_user,
-                        MAX(nnz_per_user) AS max_interactions_per_user
+                    COUNT(*)          AS n_users,
+                    AVG(nnz_per_user) AS avg_interactions_per_user,
+                    MIN(nnz_per_user) AS min_interactions_per_user,
+                    MAX(nnz_per_user) AS max_interactions_per_user
                  FROM
                     RowCounts"""
     with duckdb_connection() as con:
         con.register_dataframe("RowCounts",
-                     pd.DataFrame({"nnz_per_user": row_counts}))
-        stats = con.query(query)
+        pd.DataFrame({"nnz_per_user": row_counts}))
+        stats        = con.query(query)
     n_users, n_items = interactions.shape
     nnz     = interactions.nnz
     density = nnz / (n_users * n_items) if n_users * n_items > 0 else 0.0
@@ -62,7 +62,7 @@ def describe_interactions(interactions: sp.spmatrix) -> pd.DataFrame:
 
 
 def validate_sparse_matrix(mat  : sp.spmatrix, 
-                           name : str = "matrix"
+                           name : str = "matrix",
                           ) -> None:
     """
     Raise informative errors if *mat* is not a valid finite sparse matrix.

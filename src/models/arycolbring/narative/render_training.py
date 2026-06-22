@@ -90,8 +90,8 @@ def static_prefix(output_path: Optional[str | Path] = None) -> Dict[str, str]:
         logger.debug("Static paths generated: %s", paths)
         return paths
     except Exception as exc:
-        logger.error("Failed generating static prefixes.", exc_info=True)
-        raise RuntimeError("Static asset prefix generation failed.") from exc
+        logger.error("Failed generating static prefixes.", exc_info = True)
+        raise RuntimeError() from exc
 
 
 def beautify_label(label: str) -> str:
@@ -208,7 +208,7 @@ def generate_stat_minis(training_context: Dict[str, Any]) -> List[Dict[str, Any]
         n_users = data_stats.get("n_users", 0)
         n_items = data_stats.get("n_items", 0)
         n_interactions = data_stats.get("n_interactions", 0)
-        sparsity = data_stats.get("sparsity", 0)
+        sparsity = data_stats.get("sparsity", data_stats.get("density", 0))
         
         stats.append({"label": "Users", "value": str(n_users), "percent": 100})
         stats.append({"label": "Items", "value": str(n_items), "percent": 100})
@@ -254,17 +254,14 @@ def build_training_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
     logger.debug("Entering build_training_context().")
     try:
         context = deepcopy(context_data)
-        
         metrics = context.get("metrics", dict())
         logger.debug("Metrics count = %d", len(metrics))
-        
         context["scorecards"] = generate_scorecards(metrics)
-        context["gauges"] = generate_gauges(metrics)
+        context["gauges"]     = generate_gauges(metrics)
         context["stat_minis"] = generate_stat_minis(context)
-        context["charts"] = normalize_charts(context.get("charts", []))
+        context["charts"]     = normalize_charts(context.get("charts", []))
         context["bar_labels"] = list(metrics.keys()) if metrics else []
-        context["bar_data"] = list(metrics.values()) if metrics else []
-        
+        context["bar_data"]   = list(metrics.values()) if metrics else []
         context.setdefault("generated_at", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         context.setdefault("page_title", "AryColBring Training Dashboard")
         context.setdefault("subtitle", "Collaborative Filtering Training Report")
@@ -276,8 +273,9 @@ def build_training_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
         
         # Calculate overall score percent for main gauge
         try:
-            mtep = context["bar_data"][4:]
-            osv = round(sum(mtep)/len(mtep) * 100, 2) if mtep else 0
+            #mtep = context["bar_data"][4:]
+            gauge_values = [float(v) for k, v in metrics.items() if detect_gauge_metric(k)]
+            osv = round(sum(gauge_values)/len(gauge_values) * 100, 2) if gauge_values else 0
             context["overall_score_percent"] = osv
         except (ValueError, TypeError):
             context["overall_score_percent"] = 0
@@ -303,68 +301,58 @@ def render_training_report(context: Dict[str, Any], output_path: str | Path) -> 
     logger.debug("Entering render_training_report().")
     try:
         env = get_env()
-        logger.debug("Loading template=training_report.html.j2")
-        logger.info(f"TEMPLATE_DIR = {TEMPLATE_DIR} and STATIC_DIR = {STATIC_DIR}.")
+        logger.debug(f"TEMPLATE_DIR = {TEMPLATE_DIR} and STATIC_DIR = {STATIC_DIR}.")
         template = env.get_template("training_report.html.j2")
         ctx = dict(context)
-        
-        logger.debug("Injecting static asset paths.")
         ctx.update(static_prefix(output_path))
-        
-        logger.debug("Rendering HTML template.")
         html = template.render(**ctx)
-        
-        logger.info("Training dashboard rendered successfully.")
-        logger.debug("Rendered HTML size=%.2f KB", len(html.encode("utf-8")) / 1024)
+        logger.debug("Rendered HTML size = %.2f KB", len(html.encode("utf-8")) / 1024)
         return html
-    
     except Exception as exc:
         logger.error("Unexpected rendering failure.", exc_info=True)
         raise RuntimeError("Training dashboard rendering failed.") from exc
 
 
 def generate_training_report(
-    context_data: Dict[str, Any],
-    output_dir: Optional[str | Path] = None,
-    report_name: Optional[str] = None,
-) -> Path:
-    """Main training report generation pipeline."""
-    logger.info("Starting training report generation pipeline.")
+        context_data : Dict[str, Any],
+        output_dir   : Optional[str | Path] = None,
+        report_name  : Optional[str]        = None,
+    ) -> Path:
+    logger.debug("Starting training report generation pipeline.")
     try:
         if output_dir is None:
-            output_dir = LocDir.parent / "output"
-        output_dir = Path(output_dir).resolve()
-        output_dir.mkdir(exist_ok=True, parents=True)
-        logger.debug("Output directory ensured=%s", output_dir)
-        
+            output_dir  = LocDir.parent / "output"
+        output_dir      = Path(output_dir).resolve()
+        output_dir.mkdir(exist_ok = True, parents = True)
+        logger.debug("Output directory ensured = %s", output_dir)
         if report_name is None:
-            datepf = datetime.now().strftime("%Y%m%d_%H%M%S")
-            report_name = f"{datepf}_training_report.html"
-        
-        output_path = output_dir / report_name
-        
-        context = build_training_context(context_data)
-        
-        dlevel = True if _cfg and _cfg.get('logging', 'level', fallback='DEBUG') in ['DEBUG', 'INFO'] else False
+            datepf      = datetime.now().strftime("%Y%m%d")
+            report_name = f"{datepf}_Train_Report.html"
+        output_path     = output_dir / report_name
+        context         = build_training_context(context_data)
+        dlevel          = True if _cfg and _cfg.get('logging', 
+                          'level', fallback = 'DEBUG') in [
+                          'DEBUG', 'INFO'] else False
         if dlevel:
-            with open(output_dir / 'TrainingContext.json', 'w', encoding='utf-8') as fx:
-                json.dump(context, fx, ensure_ascii=False, indent=2)
-        
-        html = render_training_report(context=context, output_path=output_path)
-        logger.debug("Writing rendered HTML to disk.")
+            with open(output_dir / 'TrainingContext.json',
+            'w', encoding = 'utf-8') as fx:
+                json.dump(context, fx,
+                          ensure_ascii = False, 
+                          indent       = 2)
+        html = render_training_report(context     = context,
+                                      output_path = output_path)
         with output_path.open("w", encoding="utf-8") as f:
             f.write(html)
-        logger.debug("Output HTML path=%s .\n\n", output_path)
-        
+        logger.debug("Output HTML path = %s .\n\n", output_path)
         logger.info("Training dashboard generated successfully.")
-        logger.info("Dashboard path   = %s", output_path)
-        logger.info("Total metrics    = %d", len(context.get("metrics", {})))
-        logger.info("Total charts     = %d", len(context.get("charts", [])))
+        logger.info("Dashboard path = %s", output_path)
+        logger.info("Total metrics  = %d", len(context.get("metrics", {})))
+        logger.info("Total charts   = %d", len(context.get("charts", [])))
         return output_path
-    
     except Exception as exc:
-        logger.error("Training report generation pipeline failed.", exc_info=True)
-        raise RuntimeError("Training report generation failed.") from exc
+        logger.error("Training report generation pipeline failed.",
+                      exc_info = True)
+        raise RuntimeError() from exc
 
 
 if __name__ == "__main__":

@@ -48,6 +48,25 @@ from configs import logger
 
 
 
+def Adjusted_CSRshape(matrix     : sp.csr_matrix, 
+                      expected_m : int, 
+                      expected_n : int,
+                     ) -> sp.csr_matrix:
+            current_m, current_n = matrix.shape
+            data                 = matrix.data
+            indices              = matrix.indices
+            indptr               = matrix.indptr
+            # Jika BARIS (Users) kurang, pad indptr dengan nilai
+            # terakhirnya agar ukurannya sesuai (M + 1)
+            if current_m < expected_m:
+                pad_size = expected_m - current_m
+                indptr   = np.concatenate([indptr, np.full(
+                           pad_size, indptr[-1], dtype = indptr.dtype)])
+            TheResult    = sp.csr_matrix((data, indices, indptr),
+                           shape = (expected_m, expected_n))
+            return TheResult
+
+
 class AryColBringModelTrainer:
     """
     High-level training wrapper for AryColBring 
@@ -101,7 +120,6 @@ class AryColBringModelTrainer:
                        "random_state"      : random_state,
                       }
 
-
     def fit(self,
             interactions    : Union[sp.spmatrix, str, 'pd.DataFrame'],
             user_features   : Optional[sp.spmatrix] = None,
@@ -135,7 +153,7 @@ class AryColBringModelTrainer:
             interactions = interactions.tocoo()
         data_stats = describe_interactions(interactions)
         logger.debug(
-        "Training data: users = %d items = %d interactions = %d sparsity = %.4f",
+        "Training data: users = %d | items = %d | interactions = %d | sparsity = %.4f",
         data_stats["n_users"], data_stats["n_items"],
         data_stats["nnz"],     data_stats["density"])
         
@@ -147,23 +165,26 @@ class AryColBringModelTrainer:
                          epochs        = epochs,
                          num_threads   = num_threads,
                          verbose       = verbose)
-                         
-        training_time = (datetime.now() - start_time).total_seconds()
-        logger.info("Training completed in %.2f seconds", training_time)
+        duration = (datetime.now() - start_time).total_seconds()
+        logger.info("Training completed in %.2f seconds", duration)
         self.training_history.append({
             "epochs"            : epochs,
             "num_threads"       : num_threads,
-            "training_time_sec" : training_time,
+            "training_time_sec" : duration,
             "start_time"        : start_time.isoformat(),
             "end_time"          : datetime.now().isoformat(),
             })
 
         if validation_data is not None and epochs % evaluate_every == 0:
             logger.debug("Evaluating on validation data.")
-            metrics = self.evaluate(validation_data, num_threads = num_threads)
+            metrics = self.evaluate(validation_data, 
+                                    train_interactions = interactions,
+                                    user_features      = user_features,
+                                    item_features      = item_features,
+                                    num_threads        = num_threads)
             self.metrics_history.append(metrics)
             logger.debug(
-            "Validation metrics: AUC = %.4f | Precision@10=%.4f | Recall@10=%.4f",
+            "Validation metrics: AUC = %.4f | Precision@10 = %.4f | Recall@10 = %.4f",
              metrics.get("auc", 0),
              metrics.get("precision_at_10", 0),
              metrics.get("recall_at_10", 0))
@@ -173,8 +194,10 @@ class AryColBringModelTrainer:
     def evaluate(self,
                  test_interactions  : sp.spmatrix,
                  train_interactions : Optional[sp.spmatrix] = None,
-                 num_threads        : int = 4,
-                 k_values           : List[int] = None,
+                 user_features      : sp.spmatrix           = None,
+                 item_features      : sp.spmatrix           = None,
+                 num_threads        : int                   = 4,
+                 k_values           : List[int]             = None,
                 ) -> Dict[str, float]:
         """
         Evaluate the trained model on test data.
@@ -189,71 +212,137 @@ class AryColBringModelTrainer:
         if k_values is None:
             k_values = [5, 10, 20]
         logger.info("Evaluating model with k = %s", k_values)
-        
+
+        test_interactions = test_interactions.tocsr()
+        if train_interactions is not None:
+            train_interactions = train_interactions.tocsr()
+
+        # Ambil dimensi ekspektasi dari bobot model trainer
+        if self.trainer.item_embeddings is not None:
+            expected_items = self.trainer.item_embeddings.shape[0]
+        else:
+            expected_items = test_interactions.shape[1]
+        if self.trainer.user_embeddings is not None:
+            expected_users = self.trainer.user_embeddings.shape[0]
+        else:
+            expected_users = test_interactions.shape[0]
+
+        # Eksekusi penyesuaian jika dimensi test/train
+        # lebih kecil dari bobot model
+        if test_interactions.shape[0] < expected_users \
+        or test_interactions.shape[1] < expected_items:
+            logger.debug("Adjusting test_interactions shape from %s to %s",
+            test_interactions.shape, 
+            (expected_users, expected_items))
+            test_interactions = Adjusted_CSRshape(
+                                matrix     = test_interactions, 
+                                expected_m = expected_users,
+                                expected_n = expected_items)
+
+        if train_interactions is not None:
+            if train_interactions.shape[0] < expected_users \
+            or train_interactions.shape[1] < expected_items:
+                logger.debug("Adjusting train_interactions shape from %s to %s",
+                train_interactions.shape, 
+                (expected_users, expected_items))
+                train_interactions = Adjusted_CSRshape(
+                                     matrix     = train_interactions,
+                                     expected_m = expected_users,
+                                     expected_n = expected_items)
+
+        # Bypass Error Leakage
+        if train_interactions is not None:
+            overlap = test_interactions.multiply(train_interactions.astype(bool))
+            if overlap.nnz > 0:
+                logger.warning("Data Leakage Detected! "
+                "Membuang %d interaksi overlap dari test_interactions.",
+                overlap.nnz)
+                test_interactions = test_interactions - overlap
+                test_interactions.eliminate_zeros()
+
+        # Make sure for item_features & user_features
+        # have same rows ILD / Novelty
+        if item_features is None or (
+        item_features.shape[0] < expected_items):
+            logger.warning("item_features kurang baris (%s) atau None."
+            "Membuat fallback Identity Matrix untuk %d items.", 
+            item_features.shape if item_features is not None else "None",
+            expected_items)
+            item_features = sp.eye(expected_items, format = "csr")
+        if user_features is None or user_features.shape[0] < expected_users:
+            user_features = sp.eye(expected_users, format = "csr")
+
         # Create predictor for evaluation
-        predictor                 = TheReasoner(**self.config)
-        predictor.item_embeddings = self.trainer.item_embeddings
-        predictor.user_embeddings = self.trainer.user_embeddings
-        predictor.item_biases     = self.trainer.item_biases
-        predictor.user_biases     = self.trainer.user_biases
-        metrics                   = dict()
+        metrics       = dict()
+        predictor     = TheReasoner(**self.config)
+        initial_attrs = [
+            "item_embeddings", "item_embedding_gradients", "item_embedding_momentum",
+            "item_biases", "item_bias_gradients", "item_bias_momentum",
+            "user_embeddings", "user_embedding_gradients", "user_embedding_momentum",
+            "user_biases", "user_bias_gradients", "user_bias_momentum"]
+
+        # 3. Salin seluruh state secara otomatis dari trainer ke predictor
+        for attr in initial_attrs:
+            val = getattr(self.trainer, attr, None)
+            setattr(predictor, attr, val)
         
         #AUC
         try:
-            metrics["auc"] = float(
-            auc_score(predictor,
-                      test_interactions,
-                      train_interactions = train_interactions,
-                      num_threads        = num_threads))
+            res_auc        = auc_score(predictor, 
+                                       test_interactions, 
+                                       train_interactions = train_interactions, 
+                                       num_threads        = num_threads)
+            metrics["auc"] = float(res_auc.mean())
         except Exception as e:
             logger.warning("AUC computation failed: %s", e)
             metrics["auc"] = 0.0
 
         #MRR
         try:
-            metrics["mrr"] = float(
-            MRR_rank(predictor,
-                     test_interactions,
-                     train_interactions = train_interactions,
-                     num_threads        = num_threads))
+            res_mrr        = MRR_rank(predictor, 
+                                      test_interactions, 
+                                      train_interactions = train_interactions,
+                                      num_threads        = num_threads)
+            metrics["mrr"] = float(res_mrr.mean())
         except Exception as e:
             logger.warning("MRR computation failed: %s", e)
             metrics["mrr"] = 0.0
-        
+
+
         for k in k_values:
             
             #Precision@K
             try:
-                metrics[f"precision_at_{k}"] = float(
-                precision_at_k(predictor,
-                               test_interactions,
-                               k                  = k,
-                               train_interactions = train_interactions,
-                               num_threads        = num_threads))
+                res_p = precision_at_k(
+                        predictor, test_interactions, 
+                        k                    = k,
+                        train_interactions   = train_interactions,
+                        num_threads          = num_threads)
+                metrics[f"precision_at_{k}"] = float(res_p.mean())
             except Exception as e:
                 logger.warning("Precision@%d computation failed: %s", k, e)
                 metrics[f"precision_at_{k}"] = 0.0
             
             #Recall@K
             try:
-                metrics[f"recall_at_{k}"] = float(
-                recall_at_k(predictor,
-                            test_interactions,
-                            k                  = k,
-                            train_interactions = train_interactions,
-                            num_threads        = num_threads))
+                rec_p = recall_at_k(predictor,
+                        test_interactions,
+                        k                  = k,
+                        train_interactions = train_interactions,
+                        num_threads        = num_threads)
+                metrics[f"recall_at_{k}"]  = float(rec_p.mean())
             except Exception as e:
                 logger.warning("Recall@%d computation failed: %s", k, e)
-                metrics[f"recall_at_{k}"] = 0.0
+                metrics[f"recall_at_{k}"]  = 0.0
 
             #NDCG@K
             try:
-                metrics[f"NDCG_at_{k}"] = float(
-                NDCG_rank(model              = predictor,
-                          test_interactions  = test_interactions,
-                          train_interactions = train_interactions,
-                          num_threads        = num_threads,
-                          k                  = k))
+                ndcgk = NDCG_rank(model    = predictor,
+                        test_interactions  = test_interactions,
+                        train_interactions = train_interactions,
+                        num_threads        = num_threads,
+                        k                  = k)
+                metrics[f"NDCG_at_{k}"] = float(ndcgk.mean())
             except Exception as e:
                 logger.warning("NDCG@%d computation failed: %s", k, e)
                 metrics[f"NDCG_at_{k}"] = 0.0
@@ -273,25 +362,28 @@ class AryColBringModelTrainer:
 
             #ILD@K
             try:
-                metrics[f"ILD_at_{k}"] = float(
-                ILD_k(model              = predictor,
-                      test_interactions  = test_interactions,
-                      train_interactions = train_interactions,
-                      num_threads        = num_threads,
-                      k                  = k))
+                ildk = ILD_k(model        = predictor,
+                       test_interactions  = test_interactions,
+                       train_interactions = train_interactions,
+                       user_features      = user_features,
+                       item_features      = item_features,
+                       num_threads        = num_threads,
+                       k                  = k)
+                metrics[f"ILD_at_{k}"] = float(ildk.mean())
             except Exception as e:
                 logger.warning("ILD@%d computation failed: %s", k, e)
                 metrics[f"ILD_at_{k}"] = 0.0
 
-
             #Novelty@K
             try:
-                metrics[f"Novelty_at_{k}"] = float(
-                Novelty_k(model             = predictor,
+                novelk = Novelty_k(model    = predictor,
                          test_interactions  = test_interactions,
                          train_interactions = train_interactions,
+                         user_features      = user_features,
+                         item_features      = item_features,
                          num_threads        = num_threads,
-                         k                  = k))
+                         k                  = k)
+                metrics[f"Novelty_at_{k}"] = float(novelk.mean())
             except Exception as e:
                 logger.warning("Novelty@%d computation failed: %s", k, e)
                 metrics[f"Novelty_at_{k}"] = 0.0
@@ -299,29 +391,51 @@ class AryColBringModelTrainer:
         return metrics
     
     
-    def generate_training_report(self,
+def generate_training_report(self,
             output_dir      : Optional[str] = None,
             experiment_name : str = "Default Experiment",
             charts          : Optional[List[Dict[str, Any]]] = None,
         ) -> Path:
         """
-        Generate a comprehensive training dashboard report.
-        * output_dir      : str, Output directory for the report
-        * experiment_name : str, Name of the experiment
-        * charts          : list of dict, Custom charts to include
-        The Returns is Path to the generated HTML report
+        Generate a comprehensive training dashboard
+        report matching LTR layout. Splits telemetry 
+        into Overviews, Ranking Quality, and 
+        Diagnostic trends.
         """
-        logger.debug("Generating training report.")
+        logger.debug("Generating comprehensive LTR-style training report.")
+        n_interactions  = 0
+        sparsity        = 0.0
+        current_metrics = self.metrics_history[-1] if \
+                          self.metrics_history else dict()
+        if self.trainer.item_embeddings is not None:
+            n_items     = self.trainer.item_embeddings.shape[0]
+        else:
+            n_items     = test_interactions.shape[1]
+        if self.trainer.user_embeddings is not None:
+            n_users     = self.trainer.user_embeddings.shape[0]
+        else:
+            n_users     = test_interactions.shape[0]
+        if hasattr(self, 'train_interactions') and self.train_interactions is not None:
+            n_interactions = self.train_interactions.nnz
+            total_elements = n_users * n_items
+            if total_elements > 0:
+                sparsity   = 1.0 - (n_interactions / total_elements)
+        elif self.training_history:
+            n_interactions = self.training_history[0].get("n_interactions", 0)
+            sparsity       = self.training_history[0].get("sparsity", 0.0)
+        generated_charts   = charts or list()
+        if not generated_charts and self.training_history:
+            ELP = [{"epoch": h.get("epoch", idx+1), 
+                    "loss": h.get("loss_value", 0.0)}
+                    for idx, h in enumerate(
+                    self.training_history) if "loss_value" in h]
+            if ELP:
+                generated_charts.append({
+                "type"  : "line",
+                "title" : f"Convergence Curve ({self.config['loss'].upper()})",
+                "label" : "Loss Value",
+                "data"  : ELP,})
         Context = {
-        "metrics"           : self.metrics_history[-1] if \
-                              self.metrics_history else dict(),
-        "data_statistics"   : {"n_users": self.trainer.user_embeddings.shape[0] \
-                                          if self.trainer.user_embeddings is \
-                                          not None else 0,
-                               "n_items": self.trainer.item_embeddings.shape[0] \
-                                          if self.trainer.item_embeddings is \
-                                          not None else 0,
-                              },
         "experiment_name"   : experiment_name,
         "loss"              : self.config["loss"],
         "epochs"            : self.training_history[-1]["epochs"] if \
@@ -331,47 +445,133 @@ class AryColBringModelTrainer:
         "item_alpha"        : self.config["item_alpha"],
         "user_alpha"        : self.config["user_alpha"],
         "learning_schedule" : self.config["learning_schedule"],
-        "charts"            : charts or list(),
+        "training_time_sec" : self.training_history[-1].get("training_time_sec",
+                              0) if self.training_history else 0,
+        "data_statistics"   : {"n_users"       : n_users,
+                               "n_items"       : n_items,
+                               "n_interactions": n_interactions,
+                               "sparsity"      : sparsity,
+                               "density"       : 1.0 - sparsity if sparsity > 0 else 0.0},
+        "metrics"           : current_metrics,
+        "charts"            : generated_charts,
+        "history"           : {"training": self.training_history,
+                               "metrics" : self.metrics_history,},
         }
-        if self.training_history:
-            Context["training_time_sec"] = self.training_history[-1].get(
-                                           "training_time_sec", 0)
         RPath = genAdvisor(context_data = Context,
                            output_dir   = output_dir)
-        logger.info("Training report generated: %s", RPath)
+        logger.info("Training report successfully compiled "
+                    "and aligned with LTR standards: %s", RPath)
         return RPath
 
 
     def save_model(self, path: str) -> None:
-        logger.info("Saving model to: %s", path)
-        path = Path(path)
-        path.parent.mkdir(parents = True, exist_ok = True)
+        """
+        Serialize and save the trained model embeddings and configurations to disk.
+        Safely packs weights, metadata, and hyper-parameters into a compressed NPZ archive.
+        """
+        logger.info("Initiating model serialization process to: %s", path)
+        try:
+            path = Path(path)
+            path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Save embeddings
-        config_bytes = json.dumps(self.config).encode('utf-8')
-        dataset      = {"item_embeddings" : self.trainer.item_embeddings,
-                        "user_embeddings" : self.trainer.user_embeddings,
-                        "item_biases"     : self.trainer.item_biases,
-                        "user_biases"     : self.trainer.user_biases,
-                        "config"          : np.frombuffer(config_bytes, dtype = np.uint8)
-                       }
-        np.savez_compressed(path,
-                            allow_pickle = False, # Mengunci dari pickle unwanted
-                            **dataset)            # Membongkar dict
-        logger.info("Model saved successfully")
+            # Enrich configurations with tracking metadata for model auditing
+            extended_config = self.config.copy()
+            extended_config["serialized_at"] = datetime.utcnow().isoformat()
+            extended_config["model_version"] = "0.0.1"  # Matches internal package version
+            
+            # Safely encode JSON to a raw byte array without requiring pickle utilities
+            config_bytes = json.dumps(extended_config).encode('utf-8')
+            config_array = np.frombuffer(config_bytes, dtype=np.uint8)
+
+            # Construct the serialization dataset mapping
+            dataset = {
+                "item_embeddings" : self.trainer.item_embeddings,
+                "user_embeddings" : self.trainer.user_embeddings,
+                "item_biases"     : self.trainer.item_biases,
+                "user_biases"     : self.trainer.user_biases,
+                "config"          : config_array
+            }
+
+            # Persist to disk using compressed archives with strict security parameters
+            np.savez_compressed(path, allow_pickle=False, **dataset)
+            logger.info("Model weights and structural metadata successfully written to disk.")
+            
+        except Exception as exc:
+            logger.error("Failed to execute model saving pipeline due to an unhandled exception.", exc_info=True)
+            raise IOError("Model serialization aborted due to storage or formatting failures.") from exc
 
 
     def load_model(self, path: str) -> "AryColBringModelTrainer":
-        logger.info("Loading model from: %s", path)
+        """
+        Load, validate, and reconstruct a trained model checkpoint from a compressed NPZ file.
+        Enforces strict structural validation and secure non-pickle array decoding.
+        """
+        logger.info("Attempting to load model checkpoint from path: %s", path)
         path = Path(path)
-        data = np.load(path, allow_pickle = True)
-        self.trainer.item_embeddings = data["item_embeddings"]
-        self.trainer.user_embeddings = data["user_embeddings"]
-        self.trainer.item_biases     = data["item_biases"]
-        self.trainer.user_biases     = data["user_biases"]
-        self.config                  = json.loads(str(data["config"]))
-        logger.info("Model loaded successfully")
-        return self
+        
+        if not path.exists():
+            logger.error("Checkpoint file path does not exist: %s", path)
+            raise FileNotFoundError(f"Model checkpoint file not found at location: {path}")
+
+        try:
+            # Enforce allow_pickle=False to strictly mitigate arbitrary code execution risks
+            with np.load(path, allow_pickle=False) as data:
+                
+                # 1. Structural Integrity Check: Verify presence of all required model blocks
+                required_keys = ["item_embeddings", "user_embeddings", "item_biases", "user_biases", "config"]
+                for key in required_keys:
+                    if key not in data:
+                        raise KeyError(f"Corrupted checkpoint state: Missing required structural key '{key}'")
+
+                # 2. Safe JSON Metadata Reconstruction
+                try:
+                    raw_config_bytes = data["config"].tobytes()
+                    loaded_config = json.loads(raw_config_bytes.decode('utf-8'))
+                except Exception as json_exc:
+                    raise ValueError("Failed to deserialize model hyper-parameters from binary configuration block.") from json_exc
+
+                # Extract weights for dimensional cross-verification
+                item_embeds = data["item_embeddings"]
+                user_embeds = data["user_embeddings"]
+                item_biases = data["item_biases"]
+                user_biases = data["user_biases"]
+
+                # 3. Dimensional Verification Check
+                expected_components = loaded_config.get("no_components", self.config.get("no_components"))
+                if item_embeds.ndim != 2 or item_embeds.shape[1] != expected_components:
+                    raise ValueError(f"Shape mismatch: item_embeddings shape {item_embeds.shape} "
+                                     f"incompatible with no_components={expected_components}")
+                
+                if user_embeds.ndim != 2 or user_embeds.shape[1] != expected_components:
+                    raise ValueError(f"Shape mismatch: user_embeddings shape {user_embeds.shape} "
+                                     f"incompatible with no_components={expected_components}")
+
+                if item_biases.ndim != 1 or item_biases.shape[0] != item_embeds.shape[0]:
+                    raise ValueError(f"Shape mismatch: item_biases size {item_biases.shape[0]} "
+                                     f"does not align with item cardinality {item_embeds.shape[0]}")
+
+                if user_biases.ndim != 1 or user_biases.shape[0] != user_embeds.shape[0]:
+                    raise ValueError(f"Shape mismatch: user_biases size {user_biases.shape[0]} "
+                                     f"does not align with user cardinality {user_embeds.shape[0]}")
+
+                # 4. Atomic Updates: Commit state arrays back to internal objects once validation passes
+                self.config = loaded_config
+                self.trainer.item_embeddings = item_embeds
+                self.trainer.user_embeddings = user_embeds
+                self.trainer.item_biases     = item_biases
+                self.trainer.user_biases     = user_biases
+
+            # Extract tracking statistics for analytical diagnostics
+            serialized_time = self.config.get("serialized_at", "Unknown Timestamp")
+            logger.info("Model checkpoint successfully restored. Metrics generation time context: %s", serialized_time)
+            logger.info("Loaded weights summary: Users=%d, Items=%d, Latent Components=%d", 
+                        user_embeds.shape[0], item_embeds.shape[0], expected_components)
+            
+            return self
+
+        except Exception as exc:
+            logger.error("Failed to safely load model state from target NPZ archive.", exc_info=True)
+            raise RuntimeError("Model reconstruction aborted due to structural or validation anomalies.") from exc
 
     
     def get_predictor(self) -> TheReasoner:

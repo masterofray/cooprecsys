@@ -193,13 +193,11 @@ def auc_score(
 
         pbar.set_postfix_str("computing AUC via Cython kernel")
         #Did in-place memory for AUC array (check function of flt cython)
-        calculate_auc_from_rank(CSRMatrix(ranks),
-        postive_num, ranks.data, auc, num_threads)
         calculate_auc_from_rank(
-            auc                 = auc,        #save the buffer result
+            auc                 = auc,
             ranks               = CSRMatrix(ranks),
             num_train_positives = postive_num,
-            rank_data           = ranks.data, #pass the origin data buffer
+            rank_data           = ranks.data,
             num_threads         = num_threads)
         pbar.update(1)
 
