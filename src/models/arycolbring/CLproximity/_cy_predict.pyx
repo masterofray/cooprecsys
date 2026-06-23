@@ -19,7 +19,9 @@ def predict_arycolbring(CSRMatrix item_features,
                         int[::1] item_ids,
                         flt[::1] predictions,
                         FastAryColBring model,
-                        int num_threads):
+                        int num_threads,
+                        bint verbose = False,
+                       ):
     """
     Compute pointwise prediction scores for (user_id, item_id) pairs.
 
@@ -33,9 +35,10 @@ def predict_arycolbring(CSRMatrix item_features,
     model          : FastAryColBring  holding all embedding state
     num_threads    : int  ≥ 1
     """
-    fprintf(stderr,
-            b"[DEBUG] predict_arycolbring: n_examples=%d num_threads=%d\n",
-            predictions.shape[0], num_threads)
+    if verbose:
+        fprintf(stderr,
+                b"[DEBUG] predict_arycolbring: n_examples=%d num_threads=%d\n",
+                predictions.shape[0], num_threads)
 
     cdef int i, no_examples
     cdef flt *user_repr
@@ -69,8 +72,8 @@ def predict_arycolbring(CSRMatrix item_features,
 
         free(user_repr)
         free(it_repr)
-
-    fprintf(stderr, b"[DEBUG] predict_arycolbring: scoring complete\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] predict_arycolbring: scoring complete\n")
 
 
 def predict_ranks(CSRMatrix item_features,
@@ -79,7 +82,9 @@ def predict_ranks(CSRMatrix item_features,
                   CSRMatrix train_interactions,
                   flt[::1]  ranks,
                   FastAryColBring model,
-                  int num_threads):
+                  int num_threads,
+                  bint verbose = False,
+                 ):
     """
     Compute the rank of every test-positive item for each user.
 
@@ -99,9 +104,10 @@ def predict_ranks(CSRMatrix item_features,
     model             : FastAryColBring
     num_threads       : int ≥ 1
     """
-    fprintf(stderr,
-            b"[DEBUG] predict_ranks: n_users=%d num_threads=%d\n",
-            test_interactions.rows, num_threads)
+    if verbose:
+        fprintf(stderr,
+                b"[DEBUG] predict_ranks: n_users=%d num_threads=%d\n",
+                test_interactions.rows, num_threads)
 
     cdef int i, j, user_id, item_id, predictions_size
     cdef int row_start, row_stop
@@ -118,15 +124,15 @@ def predict_ranks(CSRMatrix item_features,
             predictions_size,
             test_interactions.get_row_end(user_id)
             - test_interactions.get_row_start(user_id))
-
-    fprintf(stderr,
-            b"[DEBUG] predict_ranks: max_row_width=%d\n", predictions_size)
+    if verbose:
+        fprintf(stderr,
+                b"[DEBUG] predict_ranks: max_row_width=%d\n", predictions_size)
 
     if predictions_size == 0:
         fprintf(stderr, b"[WARN] predict_ranks: no test interactions found\n")
         return
 
-    with nogil, parallel(num_threads=num_threads):
+    with nogil, parallel(num_threads = num_threads):
         user_repr       = <flt*>malloc(sizeof(flt) * (model.no_components + 1))
         it_repr         = <flt*>malloc(sizeof(flt) * (model.no_components + 1))
         test_item_ids_buf = <int*>malloc(sizeof(int) * predictions_size)
@@ -178,5 +184,5 @@ def predict_ranks(CSRMatrix item_features,
         free(it_repr)
         free(test_item_ids_buf)
         free(test_preds_buf)
-
-    fprintf(stderr, b"[DEBUG] predict_ranks: ranking complete\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] predict_ranks: ranking complete\n")

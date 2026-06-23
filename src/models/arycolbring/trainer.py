@@ -29,6 +29,7 @@ import numpy as np
 import scipy.sparse as sp
 from pathlib   import Path
 from datetime  import datetime
+from copy      import deepcopy
 from typing    import Any, Dict, List, Optional, Tuple, Union
 from .assist   import fileload_interactions, describe_interactions
 from .inout    import TheAdvisor, TheReasoner
@@ -391,7 +392,7 @@ class AryColBringModelTrainer:
         return metrics
     
     
-def generate_training_report(self,
+    def generate_training_report(self,
             output_dir      : Optional[str] = None,
             experiment_name : str = "Default Experiment",
             charts          : Optional[List[Dict[str, Any]]] = None,
@@ -464,7 +465,7 @@ def generate_training_report(self,
         return RPath
 
 
-    def save_model(self, path: str) -> None:
+    def save_model(self, path: str):
         """
         Serialize and save the trained model embeddings and configurations to disk.
         Safely packs weights, metadata, and hyper-parameters into a compressed NPZ archive.
@@ -475,12 +476,12 @@ def generate_training_report(self,
             path.parent.mkdir(parents=True, exist_ok=True)
 
             # Enrich configurations with tracking metadata for model auditing
-            extended_config = self.config.copy()
-            extended_config["serialized_at"] = datetime.utcnow().isoformat()
-            extended_config["model_version"] = "0.0.1"  # Matches internal package version
+            exconf = deepcopy(self.config)
+            exconf["serialized_at"] = datetime.utcnow().isoformat()
+            exconf["model_version"] = "0.0.1"
             
             # Safely encode JSON to a raw byte array without requiring pickle utilities
-            config_bytes = json.dumps(extended_config).encode('utf-8')
+            config_bytes = json.dumps(exconf).encode('utf-8')
             config_array = np.frombuffer(config_bytes, dtype=np.uint8)
 
             # Construct the serialization dataset mapping
@@ -489,8 +490,7 @@ def generate_training_report(self,
                 "user_embeddings" : self.trainer.user_embeddings,
                 "item_biases"     : self.trainer.item_biases,
                 "user_biases"     : self.trainer.user_biases,
-                "config"          : config_array
-            }
+                "config"          : config_array,}
 
             # Persist to disk using compressed archives with strict security parameters
             np.savez_compressed(path, allow_pickle=False, **dataset)
