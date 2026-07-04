@@ -1,0 +1,47 @@
+{# config.html.j2 — Config page content #}
+
+<div id="page-config" class="page-content">
+
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-gear"></i></span>
+            Model Configuration
+        </div>
+        <hr class="section-divider">
+
+        <div class="config-grid">
+            <div class="config-card">
+                <h3>Training Parameters</h3>
+                <table class="config-table">
+                    <tr><td>Experiment Name</td><td>{{ experiment_name }}</td></tr>
+                    <tr><td>Model Type</td><td>{{ model_type }}</td></tr>
+                    <tr><td>Loss Function</td><td>{{ loss_function }}</td></tr>
+                    <tr><td>Epochs</td><td>{{ epochs }}</td></tr>
+                    <tr><td>Components</td><td>{{ no_components }}</td></tr>
+                    <tr><td>Learning Rate</td><td>{{ training_params.get('learning_rate', 'N/A') }}</td></tr>
+                    <tr><td>Item Alpha</td><td>{{ training_params.get('item_alpha', 'N/A') }}</td></tr>
+                    <tr><td>User Alpha</td><td>{{ training_params.get('user_alpha', 'N/A') }}</td></tr>
+                    <tr><td>Learning Schedule</td><td>{{ training_params.get('learning_schedule', 'N/A') }}</td></tr>
+                    <tr><td>Training Time</td><td>{{ "%.3f" | format(training_time_sec) }}s</td></tr>
+                </table>
+            </div>
+
+            <div class="config-card">
+                <h3>Data Overview</h3>
+                <table class="config-table">
+                    <tr><td>Users</td><td>{{ data_statistics.get('n_users', 'N/A') }}</td></tr>
+                    <tr><td>Items</td><td>{{ data_statistics.get('n_items', 'N/A') }}</td></tr>
+                    <tr><td>Interactions</td><td>{{ data_statistics.get('n_interactions', 'N/A') }}</td></tr>
+                    <tr><td>Sparsity</td><td>{{ "%.4f" | format(data_statistics.get('sparsity', 0)) }}</td></tr>
+                    <tr><td>Density</td><td>{{ "%.4f" | format(data_statistics.get('density', 0)) }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="overall-score-card" style="margin-top:24px;">
+            <div class="overall-score-value">{{ overall_score }}</div>
+            <div class="overall-score-label">Overall Score</div>
+        </div>
+    </div>
+
+</div>

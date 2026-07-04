@@ -1,0 +1,129 @@
+{# overview.html.j2 — Overview page content #}
+
+<div id="page-overview" class="page-content active">
+
+    <!-- Scorecard Section -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-bolt"></i></span>
+            Scorecard
+        </div>
+
+        <div class="cards-row">
+            {% for card in scorecards %}
+            <div class="scorecard" data-color="{{ card.color }}" data-parameter="{{ card.label }}" data-value="{{ card.value }}">
+                <div class="scorecard-icon">{{ card.icon_emoji | default('📈') }}</div>
+                <div class="scorecard-body">
+                    <div class="scorecard-label">{{ card.label }}</div>
+                    <div class="scorecard-value">{{ card.value }}</div>
+                    <div class="scorecard-sub">{{ card.sub }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Control Section: Line Chart + Mini Stats -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-sliders"></i></span>
+            Control
+        </div>
+
+        <div class="control-grid">
+            <div class="chart-panel">
+                <div class="chart-panel-title">Visitor Analytics</div>
+                <div class="chart-panel-value">{{ scorecards | length }} Metrics Evaluated</div>
+                <div class="chart-container">
+                    <canvas id="visitorChart" class="js-line-chart"
+                            data-labels='{{ bar_labels | tojson }}'
+                            data-values='{{ bar_data | tojson }}'></canvas>
+                </div>
+            </div>
+
+            <div class="stat-mini-col">
+                {% set stat_icons = ['👥','📦','📂','📋','📈','🔢'] %}
+                {% set stat_icon_colors = ['#1565c0','#2e7d32','#f9a825','#6a1b9a','#00838f','#e65100'] %}
+                {% for stat in stat_minis %}
+                <div class="stat-mini">
+                    <div class="stat-mini-icon" style="background:{{ stat_icon_colors[loop.index0 % 6] }}18;color:{{ stat_icon_colors[loop.index0 % 6] }};">
+                        {{ stat_icons[loop.index0 % 6] }}
+                    </div>
+                    <div class="stat-mini-info">
+                        <div class="stat-mini-label">{{ stat.label }}</div>
+                        <div class="stat-mini-value">{{ stat.value }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- All Metrics Line Chart -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-chart-line"></i></span>
+            All Metrics Overview
+        </div>
+
+        <div class="chart-panel">
+            <div class="chart-container" style="height:360px;">
+                <canvas id="metricsLineChart" class="js-line-chart"
+                        data-labels='{{ bar_labels | tojson }}'
+                        data-values='{{ bar_data | tojson }}'></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Gauge Section -->
+    {% if gauges %}
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-bullseye"></i></span>
+            Gauge
+        </div>
+
+        <div class="gauge-grid">
+            {% for gauge in gauges %}
+            <div class="gauge-card">
+                <div class="gauge-chart">
+                    <canvas id="gauge_{{ loop.index0 }}" class="js-gauge-chart"
+                            data-percent="{{ gauge.percent }}"
+                            data-color-index="{{ loop.index0 }}"></canvas>
+                    <div class="gauge-center-value">{{ gauge.display }}</div>
+                </div>
+                <div class="gauge-label">{{ gauge.label }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Model Config + Overall Score -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-gear"></i></span>
+            Model Configuration
+        </div>
+
+        <div class="control-grid">
+            <div class="chart-panel">
+                <table class="config-table">
+                    <tr><td>Loss Function</td><td>{{ loss_function }}</td></tr>
+                    <tr><td>Epochs</td><td>{{ epochs }}</td></tr>
+                    <tr><td>Components</td><td>{{ no_components }}</td></tr>
+                    <tr><td>Learning Rate</td><td>{{ training_params.get('learning_rate', 'N/A') }}</td></tr>
+                    <tr><td>Item Alpha</td><td>{{ training_params.get('item_alpha', 'N/A') }}</td></tr>
+                    <tr><td>User Alpha</td><td>{{ training_params.get('user_alpha', 'N/A') }}</td></tr>
+                    <tr><td>Learning Schedule</td><td>{{ training_params.get('learning_schedule', 'N/A') }}</td></tr>
+                    <tr><td>Training Time</td><td>{{ "%.3f" | format(training_time_sec) }}s</td></tr>
+                </table>
+            </div>
+            <div class="overall-score-card">
+                <div class="overall-score-value">{{ overall_score }}</div>
+                <div class="overall-score-label">Overall Score</div>
+            </div>
+        </div>
+    </div>
+
+</div>
