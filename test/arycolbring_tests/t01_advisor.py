@@ -21,6 +21,7 @@ with integrated logging, progress tracking, and model persistence.
 
 import gc
 import sys
+import time
 import numpy        as np
 import pandas       as pd
 import scipy.sparse as sp
@@ -28,7 +29,7 @@ from pathlib  import Path
 from copy     import deepcopy
 from datetime import datetime
 from pdb      import set_trace
-from typing   import Optional, Tuple, Union, List
+from typing   import Optional, Tuple, Union, List, Dict
 from argparse import ArgumentParser
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
@@ -80,6 +81,7 @@ class AryColBring_Train_Test:
         self.user_ids      = None
         self.item_ids      = None
         self._report_path  = str()
+        self._modelpath    = str()
         self.output_dir.mkdir(parents = True, exist_ok = True)
         logger.info("Training pipeline initialized in %s", self.output_dir)
 
@@ -236,124 +238,112 @@ class AryColBring_Train_Test:
         model_path.parent.mkdir(parents = True, exist_ok = True)
         self.ACBmodel.save_model(str(model_path))
         logger.info("Model saved: %s", model_path)
-        return model_path
+        self._modelpath = deepcopy(model_path)
+        return self
+
+    def __call__(self,
+                 epochs : Optional[int] = None,
+                 exname : str           = "ACB Training Run",
+                ) -> Dict:
+        logger.debug(f"Starting full pipeline of training {exname}!")
+        start_time = time.perf_counter()
+        self._RateProgress()
+        self._RatePosthoc()
+        self._brokedata()
+        self.train(epochs = epochs,
+                   exname = exname)
+        self.save()
+        exet            = time.perf_counter() - start_time
+        n_users         = self.DataMerge[self.Collect['user_col']].nunique() \
+                          if not self.DataMerge.empty else 0
+        n_items         = self.DataMerge[self.Collect['item_col']].nunique() \
+                          if not self.DataMerge.empty else 0
+        n_interactions  = len(self.DataMerge)
+        sparsity        = 1.0 - (n_interactions / (n_users * n_items)) \
+                          if (n_users * n_items) > 0 else 0.0
+        Summary         = {'status'        : 'SUCCESS',
+                           'training_time' : exet,
+                           'model_path'    : str(self._modelpath),
+                           'report_path'   : self._report_path,
+                           'data_stats'    : {'n_users'       : n_users,
+                                              'n_items'       : n_items,
+                                              'n_interactions': n_interactions,
+                                              'sparsity'      : sparsity}}
+        logger.info("Finished the full pipeline of training.")
+        return Summary
 
 
-
-
-    # def run_full_pipeline(self,
-                         # data_file: Union[str, Path],
-                         # test_split: float = 0.2,
-                         # epochs: Optional[int] = None,
-                         # save_model: bool = True,
-                         # experiment_name: str = "Full Training Pipeline") -> dict:
-        # """
-        # Run complete training pipeline.
-
-        # Args:
-            # data_file: Path to training data
-            # test_split: Test data fraction
-            # epochs: Number of epochs
-            # save_model: Whether to save the trained model
-            # experiment_name: Experiment name for reports
-
-        # Returns:
-            # Dictionary with results and paths
-        # """
-        # logger.info("Starting full pipeline: %s", experiment_name)
-
-        # # Load data
-        # train_data, val_data = self.load_training_data(data_file, test_split)
-
-        # # Train
-        # model, report_path = self.train(
-            # train_data=train_data,
-            # validation_data=val_data,
-            # epochs=epochs,
-            # experiment_name=experiment_name
-        # )
-
-        # # Save
-        # model_path = None
-        # if save_model:
-            # model_path = self.save_model(model)
-
-        # results = {
-            # "status": "success",
-            # "model": model,
-            # "model_path": model_path,
-            # "report_path": report_path,
-            # "training_time": model.training_history[-1]["training_time_sec"] if model.training_history else 0,
-            # "metrics": model.metrics_history[-1] if model.metrics_history else {},
-            # "data_stats": describe_interactions(train_data)
-        # }
-
-        # logger.info("Pipeline completed successfully")
-        # return results
-
-
-def main():
+def main() -> None:
+    splitter = lambda s: [item.strip() for item in s.split(',')]
     parser = ArgumentParser(description="Train AryColBring model")
-    parser.add_argument("--data", type=str, required=True, help="Path to training data")
-    parser.add_argument("--output-dir", type=str, default="artifacts", help="Output directory")
-    parser.add_argument("--epochs", type=int, default=None, help="Number of epochs")
-    parser.add_argument("--test-split", type=float, default=0.2, help="Test data fraction")
-    parser.add_argument("--no-save", action="store_true", help="Skip saving model")
-    parser.add_argument("--experiment-name", type=str, default="AryColBring Training", help="Experiment name")
+    parser.add_argument("-d", "--datapath", 
+                        type     = str,
+                        required = False,
+                        default  = None, 
+                        help     = "Path to training data")
+    parser.add_argument("-t", "--testratio", 
+                        type     = float, 
+                        required = True, 
+                        help     = "Rasio data untuk testing (misal: 0.2)")
+    parser.add_argument("-u", "--userfeature", 
+                        type     = splitter, 
+                        default  = None, 
+                        help     = "List fitur user dipisah koma")
+    parser.add_argument("-i", "--itemfeature", 
+                        type     = splitter, 
+                        default  = None, 
+                        help     = "List fitur item dipisah koma")
+    parser.add_argument("-o", "--outputdir", 
+                        type     = str, 
+                        default  = "artifacts", 
+                        help     = "Directory to save artifacts")
+    parser.add_argument("-e", "--epochs", 
+                        type     = int, 
+                        required = False, 
+                        help     = "Number of iteration batch")
+    parser.add_argument("-n", "--experimentname", 
+                        type     = str, 
+                        default  = "ACB Training Run", 
+                        help     = "Name of the current experiment run")
+    args         = parser.parse_args()
+    datapath     = args.datapath
+    if datapath is None:
+        datapath = LocDir.parent / 'data' / 'sampledata.parquet'
+    else:
+        datapath = Path(datapath)
+    fx           = AryColBring_Train_Test(UserFeats  = args.userfeature,
+                                          ItemFeats  = args.itemfeature,
+                                          output_dir = args.outputdir)
+    fx.Data      = datapath
+    fx.testratio = args.testratio
+    results      = fx(epochs = args.epochs,
+                      exname = args.experimentname)
 
-    args = parser.parse_args()
-
-    # Run pipeline
-    pipeline = AryColBring_Train_Test(
-        data_dir="data",
-        output_dir=args.output_dir
-    )
-
-    results = pipeline.run_full_pipeline(
-        data_file=args.data,
-        test_split=args.test_split,
-        epochs=args.epochs,
-        save_model=not args.no_save,
-        experiment_name=args.experiment_name
-    )
-
-    # Print summary
-    print("\n" + "="*80)
-    print("TRAINING SUMMARY")
-    print("="*80)
-    print(f"Status: {results['status']}")
-    print(f"Training Time: {results['training_time']:.2f} seconds")
+    # ==============================================================================
+    # PRODUCTION LOGGING SUMMARY (Menggantikan seluruh fungsi print)
+    # ==============================================================================
+    logger .info("\n"*3)
+    logger.info("=" * 50)
+    logger.info("TRAINING PIPELINE EXECUTION SUMMARY")
+    logger.info("=" * 50)
+    logger.info("Execution Status : %s", results['status'])
+    logger.info("Training Time    : %.2f seconds", results['training_time'])
+    
     if results['model_path']:
-        print(f"Model saved to: {results['model_path']}")
-    print(f"Report generated: {results['report_path']}")
-    if results['metrics']:
-        print("\nMetrics:")
-        for key, value in results['metrics'].items():
-            if isinstance(value, float):
-                print(f"  {key}: {value:.4f}")
-    print(f"\nData Statistics:")
-    print(f"  Users: {results['data_stats']['n_users']}")
-    print(f"  Items: {results['data_stats']['n_items']}")
-    print(f"  Interactions: {results['data_stats']['n_interactions']}")
-    print(f"  Sparsity: {results['data_stats']['sparsity']:.4f}")
-    print("="*80 + "\n")
-
-    return 0
+        logger.info("Model Artifact   : %s", results['model_path'])
+    logger.info("Training Report  : %s", results['report_path'])
+    logger.info("Dataset Statistics:")
+    logger.info("  * Unique Users    : %d", results['data_stats']['n_users'])
+    logger.info("  * Unique Items    : %d", results['data_stats']['n_items'])
+    logger.info("  * Interactions    : %d", results['data_stats']['n_interactions'])
+    logger.info("  * Matrix Sparsity : %.4f", results['data_stats']['sparsity'])
+    logger.info("=" * 50 + "\n"*3)
 
 
 if __name__ == "__main__":
     print("Running the AryColBring_Reasoner_Test")
-    #try:
-    #    sys.exit(main())
-    #except Exception as e:
-    #    logger.exception("Training failed with error: %s", str(e))
-    #    sys.exit(1)
-
-    fx = AryColBring_Train_Test()
-    fx.Data      = LocDir.parent / 'data' / 'sampledata.parquet'
-    fx.testratio = 0.25
-    fx._RateProgress()
-    fx._RatePosthoc()
-    fx._brokedata()
-    fx.train()
-    
+    try:
+        sys.exit(main())
+    except Exception as arc:
+        logger.exception("Training failed with error: %s", str(arc))
+        sys.exit(1)
