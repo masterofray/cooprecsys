@@ -1,0 +1,74 @@
+/* ============================================
+   diagnostics.css — KPI Cards, Performance Charts
+   ============================================ */
+
+#page-diagnostics .diagnostic-grid {
+    display: grid;
+    gap: 20px;
+    align-items: start;
+}
+
+#page-diagnostics .diagnostic-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 20px;
+    min-width: 0;
+    overflow: hidden;
+    animation: fadeInUp 0.5s ease-out forwards;
+    opacity: 0;
+    transition: all var(--transition);
+}
+
+#page-diagnostics .diagnostic-panel:hover { border-color: var(--border-light); box-shadow: var(--shadow); }
+#page-diagnostics .diagnostic-panel:nth-child(1) { animation-delay: 0.1s; }
+#page-diagnostics .diagnostic-panel:nth-child(2) { animation-delay: 0.2s; }
+
+.diagnostic-panel-title { font-size: 1rem; font-weight: 700; color: var(--accent); text-align: center; margin-bottom: 20px; }
+
+#page-diagnostics .chartjs-container { width: 100%; height: 420px; }
+#page-diagnostics .chartjs-wrapper { position: relative; width: 100%; height: 100%; }
+
+/* ── KPI Highlight Cards ── */
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.kpi-card {
+    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    border: 1px solid var(--accent-light);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+    text-align: center;
+    animation: fadeInUp 0.5s ease-out forwards;
+    opacity: 0;
+    transition: all var(--transition);
+}
+
+.kpi-card:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.kpi-card:nth-child(1) { animation-delay: 0.1s; }
+.kpi-card:nth-child(2) { animation-delay: 0.15s; }
+.kpi-card:nth-child(3) { animation-delay: 0.2s; }
+.kpi-card:nth-child(4) { animation-delay: 0.25s; }
+.kpi-card:nth-child(5) { animation-delay: 0.3s; }
+.kpi-card:nth-child(6) { animation-delay: 0.35s; }
+
+.kpi-label { font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+.kpi-value { font-size: 2rem; font-weight: 900; color: var(--accent); line-height: 1.1; }
+
+/* ── Metrics Detail Table ── */
+.metrics-detail-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.metrics-detail-table th { background: var(--card-highlight); color: var(--accent); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; border-bottom: 2px solid var(--border-light); }
+.metrics-detail-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--text); font-variant-numeric: tabular-nums; }
+.metrics-detail-table tbody tr:hover { background: rgba(46,125,50,0.04); }
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+    #page-diagnostics .diagnostic-grid { grid-template-columns: 1fr; }
+    #page-diagnostics .diagnostic-panel { padding: 14px; }
+    #page-diagnostics .chartjs-container { height: 320px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+}
