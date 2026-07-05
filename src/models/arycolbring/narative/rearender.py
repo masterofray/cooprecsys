@@ -12,7 +12,7 @@ __created__    = "2026-05-31"
 
 
 """
-render_inference.py
+rearender.py
 -------------------
 Inference dashboard renderer for AryColBring collaborative filtering model.
 

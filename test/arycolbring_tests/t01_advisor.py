@@ -318,26 +318,22 @@ def main() -> None:
     fx.testratio = args.testratio
     results      = fx(epochs = args.epochs,
                       exname = args.experimentname)
-
-    # ==============================================================================
-    # PRODUCTION LOGGING SUMMARY (Menggantikan seluruh fungsi print)
-    # ==============================================================================
-    logger .info("\n"*3)
-    logger.info("=" * 50)
-    logger.info("TRAINING PIPELINE EXECUTION SUMMARY")
-    logger.info("=" * 50)
-    logger.info("Execution Status : %s", results['status'])
-    logger.info("Training Time    : %.2f seconds", results['training_time'])
+    logger .debug("\n"*3)
+    logger.debug("=" * 50)
+    logger.debug("TRAINING PIPELINE EXECUTION SUMMARY")
+    logger.debug("=" * 50)
+    logger.debug("Execution Status : %s", results['status'])
+    logger.debug("Training Time    : %.2f seconds", results['training_time'])
     
     if results['model_path']:
-        logger.info("Model Artifact   : %s", results['model_path'])
-    logger.info("Training Report  : %s", results['report_path'])
-    logger.info("Dataset Statistics:")
-    logger.info("  * Unique Users    : %d", results['data_stats']['n_users'])
-    logger.info("  * Unique Items    : %d", results['data_stats']['n_items'])
-    logger.info("  * Interactions    : %d", results['data_stats']['n_interactions'])
-    logger.info("  * Matrix Sparsity : %.4f", results['data_stats']['sparsity'])
-    logger.info("=" * 50 + "\n"*3)
+        logger.debug("Model Artifact   : %s", results['model_path'])
+    logger.debug("Training Report  : %s", results['report_path'])
+    logger.debug("Dataset Statistics:")
+    logger.debug("  * Unique Users    : %d", results['data_stats']['n_users'])
+    logger.debug("  * Unique Items    : %d", results['data_stats']['n_items'])
+    logger.debug("  * Interactions    : %d", results['data_stats']['n_interactions'])
+    logger.debug("  * Matrix Sparsity : %.4f", results['data_stats']['sparsity'])
+    logger.debug("=" * 50 + "\n"*3)
 
 
 if __name__ == "__main__":
@@ -345,5 +341,8 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except Exception as arc:
+        logger.warning("Try this: "
+        'python ./test/arycolbring_tests/t01_advisor.py -d '
+        './data/sampledata.parquet -t 0.25 -e 50 -n "Test experiment"')
         logger.exception("Training failed with error: %s", str(arc))
         sys.exit(1)

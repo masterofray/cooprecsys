@@ -12,7 +12,7 @@ __created__    = "2026-05-31"
 
 
 """
-render_training.py
+advirender.py
 ------------------
 Training dashboard renderer for AryColBring collaborative filtering model.
 
@@ -38,59 +38,45 @@ import sys
 import json
 import math
 import shutil
-from pathlib import Path
-from copy import deepcopy
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-import numpy as np
+import numpy  as np
 import pandas as pd
+from pathlib  import Path
+from copy     import deepcopy
+from datetime import datetime
+from typing   import Any, Dict, List, Optional
+from jinja2   import Environment, FileSystemLoader, select_autoescape
 
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[3]))
+LocDir    = Path(__file__).parent.resolve()
+Tplatedir = LocDir / "templates"
+Staticdir = LocDir / "sttrain"
 
-TEMPLATE_DIR = LocDir.parent / "templates"
-STATIC_DIR   = LocDir.parent / "static"
-
-# Try to import from configs, fallback to basic logging
-try:
-    from configs import logger, _cfg
-except ImportError:
-    import logging
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
-    logger = logging.getLogger(__name__)
-    _cfg = None
+sys.path.append(str(LocDir.parents[2]))
+from configs import logger, _cfg
 
 
 # ================================================================
 # JINJA2 ENVIRONMENT
 # ================================================================
-
 def get_env() -> Environment:
     """Initialize Jinja2 environment."""
     logger.debug("Initializing Jinja environment.")
     try:
         env = Environment(
-            loader        = FileSystemLoader(str(TEMPLATE_DIR)),
+            loader        = FileSystemLoader(str(Tplatedir)),
             autoescape    = select_autoescape(["html", "xml"]),
             trim_blocks   = True,
             lstrip_blocks = True,
         )
-        logger.info("Jinja environment initialized successfully.")
+        logger.debug("Jinja environment initialized successfully.")
         return env
     except Exception as exc:
-        logger.error("Failed initializing Jinja environment.", exc_info=True)
-        raise RuntimeError("Jinja environment initialization failed.") from exc
+        logger.error("Failed initializing Jinja environment.", exc_info = True)
+        raise RuntimeError() from exc
 
 
 # ================================================================
 # STATIC ASSET COPYING
 # ================================================================
-
 def copy_static_assets(output_dir: Path) -> Dict[str, str]:
     """
     Copy all static assets (css/, js/, vendor/) into the output directory
@@ -105,7 +91,7 @@ def copy_static_assets(output_dir: Path) -> Dict[str, str]:
 
     try:
         # Copy entire static tree (css/, js/, vendor/ + vendor/webfonts/)
-        shutil.copytree(STATIC_DIR, dest_static, dirs_exist_ok=False)
+        shutil.copytree(Staticdir, dest_static, dirs_exist_ok=False)
         logger.info("Static assets copied to %s", dest_static)
     except Exception as exc:
         logger.error("Failed copying static assets.", exc_info=True)
