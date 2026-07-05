@@ -4,132 +4,100 @@ on:
   push:
     branches:
       - master
+      - dev
 
 permissions:
   contents: read
 
 jobs:
-  build-and-publish:
+  build-wheels:
     if: startsWith(github.event.head_commit.message, 'release:')
-    name: JackRay Build and Publish
+    name: Build wheel (${{ matrix.python-tag }})
     runs-on: ubuntu-latest
-    container: quay.io/pypa/manylinux_2_28_x86_64
-
+    strategy:
+      fail-fast: false
+      matrix:
+        python-tag: [cp38, cp39, cp310, cp311, cp312, cp313, cp314]
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Python 3.10 & UV
-        run: |
-          echo "=================================================="
-          echo "[STEP 1/8] Setup Python and UV Toolchain"
-          echo "=================================================="
-          # Daftarkan Python 3.10 bawaan manylinux ke GITHUB_PATH
-          echo "/opt/python/cp310-cp310/bin" >> $GITHUB_PATH
-          
-          # Install uv secara standalone ke dalam container
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
+      - name: Prepare Build Environment
+        run: chmod +x ./src/models/arycolbring/cysetup.sh
 
-      - name: Verify Environment
-        run: |
-          echo "=================================================="
-          echo "[STEP 2/8] Verify Environment"
-          echo "=================================================="
-          python --version
-          uv --version
-          gcc --version
+      - name: Build wheel for ${{ matrix.python-tag }}
+        uses: pypa/cibuildwheel@v3.2.0     # pin >=3.0 for cp314 support
+        env:
+          CIBW_BUILD: "${{ matrix.python-tag }}-manylinux_x86_64"
+          CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_BEFORE_BUILD: "bash ./src/models/arycolbring/cysetup.sh"
+          CIBW_ENVIRONMENT_LINUX: >
+            CFLAGS='-Wno-array-bounds -Wno-format'
+            CXXFLAGS='-Wno-array-bounds -Wno-format'
 
-      - name: Build AryColBring Cython Extensions
-        working-directory: ./src/models/arycolbring
-        run: |
-          echo "=================================================="
-          echo "[STEP 3/8] Build Cython Extensions"
-          echo "=================================================="
-          uv pip install --system \
-            numpy \
-            cython \
-            setuptools \
-            wheel
-          chmod +x ./cysetup.sh
-          bash ./cysetup.sh
+      - name: Verify Built Wheel
+        run: ls -lah wheelhouse/
 
-      - name: Install Project Dependencies
-        run: |
-          echo "=================================================="
-          echo "[STEP 4/8] Install Testing Dependencies"
-          echo "=================================================="
-          # 1. Compile dependensi ke file temporer
-          uv pip compile pyproject.toml --extra dev --extra test -o temp_reqs.txt
-          
-          # 2. Install menggunakan file tersebut
-          uv pip install --system --no-deps -r temp_reqs.txt
-          
-          # 3. Hapus file temporer setelah selesai
-          rm temp_reqs.txt
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cooprecsys-wheel-${{ matrix.python-tag }}
+          path: wheelhouse/*.whl
+          retention-days: 90
 
-      - name: Build Raw Package
-        run: |
-          echo "=================================================="
-          echo "[STEP 5/8] Build Raw Package via UV"
-          echo "=================================================="
-          export CFLAGS="-Wno-array-bounds -Wno-format"
-          uv build --wheel --no-build-isolation
-          #python3 setup.py bdist_wheel
+  test-install:
+    name: Test install (Python ${{ matrix.python-version }})
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Download all built wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: wheelhouse
+          merge-multiple: true
 
-      - name: Repair Wheel (Auditwheel to Manylinux)
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install and import
         run: |
-          echo "=================================================="
-          echo "[STEP 6/8] Repair Wheel via Auditwheel"
-          echo "=================================================="
-          # Garansi auditwheel terinstal di dalam scope Python 3.10 yang aktif
-          uv pip install --system auditwheel
-          
-          mkdir -p final_dist
-          
-          # Mengubah tag dari linux_x86_64 menjadi manylinux_2_28_x86_64 yang valid untuk PyPI
-          auditwheel repair dist/*.whl --wheel-dir final_dist/
-          
-          # Salin source distribution (.tar.gz) jika ada ke folder final
-          cp dist/*.tar.gz final_dist/ || true
+          python -m pip install --upgrade pip
+          pip install --no-index --find-links=wheelhouse/ cooprecsys
+          python -c "import cooprecsys; print('OK, Python ${{ matrix.python-version }}:', cooprecsys.__file__)"
+
+  publish:
+    name: Validate and Publish to PyPI
+    needs: test-install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all built wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: wheelhouse
+          merge-multiple: true
 
       - name: Validate Package
         run: |
-          echo "=================================================="
-          echo "[STEP 7/8] Validate Package"
-          echo "=================================================="
-          uv pip install --system twine
-          twine check final_dist/*
-
-          echo ""
-          echo "Generated & Repaired Files:"
-          ls -lah final_dist/
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: cooprecsys-distribution
-          path: |
-            final_dist/*.whl
-            final_dist/*.tar.gz
-          retention-days: 14
+          python -m pip install --upgrade pip twine
+          twine check wheelhouse/*
+          ls -lah wheelhouse/
 
       - name: Publish To PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: |
-          echo "=================================================="
-          echo "[STEP 8/8] Publish To PyPI"
-          echo "=================================================="
-          twine upload \
-            --skip-existing \
-            final_dist/*
+        run: twine upload --skip-existing wheelhouse/*
 
       - name: Release Summary
         run: |
           echo "=================================================="
           echo "Release Completed"
+          echo "Wheels built for Python 3.8-3.14 and published to PyPI."
           echo "=================================================="
-          echo "Artifacts successfully compliant with Manylinux standard."
-          echo "Package published to PyPI."
