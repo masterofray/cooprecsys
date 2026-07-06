@@ -33,7 +33,7 @@ from copy      import deepcopy
 from typing    import Any, Dict, List, Optional, Tuple, Union
 from .assist   import fileload_interactions, describe_interactions
 from .inout    import TheAdvisor, TheReasoner
-from .narative import genAdvisor
+from .narative import genAdvisor, OUTPUT_DIR
 from .eval     import (precision_at_k, 
                        recall_at_k,
                        auc_score,
@@ -462,6 +462,12 @@ class AryColBringModelTrainer:
         "history"           : {"training": self.training_history,
                                "metrics" : self.metrics_history,},
         }
+        
+        OUTPUT_DIR.mkdir(parents = True, exist_ok = True)
+        Contpath = OUTPUT_DIR / "ACBcontext.json"
+        with Contpath.open(mode="w", encoding="utf-8") as jfile:
+            json.dump(Context, jfile, indent = 2, ensure_ascii = False)
+        
         RPath = genAdvisor(context_data = Context,
                            output_dir   = output_dir)
         logger.info("Training report successfully compiled "
@@ -481,12 +487,12 @@ class AryColBringModelTrainer:
 
             # Enrich configurations with tracking metadata for model auditing
             exconf = deepcopy(self.config)
-            exconf["serialized_at"] = datetime.utcnow().isoformat()
+            exconf["serialized  _at"] = datetime.utcnow().isoformat()
             exconf["model_version"] = "0.0.1"
             
             # Safely encode JSON to a raw byte array without requiring pickle utilities
             config_bytes = json.dumps(exconf).encode('utf-8')
-            config_array = np.frombuffer(config_bytes, dtype=np.uint8)
+            config_array = np.frombuffer(config_bytes, dtype = np.uint8)
 
             # Construct the serialization dataset mapping
             dataset = {
@@ -501,8 +507,9 @@ class AryColBringModelTrainer:
             logger.info("Model weights and structural metadata successfully written to disk.")
             
         except Exception as exc:
-            logger.error("Failed to execute model saving pipeline due to an unhandled exception.", exc_info=True)
-            raise IOError("Model serialization aborted due to storage or formatting failures.") from exc
+            logger.error("Failed to execute model saving pipeline "
+            "due to an unhandled exception.", exc_info = True)
+            raise IOError() from exc
 
 
     def load_model(self, path: str) -> "AryColBringModelTrainer":

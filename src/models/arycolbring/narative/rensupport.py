@@ -14,7 +14,7 @@ import sys
 import numpy   as np
 from pathlib   import Path
 from tqdm.auto import tqdm
-from typing    import Dict, List
+from typing    import Dict, List, Any
 from jinja2    import Environment, FileSystemLoader, select_autoescape
 
 LocDir     = Path(__file__).parent.resolve()
@@ -27,7 +27,7 @@ Tplatedir  = LocDir / "templates"
 advdir     = LocDir / "sttrain"
 readir     = LocDir / "stinferc"
 IMG_DIR    = LocDir.parents[3] / 'img'
-OUTPUT_DIR = (LocDir.parents[3] / _cfg.get('PATHS', 'ACB_rpath'))
+OUTPUT_DIR = (LocDir.parents[3] / _cfg.get('PATHS', 'ACB_rpath')).resolve()
 
 def get_env() -> Environment:
     """Initialize Jinja2 environment."""
