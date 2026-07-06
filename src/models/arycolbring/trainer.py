@@ -273,16 +273,20 @@ class AryColBringModelTrainer:
         if user_features is None or user_features.shape[0] < expected_users:
             user_features = sp.eye(expected_users, format = "csr")
 
-        # Create predictor for evaluation
         metrics       = dict()
         predictor     = TheReasoner(**self.config)
-        initial_attrs = [
-            "item_embeddings", "item_embedding_gradients", "item_embedding_momentum",
-            "item_biases", "item_bias_gradients", "item_bias_momentum",
-            "user_embeddings", "user_embedding_gradients", "user_embedding_momentum",
-            "user_biases", "user_bias_gradients", "user_bias_momentum"]
-
-        # 3. Salin seluruh state secara otomatis dari trainer ke predictor
+        initial_attrs = ["item_embeddings",
+                         "item_embedding_gradients",
+                         "item_embedding_momentum",
+                         "item_biases",
+                         "item_bias_gradients",
+                         "item_bias_momentum",
+                         "user_embeddings",
+                         "user_embedding_gradients",
+                         "user_embedding_momentum",
+                         "user_biases",
+                         "user_bias_gradients",
+                         "user_bias_momentum"]
         for attr in initial_attrs:
             val = getattr(self.trainer, attr, None)
             setattr(predictor, attr, val)
@@ -601,7 +605,8 @@ def RunTrainer(
         validation_data : Optional[sp.spmatrix] = None,
         save_model_path : Optional[str]         = None,
     ) -> Tuple[AryColBringModelTrainer, Path]:
-    """Convenience function to train a model and generate a report.
+    """
+    Convenience function to train a model and generate a report.
        - train_data       : sparse matrix | str, Training data (matrix or CSV path)
        - epochs          : int, Number of training epochs
        - no_components   : int, Number of latent factors

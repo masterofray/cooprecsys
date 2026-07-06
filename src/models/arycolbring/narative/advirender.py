@@ -15,20 +15,12 @@ __created__    = "2026-05-31"
 advirender.py
 ------------------
 Training dashboard renderer for AryColBring collaborative filtering model.
-
 Generates comprehensive HTML reports for the training phase including:
 - Training metrics (loss curves, convergence)
 - Evaluation metrics (Precision@K, Recall@K, AUC, MRR)
 - Model hyperparameters
 - Data statistics
 - Embedding visualizations
-
-Modular structure:
-  templates/base.html.j2        — layout (sidebar, tabs, footer)
-  templates/overview.html.j2    — scorecards, charts, gauges
-  templates/rankings.html.j2    — filterable table
-  templates/diagnostics.html.j2 — metrics comparison, history
-  templates/config.html.j2      — config tables
 
 Static assets are copied to the output directory so the HTML is self-contained.
 """
@@ -45,131 +37,36 @@ from copy     import deepcopy
 from datetime import datetime
 from typing   import Any, Dict, List, Optional
 from jinja2   import Environment, FileSystemLoader, select_autoescape
+from .rensupport import (Tplatedir, advdir, OUTPUT_DIR, 
+                         get_env, runcopy, bealabel,
+                         safe_float, detect_gauge_metric)
 
 LocDir    = Path(__file__).parent.resolve()
-Tplatedir = LocDir / "templates"
-Staticdir = LocDir / "sttrain"
-
 sys.path.append(str(LocDir.parents[2]))
 from configs import logger, _cfg
 
-
-# ================================================================
-# JINJA2 ENVIRONMENT
-# ================================================================
-def get_env() -> Environment:
-    """Initialize Jinja2 environment."""
-    logger.debug("Initializing Jinja environment.")
-    try:
-        env = Environment(
-            loader        = FileSystemLoader(str(Tplatedir)),
-            autoescape    = select_autoescape(["html", "xml"]),
-            trim_blocks   = True,
-            lstrip_blocks = True,
-        )
-        logger.debug("Jinja environment initialized successfully.")
-        return env
-    except Exception as exc:
-        logger.error("Failed initializing Jinja environment.", exc_info = True)
-        raise RuntimeError() from exc
-
-
-# ================================================================
-# STATIC ASSET COPYING
-# ================================================================
-def copy_static_assets(output_dir: Path) -> Dict[str, str]:
-    """
-    Copy all static assets (css/, js/, vendor/) into the output directory
-    and return relative paths for Jinja2 template variables.
-    """
-    logger.debug("Copying static assets to output directory.")
-    dest_static = output_dir / "static"
-
-    # Remove old static dir if exists (clean copy)
-    if dest_static.exists():
-        shutil.rmtree(dest_static)
-
-    try:
-        # Copy entire static tree (css/, js/, vendor/ + vendor/webfonts/)
-        shutil.copytree(Staticdir, dest_static, dirs_exist_ok=False)
-        logger.info("Static assets copied to %s", dest_static)
-    except Exception as exc:
-        logger.error("Failed copying static assets.", exc_info=True)
-        raise RuntimeError("Static asset copy failed.") from exc
-
-    # Return relative paths from output HTML to static dirs
-    paths = {
-        "static_css":    "static/css",
-        "static_js":     "static/js",
-        "static_vendor": "static/vendor",
-        "static_img":    "static",
-    }
-    logger.debug("Static paths: %s", paths)
-    return paths
-
-
-# ================================================================
-# LABEL / VALUE HELPERS
-# ================================================================
-
-def beautify_label(label: str) -> str:
-    """Beautify metric labels for display."""
-    try:
-        label = label.replace("_", " ")
-        replacements = {
-            "ndcg": "NDCG", "map": "MAP", "mrr": "MRR",
-            "auc": "AUC", "ctr": "CTR", "at": "@",
-            "precision": "Precision", "recall": "Recall",
-        }
-        for old, new in replacements.items():
-            label = label.replace(old, new)
-        return label.title()
-    except Exception:
-        return str(label)
-
-
-def safe_float(value: Any, precision: int = 4) -> str:
-    """Safely format numeric values."""
-    try:
-        if isinstance(value, (int, float)):
-            if math.isnan(value):
-                return "NaN"
-            return f"{value:.{precision}f}"
-        return str(value)
-    except Exception:
-        return str(value)
-
-
-def detect_gauge_metric(metric_name: str) -> bool:
-    """Detect whether metric should become gauge widget."""
-    metric_name = metric_name.lower()
-    keywords = ["ndcg", "map", "mrr", "precision", "recall", "accuracy", "auc", "f1"]
-    return any(k in metric_name for k in keywords)
 
 
 # ================================================================
 # CONTEXT BUILDERS
 # ================================================================
-
 def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Generate scorecards dynamically from metrics."""
     if not metrics:
         return []
     cards = []
     color_cycle = ["blue", "green", "purple", "orange", "cyan", "red"]
-    icon_map = {
-        "blue": "fas fa-chart-line",
-        "green": "fas fa-network-wired",
-        "purple": "fas fa-bullseye",
-        "orange": "fas fa-gauge-high",
-        "cyan": "fas fa-desktop",
-        "red": "fas fa-chart-column",
-    }
+    icon_map = {"blue"   : "fas fa-chart-line",
+                "green"  : "fas fa-network-wired",
+                "purple" : "fas fa-bullseye",
+                "orange" : "fas fa-gauge-high",
+                "cyan"   : "fas fa-desktop",
+                "red"    : "fas fa-chart-column"}
     try:
         for idx, (metric_name, metric_value) in enumerate(metrics.items()):
             color = color_cycle[idx % len(color_cycle)]
             cards.append({
-                "label": beautify_label(metric_name),
+                "label": bealabel(metric_name),
                 "value": safe_float(metric_value),
                 "sub": "Training metric",
                 "color": color,
@@ -194,7 +91,7 @@ def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
             except (ValueError, TypeError):
                 continue
             gauges.append({
-                "label": beautify_label(metric_name),
+                "label": bealabel(metric_name),
                 "value": metric_value,
                 "display": f"{percent:.2f}%",
                 "percent": round(percent, 2),
@@ -339,7 +236,7 @@ def generate_training_report(
         output_path = output_dir / report_name
 
         # ── 3. Copy static assets ──
-        static_paths = copy_static_assets(output_dir)
+        static_paths = copier(output_dir)
 
         # ── 4. Build context ──
         context = build_training_context(context_data)
