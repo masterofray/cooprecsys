@@ -1,0 +1,86 @@
+name: AryColBring Smoke Test Pipeline
+
+on:
+  push:
+    branches:
+      - 'dev*'
+  pull_request:
+    branches:
+      - 'dev*'
+  workflow_dispatch: # Allows manual trigger from the GitHub UI
+
+jobs:
+  smoke-test:
+    name: Run AryColBring Advisor Smoke Test
+    runs-on: ubuntu-latest
+    
+    # Trigger execution only if the commit message contains the required keyword OR triggered manually
+    if: |
+        contains(github.event.head_commit.message, 'Run Smoke AryColbring') || 
+        (github.event_name == 'workflow_dispatch' && inputs.run_smoke == true)
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Install System Build Tools
+        run: |
+          echo "=========================================================================="
+          echo "Installing essential C/C++ compilation tools for Cython..."
+          echo "=========================================================================="
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install Dependencies with uv
+        run: |
+          echo "=========================================================================="
+          echo "Installing environment dependencies from pyproject.toml via uv..."
+          echo "=========================================================================="
+          uv pip install --system .
+          uv pip install --system bandit
+
+      - name: Run Bandit Security Analysis
+        run: |
+          echo "=========================================================================="
+          echo "Executing Bandit security linting for vulnerabilities..."
+          echo "=========================================================================="
+          bandit -r ./src
+
+      - name: Compile Cython Extensions
+        run: |
+          echo "=========================================================================="
+          echo "Compiling Cython extension modules..."
+          echo "=========================================================================="
+          # 1. Move to the target Cython model directory
+          cd ./src/models/arycolbring
+          
+          # 2. Execute the compilation bash script
+          bash cysetup.sh
+          
+          # 3. Move back to the requested tests directory
+          cd ../../../test/arycolbring_tests
+          echo "Successfully completed compilation. Current directory: \$(pwd)"
+
+      - name: Execute Automated Smoke Test
+        run: |
+          echo "=========================================================================="
+          echo "Launching AryColBring Model Training Smoke Test..."
+          echo "=========================================================================="
+          # Injecting root to PYTHONPATH to ensure python -m resolves 'test' cleanly from the target directory
+          export PYTHONPATH="${{ github.workspace }}"
+          cd ${{ github.workspace }}/test/arycolbring_tests
+          python -m test.arycolbring_tests.t01_advisor
+          echo "=========================================================================="
+          echo "Smoke test pipeline completed successfully."
+          echo "=========================================================================="

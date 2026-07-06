@@ -35,9 +35,10 @@ def norm_exchange(data       : pd.DataFrame,
                   dtype      : str = DType,
                  ) -> Tuple[sp.coo_matrix, np.ndarray, np.ndarray]:
     """
-    Convert a Pandas DataFrame of (user, item[, rating]) rows into a
+    Convert a Pandas DataFrame of (user, item, and/without rating) rows into a
     sparse COO interaction matrix.  Uses DuckDB for the encoding query
-    so it stays efficient even for tens of millions of rows.
+    so it stays efficient even for tens of millions of rows. This function
+    only bound by those 2 or 3 items.
     _______________________________________________________________
     Parameters
     data       : DataFrame with at least ``user_col`` and ``item_col`` columns.
@@ -46,12 +47,11 @@ def norm_exchange(data       : pd.DataFrame,
     rating_col : Name of an optional rating column.
                  If None, all interactions are set to 1.0.
     dtype      : NumPy dtype string for the sparse matrix data array.
-
     _______________________________________________________________
     Returns
     interactions : scipy.sparse.coo_matrix  (n_users × n_items)
-    user_ids     : np.ndarray  — mapping from integer index → original user id
-    item_ids     : np.ndarray  — mapping from integer index → original item id
+    user_ids     : np.ndarray  — mapping from integer index ->> original user id
+    item_ids     : np.ndarray  — mapping from integer index ->> original item id
     """
     required = {user_col, item_col}
     logger.info("norm_exchange: shape = %s user_col = %s "\
@@ -158,10 +158,12 @@ def fileload_interactions(path       : str,
     if not path.is_file():
         raise FileNotFoundError(f"Interaction data (CSV/parquet/db) not found: {path}")
     datague = load_data(data_path = path)
+    if rating_col is None:
+        rating_col = _cfg.get('RATING', 'ColumnName')
     result  = norm_exchange(datague,
                             user_col   = user_col,
                             item_col   = item_col,
-                            rating_col = "rating",
+                            rating_col = rating_col,
                             dtype      = dtype)
     del datague
     gc.collect()

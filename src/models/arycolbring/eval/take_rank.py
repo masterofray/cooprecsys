@@ -139,7 +139,8 @@ def NDCG_rank(
         dcg_contrib           = np.zeros_like(ranks.data, dtype=np.float32)
         dcg_contrib[in_top_k] = 1.0 / np.log2(ranks.data[in_top_k] + 2.0)
         ranks.data            = dcg_contrib
-        dcg                   = np.squeeze(np.array(ranks.sum(axis=1).todense()))
+        #dcg                  = np.squeeze(np.array(ranks.sum(axis=1).todense()))
+        dcg                   = np.squeeze(np.asarray(ranks.sum(axis=1)))
         pbar.update(1)
 
         #Normalisasi

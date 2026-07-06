@@ -19,288 +19,330 @@ This script provides a comprehensive training pipeline for the AryColBring model
 with integrated logging, progress tracking, and model persistence.
 """
 
+import gc
 import sys
-import pandas as pd
-from pathlib import Path
-from typing import Optional, Tuple, Union
+import time
+import numpy        as np
+import pandas       as pd
+import scipy.sparse as sp
+from pathlib  import Path
+from copy     import deepcopy
+from datetime import datetime
+from pdb      import set_trace
+from typing   import Optional, Tuple, Union, List, Dict
+from argparse import ArgumentParser
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
-from configs import _cfg, logger
-from models.arycolbring import AryColBringModelTrainer, RunTrainer
-from db import DuckDBManager, duckdb_connection
-
-
-from db.callduckdb import 
-from models.arycolbring.trainer import AryColBringModelTrainer, RunTrainer
+from configs  import _cfg, logger
+from db       import duckdb_connection
+from features import load_data
+from prepare  import DetectReco_Identifier
+from qrates   import GenQuasi_Lazy, DMD
+from models.arycolbring import AryColBringModelTrainer as ACBmodel
 from models.arycolbring.assist import fileload_interactions, describe_interactions
 
 
-class AryColBring_Reasoner_Test:
+class AryColBring_Train_Test:
     """
     High-level training pipeline wrapper for AryColBring model.
     Handles data loading, training, evaluation, and reporting.
     """
-
     def __init__(self,
-                 data_dir: Union[str, Path],
-                 output_dir: Union[str, Path] = "artifacts",
-                 config_section: str = "model"):
-        """
-        Initialize training pipeline.
+                 UserFeats : List  = None,
+                 ItemFeats : List  = None,
+                 testratio : float = float(),
+                 output_dir: Union[str, Path] = None,
+                ):
+        if output_dir is None:
+            self.output_dir= LocDir.parent / _cfg.get('PATHS', 'output_dir')
+        else:
+            self.output_dir= Path(output_dir)
+        self.config        = self._load_config()
+        self._Data         = pd.DataFrame([])
+        self.DataMerge     = pd.DataFrame([])
+        self.data_rate     = pd.DataFrame([])
+        self.UserFeats     = UserFeats
+        self.ItemFeats     = ItemFeats
+        if self.UserFeats is None:
+            self.UserFeats = ['EmployeeAge', 'EmployeeGender', 
+                              'Resistant', 'IsAllergic', 'VitalityDays']
+        if self.ItemFeats is None:
+            self.ItemFeats = ['ProductPrice', 'Quantity', 'Discount',
+                              'TotalPrice', 'Class']
+        self._testratio    = testratio
+        self.Collect       = dict()
+        self._TRAIN        = None
+        self._TEST         = None
+        self.interactions  = None
+        self.user_features = None
+        self.item_features = None
+        self.weight        = None
+        self.user_ids      = None
+        self.item_ids      = None
+        self._report_path  = str()
+        self._modelpath    = str()
+        self.output_dir.mkdir(parents = True, exist_ok = True)
+        logger.info("Training pipeline initialized in %s", self.output_dir)
 
-        Args:
-            data_dir: Directory containing training data
-            output_dir: Directory for output models and reports
-            config_section: Configuration section to load from INI
-        """
-        self.data_dir = Path(data_dir)
-        self.output_dir = Path(output_dir)
-        self.config_section = config_section
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+    @property
+    def Data(self) -> Path | pd.DataFrame:
+        return self._Data
 
-        # Load configuration
-        self.config = self._load_config()
-        logger.info("Training pipeline initialized with output_dir=%s", self.output_dir)
+    @Data.setter
+    def Data(self, value: str | Path | pd.DataFrame) -> None:
+        if not isinstance(value, (str, Path, pd.DataFrame)):
+            msg = f"Invalid data type: {type(value).__name__}."\
+                   "Expected str, Path, or pandas.DataFrame."
+            logger.error(msg)
+            raise TypeError()
+        if isinstance(value, (str, Path)):
+            path_obj = Path(value)
+            if not path_obj.exists():
+                msg = f"Validation failed: File does not exist at '{path_obj}'."
+                logger.error(msg)
+                raise FileNotFoundError()
+            if not path_obj.is_file():
+                msg = f"Validation failed: Target path is a "\
+                      f"directory, not a file -> '{path_obj}'."
+                logger.error(msg)
+                raise ValueError()
+            if path_obj.stat().st_size == 0:
+                msg = f"Validation failed: The file '{path_obj.name}' is empty."
+                logger.error(msg)
+                raise ValueError()
+            try:
+                with path_obj.open("r", encoding = "utf-8", errors = "ignore") as f:
+                    line_count = sum(1 for _ in f)
+                if line_count < 20:
+                    msg = f"Validation failed: File has only {line_count} "\
+                           "lines. A minimum of 20 lines is required."
+                    logger.error(msg)
+                    raise ValueError()
+            except Exception as arc:
+                msg = f"An error occurred while reading: {arg}"
+                logger.error(msg)
+                raise ValueError()
+            finally:
+                self._Data = load_data(data_path    = path_obj, 
+                                       memory_limit = "16GB")
+                logger.debug(f"Successfully assigned Data: '{path_obj}'.")
+        elif isinstance(value, pd.DataFrame):
+            if value.empty:
+                msg = "Validation failed: The provided DataFrame is empty."
+                logger.error(msg)
+                raise ValueError()
+            row_count = len(value)
+            if row_count < 20:
+                msg = f"Validation failed: DataFrame has only {row_count} rows."
+                logger.error(msg)
+                raise ValueError()
+            self._Data = value
+            logger.debug("Successfully assigned Data to pandas DataFrame.")
+
+    @property
+    def testratio(self) -> float:
+        return self._testratio
+
+    @Data.setter
+    def testratio(self, value: float) -> None:
+        if isinstance(value, float) and (0.01 <= value <= 0.8):
+            self._testratio = value
+        else:
+            self._testratio = _cfg.getfloat("TRAINING", "test_ratio")
 
     def _load_config(self) -> dict:
-        """Load model configuration from INI file."""
-        config = {
-            "no_components": _cfg.getint(self.config_section, "no_components", fallback=10),
-            "loss": _cfg.get(self.config_section, "loss", fallback="warp"),
-            "learning_rate": _cfg.getfloat(self.config_section, "learning_rate", fallback=0.05),
-            "epochs": _cfg.getint(self.config_section, "epochs", fallback=10),
-            "num_threads": _cfg.getint(self.config_section, "num_threads", fallback=4),
-            "dtype": _cfg.get(self.config_section, "dtype", fallback="float32"),
-            "learning_schedule": _cfg.get(self.config_section, "learning_schedule", fallback="adagrad"),
-        }
+        verbose = True if (_cfg.get('logging', 'level') in ['DEBUG', 'INFO']) else False
+        config  = {
+        "no_components"    : _cfg.getint('model', "no_components", fallback = 10),
+        "loss"             : _cfg.get('model', "loss", fallback = "warp"),
+        "learning_rate"    : _cfg.getfloat('model', "learning_rate", fallback = 0.05),
+        "epochs"           : _cfg.getint('model', "epochs", fallback = 10),
+        "num_threads"      : _cfg.getint('model', "num_threads", fallback = 4),
+        "dtype"            : _cfg.get('model', "dtype", fallback = "float32"),
+        "learning_schedule": _cfg.get('model', "learning_schedule", fallback = "adagrad"),
+        'verbosity'        : verbose,}
         logger.debug("Configuration loaded: %s", config)
         return config
 
-    def load_training_data(self,
-                           data_file: Union[str, Path],
-                           test_split: float = 0.2,
-                           random_state: int = 42) -> Tuple[sp.spmatrix, Optional[sp.spmatrix]]:
-        """
-        Load training data from file.
+    def _RateProgress(self):
+        self.data_rate = GenQuasi_Lazy(self.Data)
+        logger.info("Data loaded: shape = %s", self.data_rate.shape)
+        logger.debug("Columns: %s", self.data_rate.columns.tolist())
+        return self
 
-        Args:
-            data_file: Path to data file (CSV or Parquet)
-            test_split: Fraction of data to use for validation
-            random_state: Random seed for reproducibility
+    def _RatePosthoc(self):
+        self.Collect    = DetectReco_Identifier(self.Data.columns.to_numpy())
+        self.DataMerge  = self.data_rate.merge(self.Data,
+                          on = [self.Collect['user_col'], self.Collect['item_col']])
+        it01            = [self.Collect["quantity_col"],
+                           self.Collect["total_col"], 
+                           self.Collect["discount_col"]]
+        self.ItemFeats.extend(it01)
+        self.ItemFeats  = list(set([it02 for it02 in self.ItemFeats if it02 is not None]))
+        return self
 
-        Returns:
-            Tuple of (train_interactions, validation_interactions)
-        """
-        data_file = Path(data_file)
-        logger.info("Loading data from: %s", data_file)
+    def _ttprocess(self, data: pd.DataFrame):
+        Results = DMD(data              = data,
+                      user_col          = self.Collect['user_col'],
+                      item_col          = self.Collect['item_col'],
+                      user_feature_cols = self.UserFeats,
+                      item_feature_cols = self.ItemFeats)
+        return Results
 
-        if not data_file.exists():
-            raise FileNotFoundError(f"Data file not found: {data_file}")
+    def _brokedata(self):
+        np.random.seed(4)
+        n_rows      = self.DataMerge.shape[0]
+        mask        = (np.random.rand(n_rows)) > self._testratio
+        trainData   = deepcopy(self.DataMerge[mask])
+        testData    = deepcopy(self.DataMerge[~mask])
+        self._TRAIN = self._ttprocess(trainData)
+        self._TEST  = self._ttprocess(testData)
+        del mask, trainData, testData
+        gc.collect()
+        return self
 
-        # Load data
-        if data_file.suffix == ".parquet":
-            df = pd.read_parquet(data_file)
-        elif data_file.suffix == ".csv":
-            df = pd.read_csv(data_file)
-        else:
-            raise ValueError(f"Unsupported file format: {data_file.suffix}")
+    def train(self,
+              epochs : Optional[int] = None,
+              exname : str = "ACB Training Run",
+             ) -> Tuple[ACBmodel, Path]:
+        Epochs = epochs or self.config["epochs"]
+        logger.info("Starting training: epochs = %d | threads = %d", 
+                     epochs, self.config["num_threads"])
+        self.ACBmodel = ACBmodel(no_components      = self.config["no_components"],
+                                 loss               = self.config["loss"],
+                                 learning_rate      = self.config["learning_rate"],
+                                 item_alpha         = 0.01,
+                                 user_alpha         = 0.01,
+                                 learning_schedule  = self.config["learning_schedule"],
+                                 random_state       = 4)
+        self.ACBmodel.fit(interactions    = self._TRAIN[0], # Matriks Interaksi (COO)
+                          user_features   = self._TRAIN[1], # Fitur User (CSR)
+                          item_features   = self._TRAIN[2], # Fitur Item (CSR)
+                          sample_weight   = self._TRAIN[3], # Bobot Interaksi (COO)
+                          epochs          = Epochs,
+                          num_threads     = self.config["num_threads"],
+                          verbose         = self.config['verbosity'],
+                          validation_data = self._TEST[0],
+                          evaluate_every  = 1,
+                         )
+        self._report_path = self.ACBmodel.generate_training_report(
+                            output_dir      = str(self.output_dir),
+                            experiment_name = exname)
+        logger.debug("Training completed. Report: %s", self._report_path)
+        return self
 
-        logger.info("Data loaded: shape=%s", df.shape)
-        logger.debug("Columns: %s", df.columns.tolist())
+    def save(self) -> Path:
+        dates      = f'{datetime.now():%Y%m%d}'
+        model_path = self.output_dir / "ACBmodel" / f'{dates}_models.npz'
+        model_path.parent.mkdir(parents = True, exist_ok = True)
+        self.ACBmodel.save_model(str(model_path))
+        logger.info("Model saved: %s", model_path)
+        self._modelpath = deepcopy(model_path)
+        return self
 
-        # Split into train/test if requested
-        if test_split > 0:
-            np.random.seed(random_state)
-            mask = np.random.random(len(df)) > test_split
-            train_df = df[mask].copy()
-            test_df = df[~mask].copy()
-            logger.info("Data split: train=%d, test=%d", len(train_df), len(test_df))
-        else:
-            train_df = df.copy()
-            test_df = None
-
-        # Convert to sparse matrix (user-item interactions)
-        train_interactions, _, _ = fileload_interactions(train_df)
-        test_interactions = None
-        if test_df is not None:
-            test_interactions, _, _ = fileload_interactions(test_df)
-
-        return train_interactions, test_interactions
-
-    # def train(self,
-              # train_data: sp.spmatrix,
-              # validation_data: Optional[sp.spmatrix] = None,
-              # epochs: Optional[int] = None,
-              # experiment_name: str = "AryColBring Training Run") -> Tuple[AryColBringModelTrainer, Path]:
-        # """
-        # Train the AryColBring model.
-
-        # Args:
-            # train_data: Training interaction matrix (sparse)
-            # validation_data: Optional validation interaction matrix
-            # epochs: Number of epochs (uses config if not specified)
-            # experiment_name: Name for the experiment/report
-
-        # Returns:
-            # Tuple of (trained_model, report_path)
-        # """
-        # epochs = epochs or self.config["epochs"]
-
-        # logger.info("Starting training: epochs=%d, threads=%d", epochs, self.config["num_threads"])
-
-        # # Create and train model
-        # model = AryColBringModelTrainer(
-            # no_components=self.config["no_components"],
-            # loss=self.config["loss"],
-            # learning_rate=self.config["learning_rate"],
-            # learning_schedule=self.config["learning_schedule"],
-            # random_state=42
-        # )
-
-        # model.fit(
-            # interactions=train_data,
-            # epochs=epochs,
-            # num_threads=self.config["num_threads"],
-            # verbose=True,
-            # validation_data=validation_data,
-            # evaluate_every=1
-        # )
-
-        # # Generate report
-        # report_path = model.generate_training_report(
-            # output_dir=str(self.output_dir),
-            # experiment_name=experiment_name
-        # )
-
-        # logger.info("Training completed. Report: %s", report_path)
-        # return model, report_path
-
-    # def save_model(self, model: AryColBringModelTrainer, model_name: str = "arycolbring_model.npz") -> Path:
-        # """
-        # Save trained model.
-
-        # Args:
-            # model: Trained AryColBringModelTrainer instance
-            # model_name: Output model filename
-
-        # Returns:
-            # Path to saved model
-        # """
-        # model_path = self.output_dir / "models" / model_name
-        # model_path.parent.mkdir(parents=True, exist_ok=True)
-
-        # model.save_model(str(model_path))
-        # logger.info("Model saved: %s", model_path)
-        # return model_path
-
-    # def run_full_pipeline(self,
-                         # data_file: Union[str, Path],
-                         # test_split: float = 0.2,
-                         # epochs: Optional[int] = None,
-                         # save_model: bool = True,
-                         # experiment_name: str = "Full Training Pipeline") -> dict:
-        # """
-        # Run complete training pipeline.
-
-        # Args:
-            # data_file: Path to training data
-            # test_split: Test data fraction
-            # epochs: Number of epochs
-            # save_model: Whether to save the trained model
-            # experiment_name: Experiment name for reports
-
-        # Returns:
-            # Dictionary with results and paths
-        # """
-        # logger.info("Starting full pipeline: %s", experiment_name)
-
-        # # Load data
-        # train_data, val_data = self.load_training_data(data_file, test_split)
-
-        # # Train
-        # model, report_path = self.train(
-            # train_data=train_data,
-            # validation_data=val_data,
-            # epochs=epochs,
-            # experiment_name=experiment_name
-        # )
-
-        # # Save
-        # model_path = None
-        # if save_model:
-            # model_path = self.save_model(model)
-
-        # results = {
-            # "status": "success",
-            # "model": model,
-            # "model_path": model_path,
-            # "report_path": report_path,
-            # "training_time": model.training_history[-1]["training_time_sec"] if model.training_history else 0,
-            # "metrics": model.metrics_history[-1] if model.metrics_history else {},
-            # "data_stats": describe_interactions(train_data)
-        # }
-
-        # logger.info("Pipeline completed successfully")
-        # return results
+    def __call__(self,
+                 epochs : Optional[int] = None,
+                 exname : str           = "ACB Training Run",
+                ) -> Dict:
+        logger.debug(f"Starting full pipeline of training {exname}!")
+        start_time = time.perf_counter()
+        self._RateProgress()
+        self._RatePosthoc()
+        self._brokedata()
+        self.train(epochs = epochs,
+                   exname = exname)
+        self.save()
+        exet            = time.perf_counter() - start_time
+        n_users         = self.DataMerge[self.Collect['user_col']].nunique() \
+                          if not self.DataMerge.empty else 0
+        n_items         = self.DataMerge[self.Collect['item_col']].nunique() \
+                          if not self.DataMerge.empty else 0
+        n_interactions  = len(self.DataMerge)
+        sparsity        = 1.0 - (n_interactions / (n_users * n_items)) \
+                          if (n_users * n_items) > 0 else 0.0
+        Summary         = {'status'        : 'SUCCESS',
+                           'training_time' : exet,
+                           'model_path'    : str(self._modelpath),
+                           'report_path'   : self._report_path,
+                           'data_stats'    : {'n_users'       : n_users,
+                                              'n_items'       : n_items,
+                                              'n_interactions': n_interactions,
+                                              'sparsity'      : sparsity}}
+        logger.info("Finished the full pipeline of training.")
+        return Summary
 
 
-def main():
-    """Main execution function for training."""
-    import argparse
-
-    parser = argparse.ArgumentParser(description="Train AryColBring model")
-    parser.add_argument("--data", type=str, required=True, help="Path to training data")
-    parser.add_argument("--output-dir", type=str, default="artifacts", help="Output directory")
-    parser.add_argument("--epochs", type=int, default=None, help="Number of epochs")
-    parser.add_argument("--test-split", type=float, default=0.2, help="Test data fraction")
-    parser.add_argument("--no-save", action="store_true", help="Skip saving model")
-    parser.add_argument("--experiment-name", type=str, default="AryColBring Training", help="Experiment name")
-
-    args = parser.parse_args()
-
-    # Run pipeline
-    pipeline = AryColBringTrainingPipeline(
-        data_dir="data",
-        output_dir=args.output_dir
-    )
-
-    results = pipeline.run_full_pipeline(
-        data_file=args.data,
-        test_split=args.test_split,
-        epochs=args.epochs,
-        save_model=not args.no_save,
-        experiment_name=args.experiment_name
-    )
-
-    # Print summary
-    print("\n" + "="*80)
-    print("TRAINING SUMMARY")
-    print("="*80)
-    print(f"Status: {results['status']}")
-    print(f"Training Time: {results['training_time']:.2f} seconds")
+def main() -> None:
+    splitter = lambda s: [item.strip() for item in s.split(',')]
+    parser = ArgumentParser(description="Train AryColBring model")
+    parser.add_argument("-d", "--datapath", 
+                        type     = str,
+                        required = False,
+                        default  = None, 
+                        help     = "Path to training data")
+    parser.add_argument("-t", "--testratio", 
+                        type     = float, 
+                        required = True, 
+                        help     = "Rasio data untuk testing (misal: 0.2)")
+    parser.add_argument("-u", "--userfeature", 
+                        type     = splitter, 
+                        default  = None, 
+                        help     = "List fitur user dipisah koma")
+    parser.add_argument("-i", "--itemfeature", 
+                        type     = splitter, 
+                        default  = None, 
+                        help     = "List fitur item dipisah koma")
+    parser.add_argument("-o", "--outputdir", 
+                        type     = str, 
+                        default  = "artifacts", 
+                        help     = "Directory to save artifacts")
+    parser.add_argument("-e", "--epochs", 
+                        type     = int, 
+                        required = False, 
+                        help     = "Number of iteration batch")
+    parser.add_argument("-n", "--experimentname", 
+                        type     = str, 
+                        default  = "ACB Training Run", 
+                        help     = "Name of the current experiment run")
+    args         = parser.parse_args()
+    datapath     = args.datapath
+    if datapath is None:
+        datapath = LocDir.parent / 'data' / 'sampledata.parquet'
+    else:
+        datapath = Path(datapath)
+    fx           = AryColBring_Train_Test(UserFeats  = args.userfeature,
+                                          ItemFeats  = args.itemfeature,
+                                          output_dir = args.outputdir)
+    fx.Data      = datapath
+    fx.testratio = args.testratio
+    results      = fx(epochs = args.epochs,
+                      exname = args.experimentname)
+    logger .debug("\n"*3)
+    logger.debug("=" * 50)
+    logger.debug("TRAINING PIPELINE EXECUTION SUMMARY")
+    logger.debug("=" * 50)
+    logger.debug("Execution Status : %s", results['status'])
+    logger.debug("Training Time    : %.2f seconds", results['training_time'])
+    
     if results['model_path']:
-        print(f"Model saved to: {results['model_path']}")
-    print(f"Report generated: {results['report_path']}")
-    if results['metrics']:
-        print("\nMetrics:")
-        for key, value in results['metrics'].items():
-            if isinstance(value, float):
-                print(f"  {key}: {value:.4f}")
-    print(f"\nData Statistics:")
-    print(f"  Users: {results['data_stats']['n_users']}")
-    print(f"  Items: {results['data_stats']['n_items']}")
-    print(f"  Interactions: {results['data_stats']['n_interactions']}")
-    print(f"  Sparsity: {results['data_stats']['sparsity']:.4f}")
-    print("="*80 + "\n")
-
-    return 0
+        logger.debug("Model Artifact   : %s", results['model_path'])
+    logger.debug("Training Report  : %s", results['report_path'])
+    logger.debug("Dataset Statistics:")
+    logger.debug("  * Unique Users    : %d", results['data_stats']['n_users'])
+    logger.debug("  * Unique Items    : %d", results['data_stats']['n_items'])
+    logger.debug("  * Interactions    : %d", results['data_stats']['n_interactions'])
+    logger.debug("  * Matrix Sparsity : %.4f", results['data_stats']['sparsity'])
+    logger.debug("=" * 50 + "\n"*3)
 
 
 if __name__ == "__main__":
     print("Running the AryColBring_Reasoner_Test")
-    #try:
-    #    sys.exit(main())
-    #except Exception as e:
-    #    logger.exception("Training failed with error: %s", str(e))
-    #    sys.exit(1)
+    try:
+        sys.exit(main())
+    except Exception as arc:
+        logger.warning("Try this: "
+        'python ./test/arycolbring_tests/t01_advisor.py -d '
+        './data/sampledata.parquet -t 0.25 -e 50 -n "Test experiment"')
+        logger.exception("Training failed with error: %s", str(arc))
+        sys.exit(1)

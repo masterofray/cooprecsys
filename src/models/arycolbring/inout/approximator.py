@@ -47,7 +47,7 @@ from configs import _cfg, logger
 
 
 class AryColBringPredictor(AryColBringBase):
-    """
+    """ 
     Inference interface for a fitted AryColBring collaborative filtering model.
     Exposes ``predict`` for pointwise scores and ``predict_rank`` for
     item-rank matrices.  The model must be fitted (embedding matrices must be

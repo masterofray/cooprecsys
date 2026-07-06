@@ -1,0 +1,44 @@
+{# config.html.j2 — Inference Config page #}
+
+<div id="page-config" class="page-content">
+
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-gear"></i></span>
+            Inference Configuration
+        </div>
+        <hr class="section-divider">
+
+        <div class="config-grid">
+            <div class="config-card">
+                <h3><i class="fas fa-rocket"></i> Model &amp; Runtime</h3>
+                <table class="config-table">
+                    <tr><td>Experiment Name</td><td>{{ experiment_name }}</td></tr>
+                    <tr><td>Model Version</td><td>v{{ model_version }}</td></tr>
+                    <tr><td>Batch Size</td><td>{{ batch_size }}</td></tr>
+                    <tr><td>Num Threads</td><td>{{ num_threads }}</td></tr>
+                    <tr><td>Cache Enabled</td><td>{{ inference_params.get('cache_enabled', 'N/A') }}</td></tr>
+                </table>
+            </div>
+
+            <div class="config-card">
+                <h3><i class="fas fa-chart-pie"></i> Inference Statistics</h3>
+                <table class="config-table">
+                    <tr><td>Predictions</td><td>{{ inference_statistics.get('n_predictions', 'N/A') }}</td></tr>
+                    <tr><td>Users Served</td><td>{{ inference_statistics.get('n_users_served', 'N/A') }}</td></tr>
+                    <tr><td>Avg Latency</td><td>{{ "%.2f" | format(inference_statistics.get('avg_latency_ms', 0)) }} ms</td></tr>
+                    <tr><td>Coverage</td><td>{{ "%.4f" | format(inference_statistics.get('coverage', 0)) }}</td></tr>
+                </table>
+            </div>
+        </div>
+
+        <div class="overall-score-card" style="margin-top:24px;">
+            <div class="overall-score-value">{{ overall_score }}</div>
+            <div class="overall-score-label">Overall Score</div>
+            <div style="margin-top:8px;font-size:0.85rem;color:var(--text-secondary);">
+                Total Predictions: <strong>{{ total_rankings }}</strong>
+            </div>
+        </div>
+    </div>
+
+</div>

@@ -31,8 +31,6 @@ from copy      import deepcopy
 from typing    import Dict, List, Optional, Any, Union
 from sklearn.preprocessing import LabelEncoder
 
-from pdb import set_trace
-
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))
 from configs  import logger, _cfg
