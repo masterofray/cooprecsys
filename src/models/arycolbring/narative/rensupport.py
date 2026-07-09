@@ -120,10 +120,10 @@ def safe_float(value     : Any,
 
 
 def detect_gauge_metric(metric_name: str) -> bool:
-    """Detect whether metric should become gauge widget."""
     metric_name = metric_name.lower()
-    keywords    = ["ndcg", "map", "mrr", "precision",
-                   "recall", "accuracy", "auc", "f1"]
+    keywords    = ["ndcg", "map", "mrr",
+                   "precision", "recall", 
+                   "accuracy", "auc", "f1"]
     return any(k in metric_name for k in keywords)
 
 

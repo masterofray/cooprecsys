@@ -34,7 +34,7 @@ from typing    import Any, Dict, List, Optional, Tuple, Union
 from .assist   import fileload_interactions, describe_interactions
 from .inout    import TheAdvisor, TheReasoner
 from .narative import genAdvisor, OUTPUT_DIR
-from .eval     import (precision_at_k, 
+from .eval     import (precision_at_k,
                        recall_at_k,
                        auc_score,
                        MRR_rank,
@@ -175,6 +175,12 @@ class AryColBringModelTrainer:
             "start_time"        : start_time.isoformat(),
             "end_time"          : datetime.now().isoformat(),
             })
+        if user_features:
+            self._user_features = user_features
+        if item_features:
+            self._item_features = item_features
+        if sample_weight:
+            self._sample_weight = sample_weight
 
         if validation_data is not None and epochs % evaluate_every == 0:
             logger.debug("Evaluating on validation data.")
@@ -604,7 +610,7 @@ def RunTrainer(
         train_data      : Union[sp.spmatrix, str],
         epochs          : int   = 10,
         no_components   : int   = 32,
-        loss            : str   = "warp",
+        loss      -      : str   = "warp",
         learning_rate   : float = 0.05,
         num_threads     : int   = 4,
         output_dir      : Optional[str]         = None,

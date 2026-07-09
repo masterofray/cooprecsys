@@ -107,7 +107,7 @@ class AryColBringPredictor(AryColBringBase):
         user_features, item_features = self._construct_feature_matrices(
                                        n_users, n_items, 
                                        user_features, item_features)
-        predictions = np.empty(len(user_ids), dtype=np.float32)
+        predictions = np.empty(len(user_ids), dtype = np.float32)
 
         predict_arycolbring(CSRMatrix(item_features),
                             CSRMatrix(user_features),

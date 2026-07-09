@@ -98,24 +98,24 @@ def predict_ranks(CSRMatrix item_features,
     ----------
     item_features     : CSRMatrix
     user_features     : CSRMatrix
-    test_interactions : CSRMatrix   — positives to rank
-    train_interactions: CSRMatrix   — positives to skip during ranking
-    ranks             : float32 array matching test_interactions.data  (output)
+    test_interactions : CSRMatrix about positives to rank
+    train_interactions: CSRMatrix about positives to skip during ranking
+    ranks             : float32 array matching test_interactions.data (output)
     model             : FastAryColBring
-    num_threads       : int ≥ 1
+    num_threads       : int >= 1
     """
     if verbose:
         fprintf(stderr,
-                b"[DEBUG] predict_ranks: n_users=%d num_threads=%d\n",
+                b"[DEBUG] predict_ranks: n_users = %d num_threads = %d\n",
                 test_interactions.rows, num_threads)
 
     cdef int i, j, user_id, item_id, predictions_size
     cdef int row_start, row_stop
     cdef flt *user_repr
     cdef flt *it_repr
-    cdef int  *test_item_ids_buf
-    cdef flt  *test_preds_buf
-    cdef flt   prediction
+    cdef int *test_item_ids_buf
+    cdef flt *test_preds_buf
+    cdef flt  prediction
 
     # Determine maximum row width (for buffer sizing)
     predictions_size = 0

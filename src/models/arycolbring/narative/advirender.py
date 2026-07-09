@@ -8,7 +8,7 @@ __version__    = "0.1.0"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-05-31"
+__created__    = "2026-07-06"
 
 
 """
@@ -25,7 +25,6 @@ Generates comprehensive HTML reports for the training phase including:
 Static assets are copied to the output directory so the HTML is self-contained.
 """
 
-import os
 import sys
 import json
 import math
@@ -53,9 +52,10 @@ from configs import logger, _cfg
 def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Generate scorecards dynamically from metrics."""
     if not metrics:
-        return []
-    cards = []
-    color_cycle = ["blue", "green", "purple", "orange", "cyan", "red"]
+        return list()
+    cards    = list()
+    cocycle  = ["blue", "green", "purple",
+                "orange", "cyan", "red"]
     icon_map = {"blue"   : "fas fa-chart-line",
                 "green"  : "fas fa-network-wired",
                 "purple" : "fas fa-bullseye",
@@ -64,19 +64,17 @@ def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "red"    : "fas fa-chart-column"}
     try:
         for idx, (metric_name, metric_value) in enumerate(metrics.items()):
-            color = color_cycle[idx % len(color_cycle)]
-            cards.append({
-                "label": bealabel(metric_name),
-                "value": safe_float(metric_value),
-                "sub": "Training metric",
-                "color": color,
-                "icon_emoji": f'<i class="{icon_map[color]}"></i>',
-            })
+            color = cocycle[idx % len(cocycle)]
+            cards.append({"label"      : bealabel(metric_name),
+                          "value"      : safe_float(metric_value),
+                          "sub"        : "Training metric",
+                          "color"      : color,
+                          "icon_emoji" : f'<i class="{icon_map[color]}"></i>'})
         logger.info("Generated %d scorecards.", len(cards))
         return cards
     except Exception as exc:
         logger.error("Scorecard generation failed.", exc_info=True)
-        raise RuntimeError("Failed generating scorecards.") from exc
+        raise RuntimeError() from exc
 
 
 def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
