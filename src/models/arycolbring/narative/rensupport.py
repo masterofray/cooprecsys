@@ -11,6 +11,7 @@ __status__     = "Development"
 __created__    = "2026-07-06"
 
 import sys
+import math
 import numpy   as np
 from pathlib   import Path
 from tqdm.auto import tqdm
@@ -125,6 +126,34 @@ def detect_gauge_metric(metric_name: str) -> bool:
                    "precision", "recall", 
                    "accuracy", "auc", "f1"]
     return any(k in metric_name for k in keywords)
+
+
+def copier(dest: Path = None, advisor: bool = True) -> Dict[str, str]:
+    """Copy static assets to output directory and return path mappings.
+    
+    Args:
+        dest: Output destination directory
+        advisor: If True, copy training assets (sttrain), else inference assets (stinferc)
+    
+    Returns:
+        Dictionary with static path mappings for template rendering
+    """
+    dirname = 'advisor' if advisor else 'reason'
+    if dest is None:
+        dest = OUTPUT_DIR / dirname / 'assets'
+    else:
+        dest = Path(dest).resolve() / 'assets'
+    
+    # Run the copy operation
+    runcopy(advisor=advisor, dest=dest)
+    
+    # Return path mappings for templates
+    return {
+        "static_css":    str(dest / 'css'),
+        "static_js":     str(dest / 'js'),
+        "static_vendor": str(dest / 'vendor'),
+        "static_img":    str(dest),
+    }
 
 
 if __name__ == '__main__':
