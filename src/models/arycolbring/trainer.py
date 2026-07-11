@@ -103,6 +103,8 @@ class AryColBringModelTrainer:
         loss, no_components, learning_rate)
         loss              = str(loss).lower()
         learning_schedule = str(learning_schedule).lower()
+        self._user_ids    = list()
+        self._item_ids    = list()
         self.trainer = TheAdvisor(no_components     = no_components,
                                   loss              = loss,
                                   learning_rate     = learning_rate,
@@ -112,14 +114,14 @@ class AryColBringModelTrainer:
                                   random_state      = random_state)
         self.training_history: List[Dict[str, Any]]  = list()
         self.metrics_history: List[Dict[str, float]] = list()
-        self.config = {"no_components"     : no_components,
-                       "loss"              : loss,
-                       "learning_rate"     : learning_rate,
-                       "item_alpha"        : item_alpha,
-                       "user_alpha"        : user_alpha,
-                       "learning_schedule" : learning_schedule,
-                       "random_state"      : random_state,
-                      }
+        self.config  = {"no_components"     : no_components,
+                        "loss"              : loss,
+                        "learning_rate"     : learning_rate,
+                        "item_alpha"        : item_alpha,
+                        "user_alpha"        : user_alpha,
+                        "learning_schedule" : learning_schedule,
+                        "random_state"      : random_state,
+                       }
 
     def fit(self,
             interactions    : Union[sp.spmatrix, str, 'pd.DataFrame'],
@@ -149,9 +151,10 @@ class AryColBringModelTrainer:
         if isinstance(interactions, str):
             logger.info("Loading interactions from flatfile: %s",
                          interactions)
-            interactions, _, _ = fileload_interactions(interactions)
+            interactions, self._user_ids, self._item_ids = fileload_interactions(interactions)
         if not sp.isspmatrix_coo(interactions):
             interactions = interactions.tocoo()
+        
         data_stats = describe_interactions(interactions)
         logger.debug(
         "Training data: users = %d | items = %d | interactions = %d | sparsity = %.4f",
@@ -175,12 +178,10 @@ class AryColBringModelTrainer:
             "start_time"        : start_time.isoformat(),
             "end_time"          : datetime.now().isoformat(),
             })
-        if user_features:
+        if user_features is not None:
             self._user_features = user_features
-        if item_features:
+        if item_features is not None:
             self._item_features = item_features
-        if sample_weight:
-            self._sample_weight = sample_weight
 
         if validation_data is not None and epochs % evaluate_every == 0:
             logger.debug("Evaluating on validation data.")
@@ -219,6 +220,7 @@ class AryColBringModelTrainer:
         if k_values is None:
             k_values = [5, 10, 20]
         logger.info("Evaluating model with k = %s", k_values)
+        self._test_interactions = test_interactions
 
         test_interactions = test_interactions.tocsr()
         if train_interactions is not None:
@@ -296,10 +298,11 @@ class AryColBringModelTrainer:
         for attr in initial_attrs:
             val = getattr(self.trainer, attr, None)
             setattr(predictor, attr, val)
+        self._predictor = predictor
         
         #AUC
         try:
-            res_auc        = auc_score(predictor, 
+            res_auc        = auc_score(self._predictor, 
                                        test_interactions, 
                                        train_interactions = train_interactions, 
                                        num_threads        = num_threads)
@@ -310,7 +313,7 @@ class AryColBringModelTrainer:
 
         #MRR
         try:
-            res_mrr        = MRR_rank(predictor, 
+            res_mrr        = MRR_rank(self._predictor, 
                                       test_interactions, 
                                       train_interactions = train_interactions,
                                       num_threads        = num_threads)
@@ -325,7 +328,7 @@ class AryColBringModelTrainer:
             #Precision@K
             try:
                 res_p = precision_at_k(
-                        predictor, test_interactions, 
+                        self._predictor, test_interactions, 
                         k                    = k,
                         train_interactions   = train_interactions,
                         num_threads          = num_threads)
@@ -336,7 +339,7 @@ class AryColBringModelTrainer:
             
             #Recall@K
             try:
-                rec_p = recall_at_k(predictor,
+                rec_p = recall_at_k(self._predictor,
                         test_interactions,
                         k                  = k,
                         train_interactions = train_interactions,
@@ -348,7 +351,7 @@ class AryColBringModelTrainer:
 
             #NDCG@K
             try:
-                ndcgk = NDCG_rank(model    = predictor,
+                ndcgk = NDCG_rank(model    = self._predictor,
                         test_interactions  = test_interactions,
                         train_interactions = train_interactions,
                         num_threads        = num_threads,
@@ -362,7 +365,7 @@ class AryColBringModelTrainer:
             #CCC@K
             try:
                 metrics[f"CCC_at_{k}"] = float(
-                CCC_k(model              = predictor,
+                CCC_k(model              = self._predictor,
                       test_interactions  = test_interactions,
                       train_interactions = train_interactions,
                       num_threads        = num_threads,
@@ -373,7 +376,7 @@ class AryColBringModelTrainer:
 
             #ILD@K
             try:
-                ildk = ILD_k(model        = predictor,
+                ildk = ILD_k(model        = self._predictor,
                        test_interactions  = test_interactions,
                        train_interactions = train_interactions,
                        user_features      = user_features,
@@ -387,7 +390,7 @@ class AryColBringModelTrainer:
 
             #Novelty@K
             try:
-                novelk = Novelty_k(model    = predictor,
+                novelk = Novelty_k(model    = self._predictor,
                          test_interactions  = test_interactions,
                          train_interactions = train_interactions,
                          user_features      = user_features,
@@ -416,16 +419,24 @@ class AryColBringModelTrainer:
         logger.debug("Generating comprehensive LTR-style training report.")
         n_interactions  = 0
         sparsity        = 0.0
+        predictionDF    = self._predictor.predict(
+                            user_ids      = self._user_ids,
+                            item_ids      = self._item_ids,
+                            item_features = self._item_features,
+                            user_features = self._user_features,
+                            num_threads   = 8)
+        predictionDict  = predictionDF.to_dict(orient = 'records')
+
         current_metrics = self.metrics_history[-1] if \
                           self.metrics_history else dict()
         if self.trainer.item_embeddings is not None:
             n_items     = self.trainer.item_embeddings.shape[0]
         else:
-            n_items     = test_interactions.shape[1]
+            n_items     = self._test_interactions.shape[1]
         if self.trainer.user_embeddings is not None:
             n_users     = self.trainer.user_embeddings.shape[0]
         else:
-            n_users     = test_interactions.shape[0]
+            n_users     = self._test_interactions.shape[0]
         if hasattr(self, 'train_interactions') and self.train_interactions is not None:
             n_interactions = self.train_interactions.nnz
             total_elements = n_users * n_items
@@ -467,12 +478,18 @@ class AryColBringModelTrainer:
         "charts"            : generated_charts,
         "history"           : {"training": self.training_history,
                                "metrics" : self.metrics_history,},
+        "predictiondata"    : predictionDict,
         }
-        
+
         OUTPUT_DIR.mkdir(parents = True, exist_ok = True)
         Contpath = OUTPUT_DIR / "ACBcontext.json"
-        with Contpath.open(mode="w", encoding="utf-8") as jfile:
-            json.dump(Context, jfile, indent = 2, ensure_ascii = False)
+        with Contpath.open(mode = "w", encoding = "utf-8") as jfile:
+            json.dump(Context,
+                      fp           = jfile,
+                      indent       = 2,
+                      allow_nan    = False,
+                      ensure_ascii = False)
+        sys.exit()
         
         RPath = genAdvisor(context_data = Context,
                            output_dir   = output_dir)
@@ -610,7 +627,7 @@ def RunTrainer(
         train_data      : Union[sp.spmatrix, str],
         epochs          : int   = 10,
         no_components   : int   = 32,
-        loss      -      : str   = "warp",
+        loss            : str   = "warp",
         learning_rate   : float = 0.05,
         num_threads     : int   = 4,
         output_dir      : Optional[str]         = None,

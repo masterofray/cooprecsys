@@ -43,7 +43,7 @@ from .rensupport import (Tplatedir, advdir, OUTPUT_DIR,
 LocDir    = Path(__file__).parent.resolve()
 sys.path.append(str(LocDir.parents[2]))
 from configs import logger, _cfg
-
+from assets  import Gen_MiniStats
 
 
 # ================================================================
@@ -73,7 +73,7 @@ def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
         logger.info("Generated %d scorecards.", len(cards))
         return cards
     except Exception as exc:
-        logger.error("Scorecard generation failed.", exc_info=True)
+        logger.error("Scorecard generation failed.", exc_info = True)
         raise RuntimeError() from exc
 
 
@@ -99,22 +99,6 @@ def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     except Exception as exc:
         logger.error("Gauge generation failed.", exc_info=True)
         raise RuntimeError("Failed generating gauges.") from exc
-
-
-def generate_stat_minis(training_context: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Generate mini statistics cards."""
-    stats = []
-    try:
-        data_stats = training_context.get("data_statistics", {})
-        stats.append({"label": "Users",        "value": str(data_stats.get("n_users", 0)),        "percent": 100})
-        stats.append({"label": "Items",        "value": str(data_stats.get("n_items", 0)),        "percent": 100})
-        stats.append({"label": "Interactions", "value": str(data_stats.get("n_interactions", 0)), "percent": 100})
-        sparsity = data_stats.get("sparsity", data_stats.get("density", 0))
-        stats.append({"label": "Sparsity",     "value": f"{sparsity:.2%}",                        "percent": 100})
-        logger.info("Generated %d mini stat cards.", len(stats))
-    except Exception as exc:
-        logger.error("Mini stat generation failed.", exc_info=True)
-    return stats
 
 
 def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -143,7 +127,7 @@ def build_training_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
 
         context["scorecards"] = generate_scorecards(metrics)
         context["gauges"]     = generate_gauges(metrics)
-        context["stat_minis"] = generate_stat_minis(context)
+        context["stat_minis"] = Gen_MiniStats(pd.DataFrame(context['predictiondata']))
         context["charts"]     = normalize_charts(context.get("charts", []))
         context["bar_labels"] = list(metrics.keys())  if metrics else []
         context["bar_data"]   = list(metrics.values()) if metrics else []

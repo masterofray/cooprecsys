@@ -240,9 +240,12 @@ def Decomposition_Matrix_Dev(
     del DataMaps, row_arr, col_arr, rating_arr, weight_arr
     gc.collect()
     logger.info("Pipeline features completed successfully.")
-    TheResult = (interactions, user_features_sparse, 
-                 item_features_sparse, sample_weight,
-                 user_ids, item_ids)
+    TheResult = (interactions,
+                 user_features_sparse, 
+                 item_features_sparse,
+                 sample_weight,
+                 user_ids,
+                 item_ids)
     return TheResult
 
 

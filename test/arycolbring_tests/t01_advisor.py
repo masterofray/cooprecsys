@@ -226,6 +226,8 @@ class AryColBring_Train_Test:
                           validation_data = self._TEST[0],
                           evaluate_every  = 1,
                          )
+        self.ACBmodel._user_ids = self._TRAIN[4]
+        self.ACBmodel._item_ids = self._TRAIN[5]
         self._report_path = self.ACBmodel.generate_training_report(
                             output_dir      = str(self.output_dir),
                             experiment_name = exname)
