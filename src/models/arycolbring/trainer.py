@@ -419,13 +419,41 @@ class AryColBringModelTrainer:
         logger.debug("Generating comprehensive LTR-style training report.")
         n_interactions  = 0
         sparsity        = 0.0
-        predictionDF    = self._predictor.predict(
-                            user_ids      = self._user_ids,
-                            item_ids      = self._item_ids,
-                            item_features = self._item_features,
-                            user_features = self._user_features,
-                            num_threads   = 8)
-        predictionDict  = predictionDF.to_dict(orient = 'records')
+        
+        # Generate predictions for all user-item pairs in training data
+        # Only if we have valid user_ids and item_ids
+        predictionDict = list()
+        if len(self._user_ids) > 0 and len(self._item_ids) > 0:
+            try:
+                # For efficiency, sample if too many pairs
+                max_pairs = 10000
+                if len(self._user_ids) * len(self._item_ids) > max_pairs:
+                    # Sample users and items
+                    n_user_sample = min(len(self._user_ids), int(np.sqrt(max_pairs)))
+                    n_item_sample = min(len(self._item_ids), int(np.sqrt(max_pairs)))
+                    sampled_users = np.random.choice(self._user_ids, n_user_sample, replace=False)
+                    sampled_items = np.random.choice(self._item_ids, n_item_sample, replace=False)
+                    # Create pairs
+                    user_pairs = np.repeat(sampled_users, len(sampled_items))
+                    item_pairs = np.tile(sampled_items, len(sampled_users))
+                else:
+                    user_pairs = np.array(self._user_ids)
+                    item_pairs = np.array(self._item_ids)
+                
+                prediction_scores = self._predictor.predict(
+                                    user_ids      = user_pairs,
+                                    item_ids      = item_pairs,
+                                    item_features = getattr(self, '_item_features', None),
+                                    user_features = getattr(self, '_user_features', None),
+                                    num_threads   = 8)
+                
+                # Convert to list of dicts for JSON serialization
+                predictionDict = [{"user_id": int(u), "item_id": int(i), "score": float(s)} 
+                                  for u, i, s in zip(user_pairs, item_pairs, prediction_scores)]
+                logger.info("Generated %d prediction samples", len(predictionDict))
+            except Exception as e:
+                logger.warning("Prediction generation failed: %s. Using empty predictions.", e)
+                predictionDict = list()
 
         current_metrics = self.metrics_history[-1] if \
                           self.metrics_history else dict()
