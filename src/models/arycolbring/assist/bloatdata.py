@@ -57,7 +57,6 @@ def norm_exchange(data       : pd.DataFrame,
     logger.info("norm_exchange: shape = %s user_col = %s "\
                 "item_col = %s rating_col = %s",
                 data.shape, user_col, item_col, rating_col)
-
     if rating_col:
         required.add(rating_col)
     missing = required - set(data.columns)
@@ -65,7 +64,7 @@ def norm_exchange(data       : pd.DataFrame,
         logger.error(f"DataFrame is missing columns: {missing}")
         raise ValueError()
 
-    with tqdm(total       = 4, 
+    with tqdm(total       = 6, 
               desc        = "Building interaction matrix",
               colour      = _cfg.get('tqdm', 'colour'),
               ncols       = _cfg.getint('tqdm', 'ncols'),
@@ -76,38 +75,46 @@ def norm_exchange(data       : pd.DataFrame,
         # Step 1. register data in DuckDB and encode IDs
         with duckdb_connection() as con:
             pbar.set_postfix_str("registering dataframe")
-            con.register("RAW", data)
+            con.register_dataframe("RAW", data)
+            pbar.update(1)
+            
             rating_expr = (f'CAST("{rating_col}" AS DOUBLE)'
                            if rating_col else "1.0")
-            encoded = con.execute(f"""
-                      SELECT
-                          DENSE_RANK() OVER (ORDER BY "{user_col}") - 1  AS user_idx,
-                          DENSE_RANK() OVER (ORDER BY "{item_col}") - 1  AS item_idx,
-                          {rating_expr} AS rating,
-                          "{user_col}"  AS user_id,
-                          "{item_col}"  AS item_id
-                      FROM RAW
-                      """).df()
-                      # Dense_rank created IDs sortly from zero index
+            pbar.set_postfix_str("creating isolated ID mapping tables")
+            con.execute(f"""
+            CREATE OR REPLACE TABLE ENCODED AS
+            SELECT
+                DENSE_RANK() OVER (ORDER BY "{user_col}") - 1  AS user_idx,
+                DENSE_RANK() OVER (ORDER BY "{item_col}") - 1  AS item_idx,
+                {rating_expr} AS rating,
+                "{user_col}"  AS user_id,
+                "{item_col}"  AS item_id
+            FROM
+                RAW;
+            """)
             pbar.update(1)
 
             # Step 2. Extract unique ID mappings
             pbar.set_postfix_str("extracting ID maps")
-            user_map = con.execute('''
+            user_map = con.query('''
                        SELECT
                            DISTINCT user_idx,
                            user_id
                        FROM
-                           encoded
-                       ORDER BY user_idx''').df()
-            item_map = con.execute('''
+                           ENCODED
+                       ORDER BY user_idx''')
+            item_map = con.query('''
                        SELECT
                            DISTINCT item_idx,
                            item_id
                        FROM
-                           encoded
-                       ORDER BY item_idx''').df()
+                           ENCODED
+                       ORDER BY item_idx''')
             # Separated UserID and ItemID to separated Dataframe
+            pbar.update(1)
+
+            pbar.set_postfix_str("Send out the Encoded data.")
+            encoded = con.query('SELECT * FROM ENCODED;')
             pbar.update(1)
 
         # Step 3. convert to numpy C arrays
@@ -115,18 +122,22 @@ def norm_exchange(data       : pd.DataFrame,
         row_arr  = encoded["user_idx"].values.astype(np.int32)
         col_arr  = encoded["item_idx"].values.astype(np.int32)
         data_arr = encoded["rating"].values.astype(dtype)
-        n_users  = int(row_arr.max()) + 1
-        n_items  = int(col_arr.max()) + 1
+        user_ids = user_map["user_id"].values
+        item_ids = item_map["item_id"].values
+        n_users  = len(user_ids)
+        n_items  = len(item_ids)
         pbar.update(1)
+        
+        #logger.warning(f'number of n_users = {n_users} and number of n_items = {n_items}...')
+        #from pdb import set_trace
+        #set_trace()
 
         # Step 4. build sparse matrix
         pbar.set_postfix_str("building COO sparse matrix")
-        interactions = sp.coo_matrix((data_arr, 
-                       (row_arr, col_arr)),
-                       shape = (n_users, n_items),
-                       dtype = np.dtype(dtype))
-        user_ids     = user_map["user_id"].values
-        item_ids     = item_map["item_id"].values
+        interactions = sp.coo_matrix(
+                       (data_arr, (row_arr, col_arr)),
+                        shape = (n_users, n_items),
+                        dtype = np.dtype(dtype))
         pbar.update(1)
 
     logger.info("norm_exchange: n_users = %d, n_items = %d, nnz = %d",

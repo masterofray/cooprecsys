@@ -39,8 +39,8 @@ from db       import duckdb_connection
 from features import load_data
 from prepare  import DetectReco_Identifier
 from qrates   import GenQuasi_Lazy, DMD
+from models.arycolbring.assist import norm_exchange
 from models.arycolbring import AryColBringModelTrainer as ACBmodel
-from models.arycolbring.assist import fileload_interactions, describe_interactions
 
 
 class AryColBring_Train_Test:
@@ -172,12 +172,17 @@ class AryColBring_Train_Test:
         return self
 
     def _RatePosthoc(self):
-        self.Collect    = DetectReco_Identifier(self.Data.columns.to_numpy())
+        self.Collect    = DetectReco_Identifier(Dataprocess = self.Data)
         self.DataMerge  = self.data_rate.merge(self.Data,
                           on = [self.Collect['user_col'], self.Collect['item_col']])
         it01            = [self.Collect["quantity_col"],
                            self.Collect["total_col"], 
                            self.Collect["discount_col"]]
+        Data02          = norm_exchange(
+                            data       = self.DataMerge,
+                            user_col   = self.Collect['user_col'],
+                            item_col   = self.Collect['item_col'],
+                            rating_col = _cfg.get('RATING', 'ColumnName'))
         self.ItemFeats.extend(it01)
         self.ItemFeats  = list(set([it02 for it02 in self.ItemFeats if it02 is not None]))
         return self

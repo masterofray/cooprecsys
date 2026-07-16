@@ -156,10 +156,11 @@ class AryColBringModelTrainer:
             interactions = interactions.tocoo()
         
         data_stats = describe_interactions(interactions)
+        stats_row = data_stats.iloc[0]
         logger.debug(
         "Training data: users = %d | items = %d | interactions = %d | sparsity = %.4f",
-        data_stats["n_users"], data_stats["n_items"],
-        data_stats["nnz"],     data_stats["density"])
+        stats_row["n_users"], stats_row["n_items"],
+        stats_row["nnz"],     stats_row["density"])
         
         # Aktifkan variabel di bawah ini:
         self.trainer.fit(interactions  = interactions,
