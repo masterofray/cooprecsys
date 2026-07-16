@@ -29,20 +29,14 @@ _______________________________________________________________
 """
 
 import sys
+import psutil
 import numpy as np
+import pandas as pd
 from pathlib import Path
 import scipy.sparse as sp
-from typing import Optional, Union
+from typing import Optional, Union, Tuple
 from sklearn.preprocessing import LabelEncoder
 from .scaffold import AryColBringBase, cydtype
-
-# psutil is an OPTIONAL dependency: only used for a soft, RAM-aware safety check
-# on predict()'s auto cross-join expansion. If it isn't installed, the check is
-# simply skipped (logged at debug level) rather than failing the import.
-try:
-    import psutil
-except ImportError:  # pragma: no cover - optional dependency
-    psutil = None
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))
@@ -51,8 +45,7 @@ from CLproximity import (CSRMatrix,
                          predict_arycolbring)
 
 sys.path.append(str(LocDir.parents[3]))
-from configs import _cfg, logger
-
+from configs import _cfg, logger, verbose
 
 
 class AryColBringPredictor(AryColBringBase):
@@ -78,7 +71,11 @@ class AryColBringPredictor(AryColBringBase):
             "arrow" in dt_str or 
             arr.dtype.kind in ('U', 'S', 'O'))
 
-    def _warn_if_cross_join_memory_heavy(self, n_u: int, n_i: int) -> None:
+
+    def Warn_RAM_Heavy(self, 
+                       n_u: int,
+                       n_i: int,
+                      ) -> None:
         """
         Soft memory-safety check for predict()'s cross-join mode (n_u != n_i,
         both > 1 — see the `cross_join` branch and the native Cython
@@ -129,6 +126,59 @@ class AryColBringPredictor(AryColBringBase):
                 n_pairs, n_u, n_i, est_bytes / (1024 ** 2),
                 max_fraction * 100, available / (1024 ** 2))
 
+
+    @staticmethod
+    def build_pairs(user_ids   : Union[int, list, np.ndarray],
+                    item_ids   : Union[int, list, np.ndarray],
+                    cross_join : bool,
+                   ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Arrange the (user_id, item_id) label pairs/vectors that correspond,
+        in the same order, to the score array ``predict()`` produces for a
+        given mode. Pure label-arranging utility — no embeddings/features
+        involved — so it's cheap to call on its own to preview which pairs
+        a given call would score, or to line raw ids up against a scores
+        array returned separately.
+
+        user_ids   : int, list, or ndarray of raw user id labels (any dtype:
+                     numeric or string — this function never encodes them).
+        item_ids   : int, list, or ndarray of raw item id labels.
+        cross_join : False -> strict pairwise. Requires len(user_ids) ==
+                              len(item_ids), OR one side of length 1 (which
+                              is broadcast against the other, matching
+                              predict()'s own scalar-broadcast behaviour).
+                              Returns two arrays of that length.
+                     True  -> all-to-all grid: every user paired with every
+                              item. Returns two arrays of length
+                              len(user_ids) * len(item_ids), row-major
+                              (user 0 vs every item, then user 1 vs every
+                              item, ...) — this exact ordering matches what
+                              ``predict_arycolbring(..., cross_join=True)``
+                              produces, so zipping this output 1:1 with
+                              predict()'s score array is always correct.
+
+        Returns (paired_user_ids, paired_item_ids) two aligned 1-D ndarrays.
+        """
+        user_ids = np.atleast_1d(np.asarray(user_ids))
+        item_ids = np.atleast_1d(np.asarray(item_ids))
+        n_u, n_i = len(user_ids), len(item_ids)
+        if cross_join:
+            return np.repeat(user_ids, n_i), np.tile(item_ids, n_u)
+
+        if n_u == n_i:
+            return user_ids, item_ids
+        if n_u == 1:
+            return np.repeat(user_ids, n_i), item_ids
+        if n_i == 1:
+            return user_ids, np.repeat(item_ids, n_u)
+
+        raise ValueError(
+            f"Cannot form strict pairwise pairs from user_ids length ({n_u}) "
+            f"and item_ids length ({n_i}); lengths must match (or one side "
+            f"must be a single scalar to broadcast). Pass cross_join=True "
+            f"for an all-to-all grid instead.")
+
+
     # ── public inference interface ────────────────────────
     def predict(self,
                 user_ids      : Union[int, list, np.ndarray],
@@ -136,40 +186,50 @@ class AryColBringPredictor(AryColBringBase):
                 item_features : Optional[sp.spmatrix] = None,
                 user_features : Optional[sp.spmatrix] = None,
                 num_threads   : int = 1,
-               ) -> np.ndarray:
+                cross_join    : Optional[bool] = None,
+               ) -> Union[np.ndarray, pd.DataFrame]:
         """
-        Compute prediction scores for (user_id, item_id) pairs.
-        user_ids      : int, list, or int32 ndarray
-                        Scalar broadcasts to all item_ids.
-        item_ids      : list or int32 ndarray
+        Compute prediction scores for users x items.
+        user_ids      : int, list, or ndarray of raw user id labels
+        item_ids      : int, list, or ndarray of raw item id labels
         item_features : optional CSR matrix [n_items x n_item_features]
         user_features : optional CSR matrix [n_users x n_user_features]
         num_threads   : OpenMP thread count (>= 1)
+        cross_join    : bool or None, default None (auto-detect):
+            None  -> auto: strict pairwise if len(user_ids) == len(item_ids), or if
+                     either side is a scalar / length-1 (broadcast against the other,
+                     unchanged legacy behaviour). All-to-all cross-join if both sides
+                     have length > 1 and differ (e.g. a reporting batch).
+            False -> force strict pairwise. Raises ValueError if the lengths can't be
+                     matched (equal, or one side length 1) — use this to make a caller's
+                     intent explicit / fail loudly instead of silently cross-joining.
+            True  -> force an all-to-all grid, even when len(user_ids) == len(item_ids).
 
-        Length handling for user_ids / item_ids:
-        - Equal length N        -> strict pairwise scoring: (user_ids[i], item_ids[i]) for i in
-                                    range(N). user_ids[i] / item_ids[i] are used as literal row
-                                    indices into user_features / item_features (classic LightFM-style
-                                    convention) — same as always.
-        - One side has length 1 -> that scalar-like side is broadcast against the other (unchanged
-                                    legacy behaviour; symmetric for a length-1 item_ids too). Still
-                                    literal row-index semantics, just cheaply repeated.
-        - Unequal length > 1 on both sides -> treated as a reporting/cross-join call: every one of
-                                    the N users is scored against every one of the M items (full
-                                    N x M grid), computed NATIVELY inside the Cython kernel
-                                    (predict_arycolbring(..., cross_join=True)) — no giant N*M
-                                    arrays are materialised on the Python side. Row indices into
-                                    user_features / item_features are POSITIONAL in this mode (the
-                                    i-th requested user -> row i, the j-th requested item -> row j),
-                                    NOT the raw id values. This lets the caller pass a compact
-                                    feature matrix sized exactly to the N users / M items it cares
-                                    about (e.g. a training report batch) even when the raw ids
-                                    themselves are sparse/non-contiguous. Returned array has length
-                                    N * M, row-major (user 0 vs all items, then user 1 vs all
-                                    items, ...).
+        Indexing convention (unaffected by cross_join, always the same rule):
+            Pairwise mode  -> user_ids[i] / item_ids[i] are literal row indices into
+                              user_features / item_features (classic LightFM-style
+                              convention; the feature matrix must be sized/aligned to
+                              the raw id range, e.g. via sp.identity(max_id + 1)).
+            Cross-join mode-> row indices are POSITIONAL (the i-th requested user -> row
+                              i, the j-th requested item -> row j), NOT the raw id
+                              values. This lets the caller pass a compact feature matrix
+                              sized exactly to the N users / M items requested, even when
+                              the raw ids themselves are sparse/non-contiguous (e.g.
+                              `trainer.py`'s reporting batch, where `self._user_ids` /
+                              `self._item_ids` from `fileload_interactions` are the
+                              *original* raw ids, not local 0-based indices). The N x M
+                              grid is computed NATIVELY inside the Cython kernel
+                              (predict_arycolbring(..., cross_join=True)) — no giant N*M
+                              id arrays are materialised on the Python side.
 
-        The returns is np.ndarray with shape as (n_pairs,)
-        Raw dot-product scores (higher = more relevant).
+        Return type depends on the EFFECTIVE mode (explicit or auto-detected):
+            pairwise   -> np.ndarray, shape (n_pairs,), raw dot-product scores
+                          (higher = more relevant). Unchanged from before — existing
+                          callers (evaluation metrics, etc.) are unaffected.
+            cross-join -> pandas.DataFrame with columns ['user_id', 'item_id', 'score'],
+                          one row per pair, in row-major order (user 0 vs every item,
+                          then user 1 vs every item, ...). Ready for e.g.
+                          `predict(...).to_dict(orient='records')`.
         """
         logger.debug("About how to run: num_threads = %d", num_threads)
         self._check_initialized()
@@ -188,6 +248,8 @@ class AryColBringPredictor(AryColBringBase):
 
             n_u, n_i = len(user_ids), len(item_ids)
             if n_u == 0 or n_i == 0:
+                if cross_join:
+                    return pd.DataFrame({'user_id': [], 'item_id': [], 'score': []})
                 return np.array([], dtype=np.float32)
 
             # 2. Label Encoder untuk string, biarkan numeric as-is.
@@ -208,27 +270,35 @@ class AryColBringPredictor(AryColBringBase):
             else:
                 item_ids_cy = np.asarray(item_ids, dtype=np.int32)
 
-            # 3. Tentukan mode berdasarkan panjang user_ids_cy / item_ids_cy:
-            #    - sama panjang            -> pairwise (raw-value indexing), tidak diapa-apakan
-            #    - salah satu panjang 1    -> broadcast scalar-like (masih raw-value indexing,
-            #                                 murah, cukup di-repeat)
-            #    - keduanya > 1 & berbeda  -> cross-join native di Cython (positional indexing)
-            cross_join = False
-            if n_u != n_i:
+            # 3. Resolve mode efektif: hormati override eksplisit `cross_join` kalau
+            #    diberikan; kalau None, auto-detect dari panjang seperti sebelumnya.
+            if cross_join is None:
+                effective_cross_join = (n_u != n_i) and n_u > 1 and n_i > 1
+            else:
+                effective_cross_join = bool(cross_join)
+
+            if effective_cross_join:
+                logger.debug(
+                    "predict(): cross_join mode (n_u=%d, n_i=%d) -> %d-pair grid, "
+                    "positional indexing", n_u, n_i, n_u * n_i)
+                self.Warn_RAM_Heavy(n_u, n_i)
+            elif n_u != n_i:
+                # Strict pairwise diminta (eksplisit atau auto), tapi panjang beda.
+                # Boleh kalau salah satunya scalar-like (broadcast); selain itu invalid.
                 if n_u == 1:
                     user_ids_cy = np.repeat(user_ids_cy, n_i)
                 elif n_i == 1:
                     item_ids_cy = np.repeat(item_ids_cy, n_u)
                 else:
-                    cross_join = True
-                    logger.debug(
-                        "user_ids length (%d) != item_ids length (%d); using native Cython "
-                        "cross-join for a %d-pair grid (positional indexing)",
-                        n_u, n_i, n_u * n_i)
-                    self._warn_if_cross_join_memory_heavy(n_u, n_i)
+                    raise ValueError(
+                        f"cross_join=False but user_ids length ({n_u}) != item_ids "
+                        f"length ({n_i}) and neither side is a single scalar to "
+                        f"broadcast. Pass cross_join=True (or leave cross_join=None "
+                        f"to auto-detect) for an all-to-all grid.")
 
-            # Guardrails pencegah segmentation fault OpenMP
-            if not cross_join and len(user_ids_cy) != len(item_ids_cy):
+            # Guardrails pencegah segmentation fault OpenMP (sanity check internal,
+            # seharusnya selalu lolos setelah resolusi mode di atas)
+            if not effective_cross_join and len(user_ids_cy) != len(item_ids_cy):
                 raise ValueError(f"user_ids length ({len(user_ids_cy)}) != item_ids length ({len(item_ids_cy)})")
             if num_threads < 1:
                 raise ValueError("num_threads must be >= 1")
@@ -241,7 +311,7 @@ class AryColBringPredictor(AryColBringBase):
             #    Cross-join: sizing feature matrix POSITIONAL, persis n_u x n_i — cocok dengan
             #    feature matrix custom (mis. dari trainer.py) yang sengaja dibuat kompak untuk
             #    batch ini saja, walau raw id-nya sparse/non-contiguous.
-            if cross_join:
+            if effective_cross_join:
                 n_users = n_u
                 n_items = n_i
             else:
@@ -249,7 +319,7 @@ class AryColBringPredictor(AryColBringBase):
                 n_items = int(item_ids_cy.max()) + 1
             user_features, item_features = self._construct_feature_matrices(
                 n_users, n_items, user_features, item_features)
-            n_predictions = (n_u * n_i) if cross_join else len(user_ids_cy)
+            n_predictions = (n_u * n_i) if effective_cross_join else len(user_ids_cy)
             predictions = np.empty(n_predictions, dtype = np.float32)
             predict_arycolbring(CSRMatrix(item_features),
                                 CSRMatrix(user_features),
@@ -258,19 +328,30 @@ class AryColBringPredictor(AryColBringBase):
                                 predictions,
                                 self._get_model_data(),
                                 num_threads,
-                                cross_join)
+                                effective_cross_join,
+                                verbose)
 
-            # 4. Decoder label pada column yang telah di-encode sebelumnya
+            # 5. Decoder label pada column yang telah di-encode sebelumnya
             if user_encoder is not None:
                 user_ids = user_encoder.inverse_transform(user_ids_cy)
             if item_encoder is not None:
                 item_ids = item_encoder.inverse_transform(item_ids_cy)
 
-            # 5. Validasi singkat hasil prediksi (jangan sampai NULL)
+            # 6. Validasi singkat hasil prediksi
             if len(predictions) > 0 and np.isnan(predictions).all():
                 raise ValueError("Prediction Output Error: All predicted scores returned as NULL/NaN.")
             if len(predictions) > 0 and np.all(predictions == 0):
                 logger.warning("Prediction Warning: All predicted scores returned exactly 0.0")
+
+            # 7. Return type mengikuti mode efektif
+            if effective_cross_join:
+                paired_user_ids, paired_item_ids = self.build_pairs(
+                    user_ids, item_ids, cross_join=True)
+                return pd.DataFrame({
+                    'user_id': paired_user_ids,
+                    'item_id': paired_item_ids,
+                    'score':   predictions,
+                })
             return predictions
 
         except Exception as fatal_err:

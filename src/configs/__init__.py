@@ -24,8 +24,8 @@ _cfg.read(LocDir / "configuration.ini")
 from .fallback_config import FallbackConfig
 from .lgbm_config     import LTRConfig
 from .logged          import setup_logging
-logger = setup_logging()
-
+logger  = setup_logging()
+verbose = True if (_cfg.get('logging', 'level')).upper() in ['DEBUG', 'INFO'] else False
 
 def _cfglist(Config  : object, 
              section : str, 

@@ -24,33 +24,35 @@ def predict_arycolbring(CSRMatrix item_features,
                         bint verbose = False,
                        ):
     """
-    Compute prediction scores for users x items. Two indexing modes,
-    selected by `cross_join`:
+    Calculates how much users are expected to like certain items (prediction scores).
+    You can run this in one of two modes using the `cross_join` setting:
 
-    Pairwise mode (cross_join=False, default) — requires
-    len(user_ids) == len(item_ids) == len(predictions):
-        predictions[i] is computed for (user_ids[i], item_ids[i]).
-        user_ids[i] / item_ids[i] are used as LITERAL row indices into
-        user_features / item_features (classic LightFM-style convention:
-        the caller's feature matrix must already be sized/aligned to the
-        raw id range, e.g. via sp.identity(max_id + 1)).
+    1. One-to-One Mode (cross_join=False, Default)
+       Matches specific users to specific items one-by-one.
+       - Think of this like a list of couples: User A is paired ONLY with Item X, 
+         User B ONLY with Item Y, and so on.
+       - Because they are paired one-to-one, your list of users and list of items 
+         must be the exact same length.
+       - The actual ID numbers of your users and items are used as their direct "addresses" 
+         in your database. For example, if a user's ID is 105, the code looks directly 
+         at row 105 of your user data table. This means your data tables must be large 
+         enough to fit the highest ID number (even if there are empty rows in between).
 
-    Cross-join / hybrid mode (cross_join=True) — user_ids and item_ids may
-    have different lengths N and M; predictions must have length N * M,
-    laid out row-major (user 0 vs every item, then user 1 vs every item, ...).
-        Row indices into user_features / item_features are POSITIONAL:
-        the i-th entry of user_ids maps to row `i` of user_features, and the
-        j-th entry of item_ids maps to row `j` of item_features — the actual
-        integer VALUES stored in user_ids / item_ids are not read at all in
-        this mode. This lets a caller hand in a compact feature matrix built
-        for exactly the N users / M items it cares about (e.g. a reporting
-        batch) without needing raw ids to be a dense 0..N-1 range. The
-        caller is responsible for re-associating each output row with its
-        original (raw) user/item label on the Python side, since the kernel
-        itself only produces the N*M score grid.
+    2. All-to-All Mode / Cross-Join (cross_join=True)
+       Pairs every user in your list with every single item in your list.
+       - If you send in 3 users and 4 items, it will calculate scores for all 12 
+         possible combinations (User 1 with all items, then User 2 with all items, etc.).
+       - In this mode, the actual ID numbers (like ID 999 or ID 45) are completely ignored. 
+         Instead, the code just looks at their position in your list (e.g., the 1st user 
+         in your list maps to the 1st row of your user data, regardless of their actual ID).
+       - Why use this? It allows you to pass a tiny, neat list of just the specific users 
+         and items you want to analyze right now, saving a lot of computer memory.
+       - Note: Because the code ignores the actual IDs while calculating, the output 
+         will just be a grid of numbers. You will need to match these scores back to 
+         the original user and item names yourself in Python.
 
     Parameters
-    ----------
+    ______________________________________________________________
     item_features  : CSRMatrix  [n_item_features x n_item_feat_cols]
     user_features  : CSRMatrix  [n_user_features x n_user_feat_cols]
     user_ids       : int32 array, length N
@@ -59,7 +61,7 @@ def predict_arycolbring(CSRMatrix item_features,
                      Length must be N if cross_join is False (and N == M),
                      else N * M.
     model          : FastAryColBring  holding all embedding state
-    num_threads    : int  ≥ 1
+    num_threads    : int >= 1
     cross_join     : bool, default False — see modes above.
     """
     if verbose:
