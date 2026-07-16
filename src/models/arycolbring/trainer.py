@@ -12,8 +12,6 @@ __created__    = "2026-05-31"
 
 
 """
-trainer.py
-----------
 Complete training pipeline for AryColBring collaborative filtering model.
 
 Integrates:
@@ -45,8 +43,8 @@ from .eval     import (precision_at_k,
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[2]))
-from configs import logger
-
+from configs   import logger
+from features  import Normalize_LargeSeries, Filter_TopN
 
 
 def Adjusted_CSRshape(matrix     : sp.csr_matrix, 
@@ -426,6 +424,11 @@ class AryColBringModelTrainer:
                             item_features = self._item_features,
                             user_features = self._user_features,
                             num_threads   = 8)
+        predictionDF    = Normalize_LargeSeries(predictionDF, 'score')
+        predictionDF    = Filter_TopN(
+                          Data      = predictionDF,
+                          user_col  = 'user_id',
+                          score_col = 'score')
         predictionDict  = predictionDF.to_dict(orient = 'records')
 
         current_metrics = self.metrics_history[-1] if \
@@ -434,10 +437,12 @@ class AryColBringModelTrainer:
             n_items     = self.trainer.item_embeddings.shape[0]
         else:
             n_items     = self._test_interactions.shape[1]
+
         if self.trainer.user_embeddings is not None:
             n_users     = self.trainer.user_embeddings.shape[0]
         else:
             n_users     = self._test_interactions.shape[0]
+
         if hasattr(self, 'train_interactions') and self.train_interactions is not None:
             n_interactions = self.train_interactions.nnz
             total_elements = n_users * n_items
@@ -446,6 +451,7 @@ class AryColBringModelTrainer:
         elif self.training_history:
             n_interactions = self.training_history[0].get("n_interactions", 0)
             sparsity       = self.training_history[0].get("sparsity", 0.0)
+
         generated_charts   = charts or list()
         if not generated_charts and self.training_history:
             ELP = [{"epoch": h.get("epoch", idx+1), 
@@ -483,14 +489,15 @@ class AryColBringModelTrainer:
         }
 
         OUTPUT_DIR.mkdir(parents = True, exist_ok = True)
-        Contpath = OUTPUT_DIR / "ACBcontext.json"
+        today    = datetime.today().strftime('%Y%m%d')
+        Contpath = OUTPUT_DIR / f"{today}_ACBcontext.json"
         with Contpath.open(mode = "w", encoding = "utf-8") as jfile:
             json.dump(Context,
                       fp           = jfile,
                       indent       = 2,
                       allow_nan    = False,
                       ensure_ascii = False)
-        sys.exit()
+        #sys.exit()
         
         RPath = genAdvisor(context_data = Context,
                            output_dir   = output_dir)

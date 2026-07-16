@@ -346,18 +346,18 @@ class AryColBringPredictor(AryColBringBase):
             # 7. Return type mengikuti mode efektif
             if effective_cross_join:
                 paired_user_ids, paired_item_ids = self.build_pairs(
-                    user_ids, item_ids, cross_join=True)
+                                                   user_ids, item_ids, 
+                                                   cross_join = True)
                 return pd.DataFrame({
                     'user_id': paired_user_ids,
                     'item_id': paired_item_ids,
-                    'score':   predictions,
-                })
+                    'score'  : predictions})
             return predictions
 
         except Exception as fatal_err:
             logger.error(
                 f"Execution failed inside AryColBringPredictor.predict: {str(fatal_err)}", 
-                exc_info=True)
+                exc_info = True)
             raise ValueError(str(fatal_err)) from fatal_err
 
 

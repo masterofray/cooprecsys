@@ -29,6 +29,68 @@ from configs import _cfg, logger
 from db      import duckdb_connection
 
 
+def Normalize_LargeSeries(
+        Data    : pd.DataFrame,
+        Feature : str = 'score',
+    ) -> pd.DataFrame:
+    """
+    Optimized in-place outlier clipping and min-max scaling (0-100).
+    Keeps the original DataFrame schema intact (userID, itemID, score).
+    """
+    scores        = Data[Feature].to_numpy()
+    low, high     = np.percentile(scores, [1, 99])
+    denom         = (high - low) if high != low else 1.0
+    Data[Feature] = (np.clip(scores, low, high) - low) / denom * 100
+    return Data
+
+def Filter_TopN(
+        Data      : pd.DataFrame,
+        user_col  : str = 'user_id',
+        score_col : str = 'score',
+        top_n     : int = None,
+    ) -> pd.DataFrame:
+    """
+    Mengambil maksimal N prediksi dengan skor tertinggi untuk setiap user.
+    Mengembalikan DataFrame independen yang bersih.
+    """
+    DataFilter = pd.DataFrame({})
+    top_n      = top_n or _cfg.getint('FEATURES', 'top_predictions')
+    try:
+        start_time = time.time()
+        if Data.empty:
+            logger.warning("Your DataFrame is empty.")
+            return Data.copy()
+        require = {user_col, score_col}
+        if not require.issubset(Data.columns):
+            missing = require - set(Data.columns)
+            raise KeyError(f"Some of mandatory columns is not found: {missing}")
+        uniq = Data[user_col].nunique()
+        logger.debug(f'''
+        Begin to do filtering Top-{top_n}. 
+        Basic Data: {len(Data):,} rows,
+        {uniq:,} Unique Users.''')
+        DataFilter = (
+            Data.sort_values(by = [user_col, score_col], ascending = [True, False])
+                .groupby(user_col, sort = False)
+                .head(top_n)
+                .copy()
+                .reset_index(drop = True))
+        elapsed = time.time() - start_time
+        logger.debug(f'''
+        Done with filtering in {elapsed:.4f} seconds.
+        New Data: {len(DataFilter):,} rows.
+        Average {len(DataFilter)/uniq:.1f} item/user.''')
+    except KeyError as Arc01:
+        logger.error(f"You data schema wrong: {str(Arc01)}",
+                     exc_info = True)
+        raise Arc01
+    except Exception as Arc02:
+        logger.error(f"Failed to do filtering: {str(Arc02)}",
+                     exc_info = True)
+        raise Arc02
+    finally:
+        return DataFilter
+
 def Inference_DataSplit(data     : pd.DataFrame,
                         features : List[str],
                         label    : str,

@@ -13,7 +13,7 @@ __created__    = "2026-07-06"
 
 """
 advirender.py
-------------------
+_________________________________________
 Training dashboard renderer for AryColBring collaborative filtering model.
 Generates comprehensive HTML reports for the training phase including:
 - Training metrics (loss curves, convergence)
@@ -218,21 +218,14 @@ def generate_training_report(
         output_path = output_dir / report_name
 
         # ── 3. Copy static assets ──
-        static_paths = copier(output_dir)
+        static_paths = runcopy(advisor = True, dest = output_dir)
 
         # ── 4. Build context ──
+        if isinstance(context_data, Path):
+            with context_data.open(mode="r", encoding="utf-8") as jfile:
+                context_data = json.load(fp = jfile)
         context = build_training_context(context_data)
         context.update(static_paths)
-
-        # ── 5. Save context JSON (debug mode) ──
-        dlevel = True
-        if _cfg:
-            dlevel = _cfg.get("logging", "level", fallback="DEBUG") in ["DEBUG", "INFO"]
-        if dlevel:
-            ctx_json_path = output_dir / "TrainingContext.json"
-            with open(ctx_json_path, "w", encoding="utf-8") as fx:
-                json.dump(context, fx, ensure_ascii=False, indent=2, default=str)
-            logger.debug("Context JSON saved to %s", ctx_json_path)
 
         # ── 6. Render HTML ──
         html = render_training_report(context=context, output_path=output_path)

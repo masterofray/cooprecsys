@@ -200,7 +200,6 @@ class LabelEncoderManager(object):
         if not path.exists():
             raise FileNotFoundError(f"Encoder file not found: {path}")
         logger.info(f"Loading encoders from: {path}")
-        #set_trace()
         with open(path, 'rb') as file:
             encoder_data     = cp.load(file)
         self.encoders        = encoder_data["encoders"]
