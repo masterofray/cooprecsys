@@ -36,9 +36,12 @@ from typing import Optional, Union
 from sklearn.preprocessing import LabelEncoder
 from .scaffold import AryColBringBase, cydtype
 
+# psutil is an OPTIONAL dependency: only used for a soft, RAM-aware safety check
+# on predict()'s auto cross-join expansion. If it isn't installed, the check is
+# simply skipped (logged at debug level) rather than failing the import.
 try:
     import psutil
-except ImportError:
+except ImportError:  # pragma: no cover - optional dependency
     psutil = None
 
 LocDir = Path(__file__).resolve()
@@ -77,15 +80,20 @@ class AryColBringPredictor(AryColBringBase):
 
     def _warn_if_cross_join_memory_heavy(self, n_u: int, n_i: int) -> None:
         """
-        Soft memory-safety check for predict()'s auto cross-join expansion
-        (see the n_u != n_i branch). Never blocks execution — only logs a
-        warning — since a caller may deliberately want a large batch.
+        Soft memory-safety check for predict()'s cross-join mode (n_u != n_i,
+        both > 1 — see the `cross_join` branch and the native Cython
+        ``predict_arycolbring(..., cross_join=True)`` kernel). Never blocks
+        execution — only logs a warning — since a caller may deliberately
+        want a large report batch.
 
-        Instead of a hardcoded pair-count ceiling, this estimates the byte
-        footprint of the expanded (user_ids_cy, item_ids_cy, predictions)
-        arrays and compares it against a *fraction of currently available
-        system RAM*, so the check adapts to whatever machine the package
-        happens to run on (laptop vs. CI runner vs. production server).
+        Since the cross-join grid is computed natively inside the Cython
+        kernel (positional indexing, no Python-side repeat/tile of the id
+        arrays), the only large allocation on the Python side is the
+        ``predictions`` output buffer itself (float32, length n_u * n_i).
+        That's what this estimates — compared against a fraction of
+        *currently available* system RAM, so the check adapts to whatever
+        machine the package happens to run on (laptop vs. CI runner vs.
+        production server) instead of a fixed pair-count ceiling.
 
         The fraction is read from the shared package config
         (``_cfg['predict']['cross_join_max_memory_fraction']``) so it can be
@@ -96,8 +104,7 @@ class AryColBringPredictor(AryColBringBase):
         dependency of the package).
         """
         n_pairs   = n_u * n_i
-        est_bytes = n_pairs * (2 * np.dtype(np.int32).itemsize
-                                + np.dtype(np.float32).itemsize)
+        est_bytes = n_pairs * np.dtype(np.float32).itemsize  # predictions buffer only
 
         try:
             max_fraction = _cfg.getfloat('predict', 'cross_join_max_memory_fraction')
@@ -116,9 +123,9 @@ class AryColBringPredictor(AryColBringBase):
         if est_bytes > budget:
             logger.warning(
                 "predict() cross-join is producing %d pairs (%d users x %d items, "
-                "~%.1f MB estimated). This exceeds %.0f%% of currently available "
-                "RAM (%.1f MB available right now). This may be unintentional and "
-                "could cause heavy memory pressure or an OOM kill.",
+                "~%.1f MB estimated for the predictions buffer). This exceeds %.0f%% "
+                "of currently available RAM (%.1f MB available right now). This may "
+                "be unintentional and could cause heavy memory pressure or an OOM kill.",
                 n_pairs, n_u, n_i, est_bytes / (1024 ** 2),
                 max_fraction * 100, available / (1024 ** 2))
 
@@ -140,13 +147,26 @@ class AryColBringPredictor(AryColBringBase):
         num_threads   : OpenMP thread count (>= 1)
 
         Length handling for user_ids / item_ids:
-        - Equal length N        -> strict pairwise scoring: (user_ids[i], item_ids[i]) for i in range(N).
+        - Equal length N        -> strict pairwise scoring: (user_ids[i], item_ids[i]) for i in
+                                    range(N). user_ids[i] / item_ids[i] are used as literal row
+                                    indices into user_features / item_features (classic LightFM-style
+                                    convention) — same as always.
         - One side has length 1 -> that scalar-like side is broadcast against the other (unchanged
-                                    legacy behaviour; also now symmetric for a length-1 item_ids).
-        - Unequal length > 1 on both sides -> treated as a reporting/cross-join call: every user is
-                                    scored against every item (full N x M grid), flattened in
-                                    row-major order (user 0 vs all items, then user 1 vs all items, ...).
-                                    Returned array length is N * M in that case.
+                                    legacy behaviour; symmetric for a length-1 item_ids too). Still
+                                    literal row-index semantics, just cheaply repeated.
+        - Unequal length > 1 on both sides -> treated as a reporting/cross-join call: every one of
+                                    the N users is scored against every one of the M items (full
+                                    N x M grid), computed NATIVELY inside the Cython kernel
+                                    (predict_arycolbring(..., cross_join=True)) — no giant N*M
+                                    arrays are materialised on the Python side. Row indices into
+                                    user_features / item_features are POSITIONAL in this mode (the
+                                    i-th requested user -> row i, the j-th requested item -> row j),
+                                    NOT the raw id values. This lets the caller pass a compact
+                                    feature matrix sized exactly to the N users / M items it cares
+                                    about (e.g. a training report batch) even when the raw ids
+                                    themselves are sparse/non-contiguous. Returned array has length
+                                    N * M, row-major (user 0 vs all items, then user 1 vs all
+                                    items, ...).
 
         The returns is np.ndarray with shape as (n_pairs,)
         Raw dot-product scores (higher = more relevant).
@@ -171,8 +191,9 @@ class AryColBringPredictor(AryColBringBase):
                 return np.array([], dtype=np.float32)
 
             # 2. Label Encoder untuk string, biarkan numeric as-is.
-            #    Encode dulu pada array asli (belum di-expand) supaya LabelEncoder
-            #    tidak memproses duplikat hasil cross-join secara sia-sia.
+            #    Encode pada array asli (n_u / n_i, belum di-expand) — baik untuk mode
+            #    pairwise/broadcast maupun cross-join, ini tetap murah karena tidak pernah
+            #    memproses ukuran N*M.
             user_encoder = None
             if self._is_string_type(user_ids):
                 user_encoder = LabelEncoder()
@@ -187,26 +208,27 @@ class AryColBringPredictor(AryColBringBase):
             else:
                 item_ids_cy = np.asarray(item_ids, dtype=np.int32)
 
-            # 3. Samakan dimensi user_ids_cy / item_ids_cy:
-            #    - sama panjang            -> pairwise, tidak diapa-apakan
-            #    - salah satu panjang 1    -> broadcast (scalar-like) ke panjang yang lain
-            #    - keduanya > 1 & berbeda  -> cross-join penuh (dipakai untuk reporting)
+            # 3. Tentukan mode berdasarkan panjang user_ids_cy / item_ids_cy:
+            #    - sama panjang            -> pairwise (raw-value indexing), tidak diapa-apakan
+            #    - salah satu panjang 1    -> broadcast scalar-like (masih raw-value indexing,
+            #                                 murah, cukup di-repeat)
+            #    - keduanya > 1 & berbeda  -> cross-join native di Cython (positional indexing)
+            cross_join = False
             if n_u != n_i:
                 if n_u == 1:
                     user_ids_cy = np.repeat(user_ids_cy, n_i)
                 elif n_i == 1:
                     item_ids_cy = np.repeat(item_ids_cy, n_u)
                 else:
+                    cross_join = True
                     logger.debug(
-                        "user_ids length (%d) != item_ids length (%d); expanding to full "
-                        "cross-join grid of %d pairs", n_u, n_i, n_u * n_i)
+                        "user_ids length (%d) != item_ids length (%d); using native Cython "
+                        "cross-join for a %d-pair grid (positional indexing)",
+                        n_u, n_i, n_u * n_i)
                     self._warn_if_cross_join_memory_heavy(n_u, n_i)
-                    user_ids_cy = np.repeat(user_ids_cy, n_i)
-                    item_ids_cy = np.tile(item_ids_cy, n_u)
 
-            # Guardrails pencegah segmentation fault OpenMP (sanity check, seharusnya selalu lolos
-            # setelah penyesuaian dimensi di atas)
-            if len(user_ids_cy) != len(item_ids_cy):
+            # Guardrails pencegah segmentation fault OpenMP
+            if not cross_join and len(user_ids_cy) != len(item_ids_cy):
                 raise ValueError(f"user_ids length ({len(user_ids_cy)}) != item_ids length ({len(item_ids_cy)})")
             if num_threads < 1:
                 raise ValueError("num_threads must be >= 1")
@@ -214,19 +236,29 @@ class AryColBringPredictor(AryColBringBase):
             if user_ids_cy.min() < 0 or item_ids_cy.min() < 0:
                 raise ValueError("Negative user_id or item_id found after encoding.")
 
-            # 3. Prediksi via backend Cython (predict_arycolbring)
-            n_users = int(user_ids_cy.max()) + 1
-            n_items = int(item_ids_cy.max()) + 1
+            # 4. Prediksi via backend Cython (predict_arycolbring).
+            #    Pairwise/broadcast: sizing feature matrix mengikuti raw id tertinggi (konvensi lama).
+            #    Cross-join: sizing feature matrix POSITIONAL, persis n_u x n_i — cocok dengan
+            #    feature matrix custom (mis. dari trainer.py) yang sengaja dibuat kompak untuk
+            #    batch ini saja, walau raw id-nya sparse/non-contiguous.
+            if cross_join:
+                n_users = n_u
+                n_items = n_i
+            else:
+                n_users = int(user_ids_cy.max()) + 1
+                n_items = int(item_ids_cy.max()) + 1
             user_features, item_features = self._construct_feature_matrices(
                 n_users, n_items, user_features, item_features)
-            predictions = np.empty(len(user_ids_cy), dtype = np.float32)
+            n_predictions = (n_u * n_i) if cross_join else len(user_ids_cy)
+            predictions = np.empty(n_predictions, dtype = np.float32)
             predict_arycolbring(CSRMatrix(item_features),
                                 CSRMatrix(user_features),
                                 user_ids_cy,
                                 item_ids_cy,
                                 predictions,
                                 self._get_model_data(),
-                                num_threads)
+                                num_threads,
+                                cross_join)
 
             # 4. Decoder label pada column yang telah di-encode sebelumnya
             if user_encoder is not None:
