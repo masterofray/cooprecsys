@@ -1,16 +1,22 @@
 name: Build & Release Wheel
+
 on:
   push:
     branches:
       - master
       - dev
     tags:
-      - "v*.*"
+      - "v*.*.*"
   pull_request:
     branches:
       - master
       - dev
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 1.4.0 (blank = build-only run)"
+        required: false
+        type: string
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,18 +29,106 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------
+  # Decides IF this run should produce a release, and creates+pushes the
+  # git tag if so. Triggered by either:
+  #   - workflow_dispatch with a "version" input, OR
+  #   - a push to master/dev whose commit message contains "Release and Tag",
+  #     optionally with an explicit version: "Release and Tag v1.4.0"
+  #   - a manually-pushed tag (refs/tags/v*) — handled as a passthrough
+  #
+  # NOTE: pushing a tag here using GITHUB_TOKEN will NOT trigger a second
+  # workflow run (GitHub blocks recursive runs from GITHUB_TOKEN pushes by
+  # design). So instead of relying on that second trigger, every downstream
+  # job in THIS run consumes `create-tag` outputs directly via `needs`.
+  # ---------------------------------------------------------------------
+  create-tag:
+    name: "Create Tag (Release and Tag)"
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: write
+    outputs:
+      tag_name: ${{ steps.tag.outputs.tag_name || steps.tagpush.outputs.tag_name }}
+      is_release: ${{ steps.tag.outputs.is_release || steps.tagpush.outputs.is_release }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Passthrough — already a tag push
+        id: tagpush
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          echo "tag_name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          echo "is_release=true" >> "$GITHUB_OUTPUT"
+
+      # This is the explicit trigger gate — same idiom as your "Run Smoke
+      # AryColbring" example: a job-level condition using contains() on the
+      # commit message, OR'd with the workflow_dispatch path. Supports:
+      #   - commit message: "Release and Tag v1.4.0"  → uses 1.4.0 from the message
+      #   - commit message: "Release and Tag"          → falls back to pyproject.toml version
+      #   - workflow_dispatch with a "version" input
+      - name: Create & push annotated tag
+        id: tag
+        if: |
+          !startsWith(github.ref, 'refs/tags/v') &&
+          (
+            (github.event_name == 'workflow_dispatch' && github.event.inputs.version != '') ||
+            (github.event_name == 'push' && contains(github.event.head_commit.message, 'Release and Tag'))
+          )
+        shell: bash
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+
+          if [ -z "$VERSION" ]; then
+            # Extract version straight out of the commit message, e.g.
+            # "Release and Tag v1.4.0" -> 1.4.0. Case-insensitive, "v" optional.
+            MSG=$(git log -1 --pretty=%B)
+            VERSION=$(echo "$MSG" | grep -oiE "release and tag[[:space:]]+v?[0-9]+\.[0-9]+(\.[0-9]+)?" | grep -oE "[0-9]+\.[0-9]+(\.[0-9]+)?" | head -n1)
+          fi
+
+          if [ -z "$VERSION" ]; then
+            # No explicit version anywhere in the message -> fall back to pyproject.toml
+            VERSION=$(grep -m1 '^version' pyproject.toml | sed -E 's/.*"(.*)".*/\1/')
+          fi
+
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not determine a version to tag. Use 'Release and Tag vX.Y.Z' in the commit message, the workflow_dispatch 'version' input, or set version in pyproject.toml."
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::warning::Tag $TAG already exists locally/remotely — reusing it, no new tag pushed."
+          else
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          fi
+
+          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
+          echo "is_release=true" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------
   # sdist only needs to be built once — it's pure source, not compiled,
   # and identical regardless of OS/Python version.
   # ---------------------------------------------------------------------
   build-sdist:
     name: Build sdist (tar.gz)
     runs-on: ubuntu-latest
+    needs: [create-tag]
+    if: always() && needs.create-tag.result == 'success'
     permissions:
       contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
           fetch-depth: 0
 
       - name: Set up Python
@@ -68,6 +162,8 @@ jobs:
   build-wheels:
     name: Build wheel (${{ matrix.os }} / py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
+    needs: [create-tag]
+    if: always() && needs.create-tag.result == 'success'
     permissions:
       contents: read
       checks: write
@@ -80,6 +176,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
           fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
@@ -113,12 +210,24 @@ jobs:
           gcc --version
           g++ --version
 
+      - name: Set up MSVC Developer environment (Windows)
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        # Ensures cl.exe / link.exe and the correct INCLUDE/LIB paths are on
+        # PATH for THIS job's shell. setuptools' vswhere auto-detection covers
+        # plain `pip install`-style builds reasonably well, but direct
+        # `build_ext` invocations (especially with custom OpenMP flags) are
+        # where the auto-detection most often silently picks the wrong
+        # toolset or misses Windows SDK paths — this action removes that
+        # variable entirely.
+
       - name: Verify MSVC toolchain (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           python -c "import setuptools; print('setuptools:', setuptools.__version__)"
-          Write-Host "MSVC is auto-detected by setuptools via vswhere on windows-latest runners."
+          $cl = Get-Command cl.exe -ErrorAction SilentlyContinue
+          if ($cl) { Write-Host "cl.exe resolved: $($cl.Source)" } else { Write-Error "cl.exe still not on PATH after msvc-dev-cmd setup." }
 
       - name: Build AryColBring Cython Extensions (Linux)
         if: runner.os == 'Linux'
@@ -132,10 +241,16 @@ jobs:
         if: runner.os == 'Windows'
         working-directory: ./src/models/arycolbring
         shell: pwsh
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: "utf-8"
         run: ./cysetup.ps1
 
       - name: Build wheel via uv
         shell: bash
+        env:
+          PYTHONUTF8: "1"
+          PYTHONIOENCODING: "utf-8"
         run: uv build --wheel --out-dir dist/
 
       - name: List generated artifacts & inspect wheel
@@ -164,7 +279,8 @@ jobs:
   test:
     name: Test Installed Wheel (${{ matrix.os }} / py${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
-    needs: build-wheels
+    needs: [create-tag, build-wheels]
+    if: always() && needs.build-wheels.result == 'success'
     permissions:
       contents: read
       checks: write
@@ -176,6 +292,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -254,8 +372,8 @@ jobs:
   publish:
     name: Publish to Release
     runs-on: ubuntu-latest
-    needs: [build-sdist, test]
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [create-tag, build-sdist, test]
+    if: needs.create-tag.outputs.is_release == 'true'
     permissions:
       contents: write
     steps:
@@ -272,16 +390,17 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ needs.create-tag.outputs.tag_name }}
           files: |
             dist/*.whl
             dist/*.tar.gz
           draft: false
-          prerelease: ${{ contains(github.ref, 'rc') || contains(github.ref, 'beta') || contains(github.ref, 'alpha') }}
+          prerelease: ${{ contains(needs.create-tag.outputs.tag_name, 'rc') || contains(needs.create-tag.outputs.tag_name, 'beta') || contains(needs.create-tag.outputs.tag_name, 'alpha') }}
           generate_release_notes: true
 
       - name: Release summary
         shell: bash
         run: |
-          echo "Release published successfully for tag: ${{ github.ref_name }}"
+          echo "Release published successfully for tag: ${{ needs.create-tag.outputs.tag_name }}"
           echo "Sdists published: $(ls -1 dist/*.tar.gz | wc -l)"
           echo "Wheels published: $(ls -1 dist/*.whl | wc -l)"
