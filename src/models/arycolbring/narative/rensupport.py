@@ -43,7 +43,12 @@ def get_env() -> Environment:
               lstrip_blocks = True)
         logger.debug("Jinja environment initialized successfully.")
     except Exception as exc:
-        env = Environment()
+        #env = Environment() # B701
+        env = Environment(
+              autoescape    = select_autoescape(
+                              enabled_extensions = ("html", "xml"),
+                              default_for_string = True,
+                              default            = False))
         logger.error("Failed initializing Jinja environment.", exc_info = True)
         raise RuntimeError() from exc
     finally:
