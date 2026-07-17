@@ -58,10 +58,6 @@ inference       = ["faiss-cpu>=1.13.1",
                    "annoy>=1.17.3",
                   ]
 
-[build-system]
-requires        = ["setuptools>=61.0.0", "wheel"]
-build-backend   = "setuptools.build_meta"
-
 [tool.pytest.ini_options]
 testpaths       = ["test"]
 python_files    = ["ltrlgbm_example.py", "*_test.py"]
