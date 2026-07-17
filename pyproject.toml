@@ -21,17 +21,17 @@ and high-accuracy personalized recommendations in \
 resource-constrained or large-scale cooperative \
 networks."""
 readme          = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 authors         = [{name = "Aryanto", email = "aryanto.dandan@gmail.com"}]
 license         = { text = "GPL-3.0" }
 classifiers     = ["Development Status :: 3 - Beta",
                    "Intended Audience :: Developers",
                    "Programming Language :: Python :: 3",
+                   "Programming Language :: Python :: 3.9",
                    "Programming Language :: Python :: 3.10",
                    "Programming Language :: Python :: 3.11",
                    "Programming Language :: Python :: 3.12",
                    "Programming Language :: Python :: 3.13",
-                   "Programming Language :: Python :: 3.14",
                    "Topic :: Scientific/Engineering :: Artificial Intelligence",
                   ]
 dependencies    = ["cloudpickle>=3.1.1",
@@ -48,7 +48,8 @@ dependencies    = ["cloudpickle>=3.1.1",
                    "pandas>=2.2.3,<3.0.0",
                    "pyarrow>=19.0.0",
                    "scann>=1.4.2",
-                   "scikit-learn>=1.8.0",
+                   "scikit-learn>=1.6.1,<1.8; python_version<'3.11'",
+                   "scikit-learn>=1.8; python_version>='3.11'",
                    "scipy>=1.17.1",
                    "seaborn>=0.13.2",
                    "shap>=0.51.0",

@@ -45,7 +45,7 @@ jobs:
             --confidence-level high \
             -s B101,B311,B608
 
-  # JOB 2: Uji Coba Multi-Versi Python (3.9 - 3.13)
+  # JOB 2: Uji Coba Multi-Versi Python (3.11 - 3.13)
   smoke-test:
     name: Smoke Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -56,7 +56,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout Repository
