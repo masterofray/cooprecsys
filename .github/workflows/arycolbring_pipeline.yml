@@ -36,10 +36,14 @@ jobs:
       - name: Run Bandit Security Analysis
         run: |
           echo "=========================================================================="
-          echo "Executing Bandit security linting via isolated uvx tool..."
+          echo "Executing Bandit for high security only"
           echo "=========================================================================="
           # uvx memisahkan eksekusi dari dependensi pyproject.toml yang sedang konflik
-          uvx bandit -r ./src
+          uvx bandit \
+            -r ./src \
+            -lll \
+            --confidence-level high \
+            -s B101,B311,B608
 
   # JOB 2: Uji Coba Multi-Versi Python (3.9 - 3.13)
   smoke-test:

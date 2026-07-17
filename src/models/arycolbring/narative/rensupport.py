@@ -35,7 +35,10 @@ def get_env() -> Environment:
     try:
         env = Environment(
               loader        = FileSystemLoader(str(Tplatedir)),
-              autoescape    = select_autoescape(["html", "xml"]),
+              autoescape    = select_autoescape(
+                              enabled_extensions = ("html", "xml"),
+                              default_for_string = True,
+                              default            = False),
               trim_blocks   = True,
               lstrip_blocks = True)
         logger.debug("Jinja environment initialized successfully.")
