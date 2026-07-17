@@ -21,15 +21,17 @@ and high-accuracy personalized recommendations in \
 resource-constrained or large-scale cooperative \
 networks."""
 readme          = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 authors         = [{name = "Aryanto", email = "aryanto.dandan@gmail.com"}]
 license         = { text = "GPL-3.0" }
 classifiers     = ["Development Status :: 3 - Beta",
                    "Intended Audience :: Developers",
                    "Programming Language :: Python :: 3",
+                   "Programming Language :: Python :: 3.10",
                    "Programming Language :: Python :: 3.11",
                    "Programming Language :: Python :: 3.12",
                    "Programming Language :: Python :: 3.13",
+                   "Programming Language :: Python :: 3.14",
                    "Topic :: Scientific/Engineering :: Artificial Intelligence",
                   ]
 dependencies    = ["cloudpickle>=3.1.1",
