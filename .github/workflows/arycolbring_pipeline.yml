@@ -79,7 +79,7 @@ jobs:
           echo "=========================================================================="
           echo "Installing environment dependencies via uv..."
           echo "=========================================================================="
-          uv pip install --system .
+          uv pip install --system ".[dev]"
 
       - name: Compile Cython Extensions
         run: |
