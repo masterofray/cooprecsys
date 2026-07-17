@@ -7,7 +7,7 @@ on:
   pull_request:
     branches:
       - 'dev*'
-  workflow_dispatch: # Allows manual trigger from the GitHub UI
+  workflow_dispatch:
 
 jobs:
   smoke-test:
@@ -77,10 +77,9 @@ jobs:
           echo "=========================================================================="
           echo "Launching AryColBring Model Training Smoke Test..."
           echo "=========================================================================="
-          # Injecting root to PYTHONPATH to ensure python -m resolves 'test' cleanly from the target directory
           export PYTHONPATH="${{ github.workspace }}"
           cd ${{ github.workspace }}/test/arycolbring_tests
-          python -m test.arycolbring_tests.t01_advisor
+          python ./test/arycolbring_tests/t01_advisor.py -d ./data/sampledata.parquet -t 0.25 -e 50 -n "Test experiment"
           echo "=========================================================================="
           echo "Smoke test pipeline completed successfully."
           echo "=========================================================================="
