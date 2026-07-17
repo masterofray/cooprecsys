@@ -10,13 +10,13 @@ on:
   workflow_dispatch:
     inputs:
       run_smoke:
-        description: 'Tolak/Jalankan Smoke Test secara manual'
+        description: 'Jalankan Smoke Test secara manual'
         required: false
         type: boolean
         default: true
 
 jobs:
-  # JOB 1: Keamanan Kode (Berjalan paralel dan terpisah)
+  # JOB 1: Sukses Terisolasi untuk Keamanan Kode
   security-scan:
     name: Run Bandit Security Analysis
     runs-on: ubuntu-latest
@@ -28,11 +28,6 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Set up Python Environment
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
       - name: Set up uv Package Manager
         uses: astral-sh/setup-uv@v5
         with:
@@ -41,11 +36,12 @@ jobs:
       - name: Run Bandit Security Analysis
         run: |
           echo "=========================================================================="
-          echo "Executing Bandit security linting for vulnerabilities..."
+          echo "Executing Bandit security linting via isolated uvx tool..."
           echo "=========================================================================="
-          uv run bandit -r ./src
+          # uvx memisahkan eksekusi dari dependensi pyproject.toml yang sedang konflik
+          uvx bandit -r ./src
 
-  # JOB 2: Uji Coba Asap / Smoke Test (Menggunakan Matrix Multi-Version)
+  # JOB 2: Uji Coba Multi-Versi Python (3.9 - 3.13)
   smoke-test:
     name: Smoke Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -56,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout Repository
@@ -75,9 +71,6 @@ jobs:
 
       - name: Install System Build Tools
         run: |
-          echo "=========================================================================="
-          echo "Installing essential C/C++ compilation tools for Cython..."
-          echo "=========================================================================="
           sudo apt-get update
           sudo apt-get install -y build-essential
 
@@ -86,7 +79,6 @@ jobs:
           echo "=========================================================================="
           echo "Installing environment dependencies via uv..."
           echo "=========================================================================="
-          # Menggunakan --system agar selaras dengan lingkungan runner global python
           uv pip install --system .
 
       - name: Compile Cython Extensions
@@ -96,7 +88,6 @@ jobs:
           echo "=========================================================================="
           cd ./src/models/arycolbring
           bash cysetup.sh
-          echo "Successfully completed compilation."
 
       - name: Execute Automated Smoke Test
         run: |
@@ -104,14 +95,11 @@ jobs:
           echo "Launching AryColBring Model Training Smoke Test..."
           echo "=========================================================================="
           export PYTHONPATH="${{ github.workspace }}"
-          
-          # Catatan Senior: Eksekusi langsung dari root workspace agar path data dan script aman
           python test/arycolbring_tests/t01_advisor.py \
             -d ./data/sampledata.parquet \
             -t 0.25 \
             -e 50 \
             -n "Test experiment Python ${{ matrix.python-version }}"
-            
           echo "=========================================================================="
           echo "Smoke test pipeline completed successfully for Python ${{ matrix.python-version }}."
           echo "=========================================================================="

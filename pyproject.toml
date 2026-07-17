@@ -21,11 +21,11 @@ and high-accuracy personalized recommendations in \
 resource-constrained or large-scale cooperative \
 networks."""
 readme          = "README.md"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors         = [{name = "Aryanto",
                     email = "aryanto.dandan@gmail.com"}]
 license         = { text = "GPL-3.0" }
-classifiers     = ["Development Status :: 4 - Beta",
+classifiers     = ["Development Status :: 3 - Beta",
                    "Intended Audience :: Developers",
                    "Programming Language :: Python :: 3",
                    "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -39,7 +39,7 @@ dependencies    = ["cloudpickle>=3.1.1",
                    "mlflow>=3.2.0",
                    "numpy>=2.2.6",
                    "optuna>=4.4.0",
-                   "pandas>=3.0.1",
+                   "pandas>=2.2.3,<3.0.0",
                    "pyarrow>=19.0.0",
                    "scann>=1.4.2",
                    "scikit-learn>=1.8.0",
