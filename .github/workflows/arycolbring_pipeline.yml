@@ -77,14 +77,14 @@ jobs:
       - name: Install Dependencies with uv
         run: |
           echo "=========================================================================="
-          echo "Installing environment dependencies via uv..."
+          echo "Installing environment dependencies via uv."
           echo "=========================================================================="
           uv pip install --system ".[dev]"
 
       - name: Compile Cython Extensions
         run: |
           echo "=========================================================================="
-          echo "Compiling Cython extension modules..."
+          echo "Compiling Cython extension modules."
           echo "=========================================================================="
           cd ./src/models/arycolbring
           bash cysetup.sh
@@ -92,7 +92,7 @@ jobs:
       - name: Execute Automated Smoke Test
         run: |
           echo "=========================================================================="
-          echo "Launching AryColBring Model Training Smoke Test..."
+          echo "Launching AryColBring Model Training Smoke Test."
           echo "=========================================================================="
           export PYTHONPATH="${{ github.workspace }}"
           python test/arycolbring_tests/t01_advisor.py \
