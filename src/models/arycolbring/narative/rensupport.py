@@ -27,7 +27,7 @@ Tplatedir  = LocDir / "templates"
 advdir     = LocDir / "sttrain"
 readir     = LocDir / "stinferc"
 IMG_DIR    = LocDir.parents[3] / 'img'
-OUTPUT_DIR = (LocDir.parents[3] / _cfg.get('PATHS', 'ACB_rpath')).resolve()
+OUTPUT_DIR = (LocDir.parents[3] / _cfg.get('PATHS', 'ACB_rpath') / 'ACB_reports').resolve()
 
 def get_env() -> Environment:
     """Initialize Jinja2 environment."""

@@ -11,6 +11,7 @@ __status__     = "Development"
 __created__    = "2026-07-07"
 
 
+import re
 import sys
 import pandas as pd
 from pathlib  import Path

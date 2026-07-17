@@ -31,16 +31,18 @@ def fit_bpr(CSRMatrix item_features,
             double item_alpha,
             double user_alpha,
             int num_threads,
-            random_state):
+            random_state,
+            bint verbose = False):
     """
     One epoch of BPR-loss collaborative filtering.
 
     For each positive, one hard negative is sampled and a pairwise
     gradient update (same kernel as WARP) is applied with a sigmoid loss.
     """
-    fprintf(stderr,
-            b"[DEBUG] fit_bpr: no_examples=%d num_threads=%d\n",
-            Y.shape[0], num_threads)
+    if verbose:
+        fprintf(stderr,
+                b"[DEBUG] fit_bpr: no_examples=%d num_threads=%d\n",
+                Y.shape[0], num_threads)
 
     cdef int i, j, no_examples, user_id, positive_item_id, negative_item_id
     cdef int sampled, row
@@ -126,5 +128,5 @@ def fit_bpr(CSRMatrix item_features,
     omp_destroy_lock(&reg_lock)
 
     regularize(model, item_alpha, user_alpha)
-
-    fprintf(stderr, b"[DEBUG] fit_bpr: epoch complete\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] fit_bpr: epoch complete\n")

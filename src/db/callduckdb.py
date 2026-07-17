@@ -115,12 +115,12 @@ class DuckDBManager:
         try:
             self.conn.register(name, df)
         except Exception as arch:
-            logger.warning('Register Dataframe already error, lets try other method.')
+            logger.info('Register Dataframe already error, lets try other method.')
             changetype = {col: str for col in df.select_dtypes(include=['object', 'string']).columns}
             df = df.astype(changetype)
             df = df.convert_dtypes()
             self.conn.register(name, df)
-            logger.warning('Register Dataframe is success.')
+            logger.debug('Register Dataframe is success.')
 
     def ListedTable(self) -> pd.DataFrame:
         data      = list()

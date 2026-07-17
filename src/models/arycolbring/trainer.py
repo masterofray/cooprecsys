@@ -262,7 +262,7 @@ class AryColBringModelTrainer:
         if train_interactions is not None:
             overlap = test_interactions.multiply(train_interactions.astype(bool))
             if overlap.nnz > 0:
-                logger.warning("Data Leakage Detected! "
+                logger.info("Data Leakage Detected! "
                 "Membuang %d interaksi overlap dari test_interactions.",
                 overlap.nnz)
                 test_interactions = test_interactions - overlap
