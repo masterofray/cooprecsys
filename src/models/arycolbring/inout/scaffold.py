@@ -18,7 +18,7 @@ Abstract base class for the AryColBring collaborative filtering model.
 Owns all shared hyper-parameters, embedding state, helper utilities,
 and sklearn-compatible get_params / set_params.  Concrete subclasses
 must implement the four public API methods declared here as
-``@abstractmethod``.
+`@abstractmethod`.
 """
 
 import sys
@@ -44,8 +44,8 @@ class AryColBringBase(ABC):
     Abstract base for the AryColBring collaborative filtering family.
     Holds all hyper-parameters, manages embedding matrices, and provides
     shared internal helpers.  Subclasses must implement:
-    - ``fit``  /  ``fit_partial`` (training contract)
-    - ``predict``  /  ``predict_rank`` (inference contract)
+    - `fit` / `fit_partial` (training contract)
+    - `predict` / `predict_rank` (inference contract)
 
     Parameters
     _____________________________________________________________
@@ -179,7 +179,7 @@ class AryColBringBase(ABC):
 
     @property
     def is_fitted(self) -> bool:
-        """True once ``fit`` or ``fit_partial`` has been called successfully."""
+        """True once `fit` or `fit_partial` has been called successfully."""
         return self.item_embeddings is not None
 
     @property
@@ -292,7 +292,7 @@ class AryColBringBase(ABC):
             item_features: Optional[sp.spmatrix],
         ):
         """Build or validate CSR user / item feature matrices.
-           Falls back to identity matrices when features are ``None``
+           Falls back to identity matrices when features are `None`
            (standard matrix-factorisation mode)."""
         logger.debug("Try to construct Feature: n_users = %d n_items = %d",
                       n_users, n_items)
@@ -347,7 +347,7 @@ class AryColBringBase(ABC):
                               ) -> np.ndarray:
         """
         Validate and return the sample-weight array aligned with interactions.
-        If ``sample_weight`` is ``None``, returns a ones vector (uniform weighting).
+        If `sample_weight` is `None`, returns a ones vector (uniform weighting).
         """
         if sample_weight is not None:
             if self._loss == "warp-kos":
@@ -444,8 +444,8 @@ class AryColBringBase(ABC):
             self,
             features: Optional[sp.spmatrix] = None,
         ):
-        """Return ``(biases, embeddings)`` for items.
-           If *features* is ``None``, returns raw embedding arrays directly.
+        """Return `(biases, embeddings)` for items.
+           If *features* is `None`, returns raw embedding arrays directly.
            Otherwise projects through the feature matrix."""
         self._check_initialized()
         if features is None:
@@ -458,7 +458,7 @@ class AryColBringBase(ABC):
             features: Optional[sp.spmatrix] = None,
         ):
         """
-        Return ``(biases, embeddings)`` for users.
+        Return `(biases, embeddings)` for users.
         """
         self._check_initialized()
         if features is None:
@@ -549,12 +549,12 @@ class AryColBringBase(ABC):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}("
-            f"loss = '{self._loss}', "
-            f"no_components = {self._no_components}, "
+            f"loss              = '{self._loss}', "
+            f"no_components     = {self._no_components}, "
             f"learning_schedule = '{self._learning_schedule}', "
-            f"learning_rate = {self._learning_rate}, "
-            f"item_alpha = {self._item_alpha}, "
-            f"user_alpha = {self._user_alpha}"
+            f"learning_rate     = {self._learning_rate}, "
+            f"item_alpha        = {self._item_alpha}, "
+            f"user_alpha        = {self._user_alpha}"
             f")")
 
 
