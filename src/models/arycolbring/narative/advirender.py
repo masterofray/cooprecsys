@@ -176,7 +176,7 @@ def render_training_report(context: Dict[str, Any], output_path: Path) -> str:
     logger.debug("Rendering training report.")
     try:
         env = get_env()
-        template = env.get_template("base.html.j2")
+        template = env.get_template("train_base.html.j2")
         html = template.render(**context)
         logger.info("Rendered HTML size = %.2f KB", len(html.encode("utf-8")) / 1024)
         return html
@@ -225,7 +225,6 @@ def generate_training_report(
             with context_data.open(mode="r", encoding="utf-8") as jfile:
                 context_data = json.load(fp = jfile)
         context = build_training_context(context_data)
-        context.update(static_paths)
 
         # ── 6. Render HTML ──
         html = render_training_report(context=context, output_path=output_path)

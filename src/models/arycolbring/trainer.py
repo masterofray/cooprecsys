@@ -424,6 +424,7 @@ class AryColBringModelTrainer:
                             item_features = self._item_features,
                             user_features = self._user_features,
                             num_threads   = 8)
+
         predictionDF    = Normalize_LargeSeries(predictionDF, 'score')
         predictionDF    = Filter_TopN(
                           Data      = predictionDF,
