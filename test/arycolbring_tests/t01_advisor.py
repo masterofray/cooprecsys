@@ -32,15 +32,15 @@ from pdb      import set_trace
 from typing   import Optional, Tuple, Union, List, Dict
 from argparse import ArgumentParser
 
-LocDir = Path(__file__).resolve().parents[2] / 'src'
-sys.path.append(str(LocDir))
-from configs  import _cfg, logger
-from db       import duckdb_connection
-from features import load_data
-from prepare  import DetectReco_Identifier
-from qrates   import GenQuasi_Lazy, DMD
-from models   import norm_exchange
-from models   import AryColBringModelTrainer as ACBmodel
+#LocDir = Path(__file__).resolve().parents[2] / 'src'
+#sys.path.append(str(LocDir))
+from src.configs  import _cfg, logger
+from src.db       import duckdb_connection
+from src.features import load_data
+from src.prepare  import DetectReco_Identifier
+from src.qrates   import GenQuasi_Lazy, DMD
+from src.models   import norm_exchange
+from src.models   import AryColBringModelTrainer as ACBmodel
 
 
 class AryColBring_Train_Test:
@@ -344,6 +344,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    #Sample Command:
+    #python -m test.arycolbring_tests.t01_advisor -d ./data/sampledata.parquet -t 0.25 -e 50 -n "Test experiment"
     print("Running the AryColBring_Reasoner_Test")
     try:
         sys.exit(main())
