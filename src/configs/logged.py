@@ -24,28 +24,25 @@ from configparser import ConfigParser
 
 def setup_logging():
     # 1. Resolve Paths
-    base_dir = Path(__file__).resolve().parents[0]
-    date_str = datetime.now().strftime('%Y%m%d')
-    log_dir = str(base_dir.parents[1]/'artifacts'/'logs'/date_str)
+    base_dir    = Path(__file__).resolve().parents[0]
+    date_str    = datetime.now().strftime('%Y%m%d')
+    log_dir     = str(base_dir.parents[1]/'artifacts'/'logs'/date_str)
     os.makedirs(log_dir, exist_ok=True)
-
-    # 2. Load Config
-    config = ConfigParser()
+    config      = ConfigParser()
     config.read(os.path.join(base_dir, 'configuration.ini'))
-    
-    log_name = config.get('DEFAULT', 'LOG_FILE', fallback='app.log')
-    log_path = os.path.join(log_dir, log_name)
-
-    # 3. Configure Logging
+    log_name    = config.get('DEFAULT', 'LOG_FILE', fallback='app.log')
+    log_path    = os.path.join(log_dir, log_name)
     #log_format = '%(asctime)s - %(filename)s - %(levelname)s - %(message)s'
-    log_format = '%(asctime)s - %(filename)s - %(funcName)s - %(message)s'
-    _log_level = config.get("logging", "level", fallback="DEBUG")
+    log_format  = '%(asctime)s - %(filename)s - %(funcName)s - %(message)s'
+    _log_level  = config.get("logging", "level", fallback="DEBUG")
     logging.basicConfig(
-        level=getattr(logging, _log_level, logging.DEBUG),
-        format=log_format,
-        handlers=[
-            logging.FileHandler(log_path),
-            logging.StreamHandler(sys.stdout)
-        ])
+        level   = getattr(logging, _log_level, logging.DEBUG),
+        format  = log_format,
+        handlers= [logging.FileHandler(log_path),
+                   logging.StreamHandler(sys.stdout)])
+    logging.getLogger('matplotlib').setLevel(logging.WARNING)
+    logging.getLogger('graphviz').setLevel(logging.WARNING)
     return logging.getLogger(__name__)
 
+if __name__ == "__main__":
+    pass

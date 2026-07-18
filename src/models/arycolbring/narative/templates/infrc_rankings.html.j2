@@ -1,0 +1,83 @@
+{# rankings.html.j2 — Predictions Table with confidence badges #}
+
+<div id="page-rankings" class="page-content">
+
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-trophy"></i></span>
+            Top Predictions
+            {% if total_rankings > 0 %}
+            <span class="table-badge">{{ total_rankings }} predictions</span>
+            {% endif %}
+        </div>
+
+        {% if rankings and total_rankings > 0 %}
+        <div class="table-card">
+            <div class="table-header">
+                <h3><i class="fas fa-list"></i> Prediction Results <span class="table-badge">{{ total_rankings }} rows</span></h3>
+                <div class="table-actions">
+                    <button class="btn btn-primary" onclick="exportTableCSV()"><i class="fas fa-download"></i> Export CSV</button>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table class="data-table rankings-table" id="predictionsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>User ID</th>
+                            <th>Item ID</th>
+                            <th>Score</th>
+                            <th>Rank</th>
+                            <th>Confidence</th>
+                        </tr>
+                        <tr class="filter-row">
+                            <th></th>
+                            <th><input type="text" class="table-filter" data-column="user_id" placeholder="Filter..."></th>
+                            <th><input type="text" class="table-filter" data-column="item_id" placeholder="Filter..."></th>
+                            <th><input type="text" class="table-filter" data-column="score" placeholder="e.g., > 0.8"></th>
+                            <th><input type="text" class="table-filter" data-column="rank" placeholder="e.g., <= 5"></th>
+                            <th><input type="text" class="table-filter" data-column="confidence" placeholder="High/Med/Low"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for pred in rankings[:100] %}
+                        {% set score = pred.get('score', 0) %}
+                        <tr>
+                            <td>
+                                <span class="rank-badge {% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% else %}rank-default{% endif %}">
+                                    {{ loop.index }}
+                                </span>
+                            </td>
+                            <td data-column="user_id">{{ pred.get('user_id', 'N/A') }}</td>
+                            <td data-column="item_id">{{ pred.get('item_id', 'N/A') }}</td>
+                            <td data-column="score" class="score-cell">{{ "%.4f" | format(score) }}</td>
+                            <td data-column="rank">{{ pred.get('rank', 'N/A') }}</td>
+                            <td data-column="confidence">
+                                {% if score >= 0.8 %}
+                                    <span class="badge-confidence badge-high"><i class="fas fa-circle-check"></i> High</span>
+                                {% elif score >= 0.5 %}
+                                    <span class="badge-confidence badge-medium"><i class="fas fa-circle-exclamation"></i> Medium</span>
+                                {% else %}
+                                    <span class="badge-confidence badge-low"><i class="fas fa-circle-xmark"></i> Low</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if total_rankings > 100 %}
+            <div style="text-align:center;padding:12px;color:var(--text-muted);font-size:0.8rem;">
+                Showing 100 of {{ total_rankings }} predictions
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="chart-panel" style="text-align:center;padding:48px;">
+            <i class="fas fa-inbox" style="font-size:2rem;color:var(--text-muted);margin-bottom:12px;display:block;"></i>
+            <p style="color:var(--text-muted);">No prediction data available.</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>

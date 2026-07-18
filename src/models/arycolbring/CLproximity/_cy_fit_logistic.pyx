@@ -30,16 +30,18 @@ def fit_logistic(CSRMatrix item_features,
                  double learning_rate,
                  double item_alpha,
                  double user_alpha,
-                 int num_threads):
+                 int num_threads,
+                 bint verbose=False):
     """
     One epoch of logistic-loss collaborative filtering.
 
     Each worker thread allocates its own (user_repr, it_repr) buffers.
     A shared OMP lock serialises the periodic full-regularisation flush.
     """
-    fprintf(stderr,
-            b"[DEBUG] fit_logistic: no_examples=%d num_threads=%d\n",
-            Y.shape[0], num_threads)
+    if verbose:
+        fprintf(stderr,
+                b"[DEBUG] fit_logistic: no_examples=%d num_threads=%d\n",
+                Y.shape[0], num_threads)
 
     cdef int i, row, user_id, item_id, no_examples
     cdef double prediction, loss
@@ -56,7 +58,8 @@ def fit_logistic(CSRMatrix item_features,
         return
 
     omp_init_lock(&reg_lock)
-    fprintf(stderr, b"[DEBUG] fit_logistic: OMP lock initialised\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] fit_logistic: OMP lock initialised\n")
 
     with nogil, parallel(num_threads=num_threads):
         user_repr = <flt*>malloc(sizeof(flt) * (model.no_components + 1))
@@ -104,7 +107,6 @@ def fit_logistic(CSRMatrix item_features,
         free(it_repr)
 
     omp_destroy_lock(&reg_lock)
-
     regularize(model, item_alpha, user_alpha)
-
-    fprintf(stderr, b"[DEBUG] fit_logistic: epoch complete\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] fit_logistic: epoch complete\n")

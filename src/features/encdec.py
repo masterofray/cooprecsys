@@ -31,8 +31,6 @@ from copy      import deepcopy
 from typing    import Dict, List, Optional, Any, Union
 from sklearn.preprocessing import LabelEncoder
 
-from pdb import set_trace
-
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))
 from configs  import logger, _cfg
@@ -202,7 +200,6 @@ class LabelEncoderManager(object):
         if not path.exists():
             raise FileNotFoundError(f"Encoder file not found: {path}")
         logger.info(f"Loading encoders from: {path}")
-        #set_trace()
         with open(path, 'rb') as file:
             encoder_data     = cp.load(file)
         self.encoders        = encoder_data["encoders"]

@@ -8,9 +8,15 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-04-30"
+__created__    = "2026-05-30"
 
-from .dictjson import Dict2Json, FLmiss
-from .lostfound import latest_found, FileCopier
 
-__all__ = ['Dict2Json', 'latest_found', 'FileCopier']
+from .dictjson           import Dict2Json, FLmiss
+from .lostfound          import latest_found, FileCopier
+from .columns_identifier import DetectReco_Identifier
+
+__all__ = ['Dict2Json',
+           'FLmiss',
+           'latest_found',
+           'FileCopier',
+           'DetectReco_Identifier']

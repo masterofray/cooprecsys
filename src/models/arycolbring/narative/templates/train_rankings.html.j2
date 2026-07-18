@@ -1,0 +1,75 @@
+{# rankings.html.j2 — Rankings page content #}
+
+<div id="page-rankings" class="page-content">
+
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-trophy"></i></span>
+            Top {{ scorecards | length }} Predictions ({{ model_type }})
+        </div>
+
+        <div class="table-card">
+            <div class="table-header">
+                <h3><i class="fas fa-list"></i> Ranking Results <span class="table-badge">{{ scorecards | length }} rows</span></h3>
+                <div class="table-actions">
+                    <button class="btn btn-primary" onclick="exportTableCSV()"><i class="fas fa-download"></i> Export CSV</button>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table class="data-table rankings-table" id="rankingsTable">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Metric</th>
+                            <th>Value</th>
+                            <th>Type</th>
+                        </tr>
+                        <tr class="filter-row">
+                            <th></th>
+                            <th><input type="text" class="table-filter" data-column="metric" placeholder="Filter..."></th>
+                            <th><input type="text" class="table-filter" data-column="value" placeholder="e.g., > 0.5"></th>
+                            <th><input type="text" class="table-filter" data-column="type" placeholder="Filter..."></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for card in scorecards %}
+                        <tr>
+                            <td>
+                                <span class="rank-badge {% if loop.index == 1 %}rank-1{% elif loop.index == 2 %}rank-2{% elif loop.index == 3 %}rank-3{% else %}rank-default{% endif %}">
+                                    {{ loop.index }}
+                                </span>
+                            </td>
+                            <td data-column="metric">{{ card.label }}</td>
+                            <td data-column="value">{{ card.value }}</td>
+                            <td data-column="type">{{ card.sub }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Data Statistics -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-chart-pie"></i></span>
+            Data Statistics
+        </div>
+
+        <div class="cards-row">
+            {% set ds_colors = ['blue','green','purple','orange','cyan'] %}
+            {% set ds_icons = ['👥','📦','🔗','📉','📈'] %}
+            {% for stat in stat_minis %}
+            <div class="scorecard" data-color="{{ ds_colors[loop.index0 % 5] }}">
+                <div class="scorecard-icon">{{ ds_icons[loop.index0 % 5] }}</div>
+                <div class="scorecard-body">
+                    <div class="scorecard-label">{{ stat.label }}</div>
+                    <div class="scorecard-value">{{ stat.value }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>

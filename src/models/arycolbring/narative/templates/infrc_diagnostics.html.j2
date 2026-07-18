@@ -1,0 +1,87 @@
+{# diagnostics.html.j2 — KPI Cards, Metrics Detail #}
+
+<div id="page-diagnostics" class="page-content">
+
+    <!-- KPI Section -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-medal"></i></span>
+            Key Performance Indicators
+        </div>
+
+        <div class="kpi-grid">
+            {% for metric_name, metric_value in metrics.items() %}
+            <div class="kpi-card">
+                <div class="kpi-label">{{ metric_name.replace('_', ' ') | title }}</div>
+                <div class="kpi-value">{{ "%.4f" | format(metric_value) if metric_value is number else metric_value }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Detailed Metrics Table -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-table-list"></i></span>
+            Detailed Metrics
+        </div>
+
+        <div class="table-card">
+            <div class="table-scroll">
+                <table class="data-table metrics-detail-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>Value</th>
+                            <th>Category</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for metric_name, metric_value in metrics.items() %}
+                        <tr>
+                            <td><strong>{{ metric_name.replace('_', ' ') | title }}</strong></td>
+                            <td>{{ "%.6f" | format(metric_value) if metric_value is number else metric_value }}</td>
+                            <td>
+                                {% if 'precision' in metric_name or 'recall' in metric_name or 'ndcg' in metric_name or 'auc' in metric_name or 'mrr' in metric_name %}
+                                    <span class="badge-confidence badge-high">Ranking</span>
+                                {% elif 'latency' in metric_name or 'qps' in metric_name or 'throughput' in metric_name %}
+                                    <span class="badge-confidence badge-medium">Performance</span>
+                                {% elif 'coverage' in metric_name %}
+                                    <span class="badge-confidence badge-high">Coverage</span>
+                                {% else %}
+                                    <span class="badge-confidence badge-low">Other</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inference Statistics -->
+    {% if inference_statistics %}
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-chart-pie"></i></span>
+            Inference Statistics
+        </div>
+
+        <div class="cards-row">
+            {% set ds_colors = ['blue','green','orange','purple'] %}
+            {% set ds_icons = ['fas fa-bullseye','fas fa-users','fas fa-clock','fas fa-shield-halved'] %}
+            {% for stat in stat_minis %}
+            <div class="scorecard" data-color="{{ ds_colors[loop.index0 % 4] }}">
+                <div class="scorecard-icon"><i class="{{ ds_icons[loop.index0 % 4] }}"></i></div>
+                <div class="scorecard-body">
+                    <div class="scorecard-label">{{ stat.label }}</div>
+                    <div class="scorecard-value">{{ stat.value }}</div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>

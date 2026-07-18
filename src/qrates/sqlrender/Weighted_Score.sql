@@ -1,0 +1,81 @@
+WITH WRData AS (
+    SELECT
+        "{{ user_col }}" AS uid,
+        "{{ item_col }}" AS iid,
+        COUNT(*) AS freq,
+        SUM(CAST("{{ quantity_col }}" AS DOUBLE)) AS total_qty
+        {% if total_price_col %}
+        ,SUM(CAST("{{ total_price_col }}" AS DOUBLE)) AS total_spend
+        {% endif %}
+        {% if discount_col %}
+        ,1.0 - AVG(CAST("{{ discount_col }}" AS DOUBLE)) AS loyalty
+        {% endif %}
+        {% if date_col %}
+        ,MAX(CAST("{{ date_col }}" AS DATE)) AS last_date
+        {% endif %}
+    FROM
+        FirstData
+    GROUP BY
+        "{{ user_col }}", "{{ item_col }}"
+)
+
+{% if date_col %}
+,Recency_Weighted AS (
+    SELECT *,
+        DATEDIFF('day', last_date,
+            MAX(last_date) OVER ()) AS days_ago,
+        MAX(DATEDIFF('day', last_date,
+            MAX(last_date) OVER ())) OVER () AS max_days_ago
+    FROM WRData
+)
+{% endif %}
+
+,signals AS (
+    SELECT
+        uid, iid,
+        LN(1.0 + CAST(freq AS DOUBLE)) AS log_freq,
+        LN(1.0 + total_qty) AS log_qty
+        {% if total_price_col %}
+        ,LN(1.0 + total_spend) AS log_spend
+        {% endif %}
+        {% if discount_col %}
+        ,GREATEST(0.0, LEAST(1.0, loyalty)) AS loyalty
+        {% endif %}
+        {% if date_col %}
+        ,CASE
+            WHEN max_days_ago = 0 THEN 1.0
+            ELSE 1.0 - CAST(days_ago AS DOUBLE)
+                     / CAST(max_days_ago AS DOUBLE)
+        END
+            AS recency
+        {% endif %}
+    FROM {% if date_col %}Recency_Weighted{% else %}WRData{% endif %}
+)
+
+,normalized AS (
+    SELECT
+        uid, iid
+        {% if discount_col %},loyalty{% endif %}
+        {% if date_col %},recency{% endif %}
+        ,(log_freq - MIN(log_freq) OVER ())
+            / NULLIF(MAX(log_freq) OVER ()
+                   - MIN(log_freq) OVER (), 0.0)   AS n_freq
+        ,(log_qty - MIN(log_qty) OVER ())
+            / NULLIF(MAX(log_qty) OVER ()
+                   - MIN(log_qty) OVER (), 0.0)    AS n_qty
+        {% if total_price_col %}
+        ,(log_spend - MIN(log_spend) OVER ())
+            / NULLIF(MAX(log_spend) OVER ()
+                   - MIN(log_spend) OVER (), 0.0)  AS n_spend
+        {% endif %}
+    FROM signals
+)
+
+SELECT
+    uid AS "{{ user_col }}",
+    iid AS "{{ item_col }}",
+    CAST({{ score_expression }} AS DOUBLE) AS raw_score
+FROM
+    normalized
+ORDER BY 
+    "{{ user_col }}", "{{ item_col }}";

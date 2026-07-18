@@ -10,6 +10,7 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-25"
 
+import ast
 import sys
 from pathlib import Path
 from configparser import ConfigParser
@@ -23,4 +24,28 @@ _cfg.read(LocDir / "configuration.ini")
 from .fallback_config import FallbackConfig
 from .lgbm_config     import LTRConfig
 from .logged          import setup_logging
-logger = setup_logging()
+logger  = setup_logging()
+verbose = True if (_cfg.get('logging', 'level')).upper() in ['DEBUG', 'INFO'] else False
+
+def _cfglist(Config  : object, 
+             section : str, 
+             option  : str,
+            ):
+    try:
+        raws   = Config.get(section, option)
+        parsed = ast.literal_eval(raws)
+        if isinstance(parsed, (list, tuple)):
+            return parsed
+        else:
+            logger.error(f"Value from [{section}] -> '{option}'"
+                          "is not a list or tuple as valid format.")
+            raise ValueError()
+    except configparser.NoSectionError:
+        logger.error(f"Section [{section}] is not found.")
+        return
+    except configparser.NoOptionError:
+        logger.error(f"Option '{option}' is not found at [{section}].")
+        return
+    except (ValueError, SyntaxError) as arc:
+        logger.error(f"Became error when try to parse : {arc}")
+        return

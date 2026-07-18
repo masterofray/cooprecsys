@@ -28,7 +28,7 @@ import scipy.sparse as sp
 from   tqdm.auto import tqdm
 from   pathlib   import Path
 from   typing    import Optional
-from   .Scaffold import AryColBringBase, cydtype
+from   .scaffold import AryColBringBase, cydtype
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[1]))
@@ -37,7 +37,7 @@ from CLproximity import (CSRMatrix, fit_logistic,
                          fit_warp, fit_bpr, fit_warp_kos)
 
 sys.path.append(str(LocDir.parents[3]))
-from configs import _cfg, logger
+from configs import _cfg, logger, verbose
 
 
 
@@ -216,7 +216,8 @@ class AryColBringTrainer(AryColBringBase):
                      self._item_alpha,
                      self._user_alpha,
                      num_threads,
-                     self._random_state)
+                     self._random_state,
+                     verbose)
 
         elif loss == "bpr":
             fit_bpr(cy_item,
@@ -232,7 +233,8 @@ class AryColBringTrainer(AryColBringBase):
                     self._item_alpha,
                     self._user_alpha,
                     num_threads,
-                    self._random_state)
+                    self._random_state,
+                    verbose)
 
         elif loss == "warp-kos":
             fit_warp_kos(cy_item,
@@ -247,7 +249,8 @@ class AryColBringTrainer(AryColBringBase):
                          self._k,
                          self._n,
                          num_threads,
-                         self._random_state)
+                         self._random_state,
+                         verbose)
 
         else:  # logistic
             fit_logistic(cy_item,
@@ -261,7 +264,8 @@ class AryColBringTrainer(AryColBringBase):
                          self._learning_rate,
                          self._item_alpha,
                          self._user_alpha,
-                         num_threads)
+                         num_threads,
+                         verbose)
 
 
     # ── inference methods — not implemented on the trainer ───────────────────

@@ -1,0 +1,118 @@
+{# diagnostics.html.j2 — Diagnostics page content #}
+
+<div id="page-diagnostics" class="page-content">
+
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-microscope"></i></span>
+            Interactive Feature Diagnostics
+        </div>
+        <hr class="section-divider">
+
+        <div class="diagnostic-grid">
+            <!-- Metrics Comparison: @5 vs @10 vs @20 -->
+            <div class="diagnostic-panel">
+                <div class="diagnostic-panel-title">Metrics Comparison: @5 vs @10 vs @20</div>
+                <div class="chartjs-container">
+                    {% set grouped_labels = ['Precision', 'Recall', 'NDCG', 'CCC', 'ILD', 'Novelty'] %}
+                    {% set grouped_keys = ['precision', 'recall', 'NDCG', 'CCC', 'ILD', 'Novelty'] %}
+                    <canvas id="metricsComparisonChart" class="js-grouped-bar-chart"
+                            data-labels='{{ grouped_labels | tojson }}'
+                            data-datasets='[
+                                {"label":"@5","data":[{% for k in grouped_keys %}{{ "%.6f" | format(metrics.get(k + "_at_5", 0)) }}{% if not loop.last %},{% endif %}{% endfor %}]},
+                                {"label":"@10","data":[{% for k in grouped_keys %}{{ "%.6f" | format(metrics.get(k + "_at_10", 0)) }}{% if not loop.last %},{% endif %}{% endfor %}]},
+                                {"label":"@20","data":[{% for k in grouped_keys %}{{ "%.6f" | format(metrics.get(k + "_at_20", 0)) }}{% if not loop.last %},{% endif %}{% endfor %}]}
+                            ]'></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Detailed Metrics Table -->
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-table-list"></i></span>
+            Detailed Metrics
+        </div>
+
+        <div class="table-card">
+            <div class="table-scroll">
+                <table class="data-table metrics-detail-table">
+                    <thead>
+                        <tr>
+                            <th>Metric</th>
+                            <th>@5</th>
+                            <th>@10</th>
+                            <th>@20</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set metric_names = ['Precision', 'Recall', 'NDCG', 'CCC', 'ILD', 'Novelty'] %}
+                        {% set metric_keys = ['precision', 'recall', 'NDCG', 'CCC', 'ILD', 'Novelty'] %}
+                        {% for name in metric_names %}
+                        {% set mk = metric_keys[loop.index0] %}
+                        <tr>
+                            <td><strong>{{ name }}</strong></td>
+                            <td>{{ "%.4f" | format(metrics.get(mk + '_at_5', 0)) }}</td>
+                            <td>{{ "%.4f" | format(metrics.get(mk + '_at_10', 0)) }}</td>
+                            <td>{{ "%.4f" | format(metrics.get(mk + '_at_20', 0)) }}</td>
+                        </tr>
+                        {% endfor %}
+                        <tr>
+                            <td><strong>AUC</strong></td>
+                            <td colspan="3">{{ "%.4f" | format(metrics.get('auc', 0)) }}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>MRR</strong></td>
+                            <td colspan="3">{{ "%.4f" | format(metrics.get('mrr', 0)) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Training History -->
+    {% if history and history.training %}
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-clock-rotate-left"></i></span>
+            Training History
+        </div>
+
+        <div class="table-card">
+            <div class="table-scroll">
+                <table class="data-table history-table">
+                    <thead>
+                        <tr>
+                            <th>Run</th>
+                            <th>Epochs</th>
+                            <th>Threads</th>
+                            <th>Training Time (s)</th>
+                            <th>Start Time</th>
+                            <th>End Time</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for run in history.training %}
+                        <tr>
+                            <td>
+                                <span class="rank-badge {% if loop.index == 1 %}rank-1{% else %}rank-default{% endif %}">
+                                    {{ loop.index }}
+                                </span>
+                            </td>
+                            <td>{{ run.epochs }}</td>
+                            <td>{{ run.num_threads }}</td>
+                            <td>{{ "%.3f" | format(run.training_time_sec) }}</td>
+                            <td>{{ run.start_time }}</td>
+                            <td>{{ run.end_time }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+</div>

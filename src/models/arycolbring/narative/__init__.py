@@ -10,7 +10,8 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-31"
 
-from .render_training  import generate_training_report  as genAdvisor
-from .render_inference import generate_inference_report as genReasoner
+from .advirender import generate_training_report  as genAdvisor
+from .rearender  import generate_inference_report as genReasoner
+from .rensupport import OUTPUT_DIR
 
 __all__ = ["genAdvisor", "genReasoner"]

@@ -73,7 +73,7 @@ def MRR_rank(
                        item_features       = item_features,
                        num_threads         = num_threads,
                        check_intersections = check_intersections,
-                     548795  step_label          = "MRR")
+                       step_label          = "MRR")
     with tqdm(total       = 2, 
               desc        = "Reciprocal Rank",
               colour      = _cfg.get('tqdm', 'colour'),
@@ -139,7 +139,8 @@ def NDCG_rank(
         dcg_contrib           = np.zeros_like(ranks.data, dtype=np.float32)
         dcg_contrib[in_top_k] = 1.0 / np.log2(ranks.data[in_top_k] + 2.0)
         ranks.data            = dcg_contrib
-        dcg                   = np.squeeze(np.array(ranks.sum(axis=1).todense()))
+        #dcg                  = np.squeeze(np.array(ranks.sum(axis=1).todense()))
+        dcg                   = np.squeeze(np.asarray(ranks.sum(axis=1)))
         pbar.update(1)
 
         #Normalisasi

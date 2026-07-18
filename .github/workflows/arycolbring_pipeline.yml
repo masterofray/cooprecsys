@@ -1,0 +1,109 @@
+name: AryColBring Smoke Test Pipeline
+
+on:
+  push:
+    branches:
+      - 'dev*'
+  pull_request:
+    branches:
+      - 'dev*'
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: 'Jalankan Smoke Test secara manual'
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  # JOB 1: Sukses Terisolasi untuk Keamanan Kode
+  security-scan:
+    name: Run Bandit Security Analysis
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.message, 'Run Smoke AryColbring') || 
+      (github.event_name == 'workflow_dispatch' && inputs.run_smoke == true)
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run Bandit Security Analysis
+        run: |
+          echo "=========================================================================="
+          echo "Executing Bandit for high security only"
+          echo "=========================================================================="
+          # uvx memisahkan eksekusi dari dependensi pyproject.toml yang sedang konflik
+          uvx bandit \
+            -r ./src \
+            -lll \
+            --confidence-level high \
+            -s B101,B311,B608
+
+  # JOB 2: Uji Coba Multi-Versi Python (3.10 - 3.13)
+  smoke-test:
+    name: Smoke Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.message, 'Run Smoke AryColbring') || 
+      (github.event_name == 'workflow_dispatch' && inputs.run_smoke == true)
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      - name: Install System Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      - name: Install Dependencies with uv
+        run: |
+          echo "=========================================================================="
+          echo "Installing environment dependencies via uv."
+          echo "=========================================================================="
+          uv pip install --system ".[dev]"
+
+      - name: Compile Cython Extensions
+        run: |
+          echo "=========================================================================="
+          echo "Compiling Cython extension modules."
+          echo "=========================================================================="
+          cd ./src/models/arycolbring
+          bash cysetup.sh
+
+      - name: Execute Automated Smoke Test
+        run: |
+          echo "=========================================================================="
+          echo "Launching AryColBring Model Training Smoke Test."
+          echo "=========================================================================="
+          export PYTHONPATH="${{ github.workspace }}"
+          python test/arycolbring_tests/t01_advisor.py \
+            -d ./data/sampledata.parquet \
+            -t 0.25 \
+            -e 50 \
+            -n "Test experiment Python ${{ matrix.python-version }}"
+          echo "=========================================================================="
+          echo "Smoke test pipeline completed successfully for Python ${{ matrix.python-version }}."
+          echo "=========================================================================="

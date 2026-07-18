@@ -1,0 +1,103 @@
+name: CoopRecSys Package Publisher
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+
+permissions:
+  contents: read
+
+jobs:
+  build-wheels:
+    if: startsWith(github.event.head_commit.message, 'release:')
+    name: Build wheel (${{ matrix.python-tag }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-tag: [cp38, cp39, cp310, cp311, cp312, cp313, cp314]
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Prepare Build Environment
+        run: chmod +x ./src/models/arycolbring/cysetup.sh
+
+      - name: Build wheel for ${{ matrix.python-tag }}
+        uses: pypa/cibuildwheel@v3.2.0     # pin >=3.0 for cp314 support
+        env:
+          CIBW_BUILD: "${{ matrix.python-tag }}-manylinux_x86_64"
+          CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
+          CIBW_ARCHS_LINUX: "x86_64"
+          CIBW_BEFORE_BUILD: "bash ./src/models/arycolbring/cysetup.sh"
+          CIBW_ENVIRONMENT_LINUX: >
+            CFLAGS='-Wno-array-bounds -Wno-format'
+            CXXFLAGS='-Wno-array-bounds -Wno-format'
+
+      - name: Verify Built Wheel
+        run: ls -lah wheelhouse/
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cooprecsys-wheel-${{ matrix.python-tag }}
+          path: wheelhouse/*.whl
+          retention-days: 90
+
+  test-install:
+    name: Test install (Python ${{ matrix.python-version }})
+    needs: build-wheels
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - name: Download all built wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: wheelhouse
+          merge-multiple: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install and import
+        run: |
+          python -m pip install --upgrade pip
+          pip install --no-index --find-links=wheelhouse/ cooprecsys
+          python -c "import cooprecsys; print('OK, Python ${{ matrix.python-version }}:', cooprecsys.__file__)"
+
+  publish:
+    name: Validate and Publish to PyPI
+    needs: test-install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all built wheels
+        uses: actions/download-artifact@v4
+        with:
+          path: wheelhouse
+          merge-multiple: true
+
+      - name: Validate Package
+        run: |
+          python -m pip install --upgrade pip twine
+          twine check wheelhouse/*
+          ls -lah wheelhouse/
+
+      - name: Publish To PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload --skip-existing wheelhouse/*
+
+      - name: Release Summary
+        run: |
+          echo "=================================================="
+          echo "Release Completed"
+          echo "Wheels built for Python 3.8-3.14 and published to PyPI."
+          echo "=================================================="

@@ -174,15 +174,12 @@ def load_data(
                 table_name   = table_name,
                 query        = query,
                 threads      = threads,
-                memory_limit = memory_limit,
-            )
+                memory_limit = memory_limit)
 
         else:
             logger.error(f"Unsupported extension: {ext}")
-            raise ValueError(
-                f"Unsupported format: {ext}. "
-                f"Supported: .csv .parquet .db .duckdb"
-            )
+            raise ValueError(f"Unsupported format: {ext}. "
+                             f"Supported: .csv .parquet .db .duckdb")
 
         # --------------------------------------------------
         # Sampling

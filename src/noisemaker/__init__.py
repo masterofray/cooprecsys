@@ -10,7 +10,14 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-30"
 
-from .flex import _shuffle as datashuffle
-from .flex import coo_ttsplit, user_based_train_test_split
+from .ersetz     import ExchangeResult
+from .ostensible import extended_norm_exchange as exnorex
+from .flex       import coo_ttsplit
+from .flex       import _shuffle as datashuffle
+from .flex       import user_based_train_test_split as usertts
 
-__all__ = ['datashuffle', 'coo_ttsplit', 'user_based_train_test_split']
+__all__ = ['ExchangeResult',
+           'exnorex',
+           'datashuffle',
+           'coo_ttsplit',
+           'usertts']

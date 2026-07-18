@@ -36,16 +36,18 @@ def fit_warp(
         double item_alpha,
         double user_alpha,
         int num_threads,
-        random_state):
+        random_state,
+        bint verbose = False):
     """
     One epoch of WARP-loss collaborative filtering.
 
     We keep the outer loop sequential; inner WARP loop is `nogil` but not `prange`.
     This avoids reduction‑variable errors on `sampled` and `sampled_local`.
     """
-    fprintf(stderr,
-            b"[DEBUG] fit_warp: no_examples=%d num_threads=%d\n",
-            Y.shape[0], num_threads)
+    if verbose:
+        fprintf(stderr,
+                b"[DEBUG] fit_warp: no_examples=%d num_threads=%d\n",
+                Y.shape[0], num_threads)
 
     cdef int i, no_examples, user_id, positive_item_id, negative_item_id
     cdef int sampled, sampled_local, row, local_seed_index
@@ -69,7 +71,8 @@ def fit_warp(
         return
 
     omp_init_lock(&reg_lock)
-    fprintf(stderr, b"[DEBUG] fit_warp: OMP lock initialised\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] fit_warp: OMP lock initialised\n")
 
     user_repr   = <flt*>malloc(sizeof(flt) * (model.no_components + 1))
     pos_it_repr = <flt*>malloc(sizeof(flt) * (model.no_components + 1))
@@ -145,9 +148,8 @@ def fit_warp(
     free(user_repr)
     free(pos_it_repr)
     free(neg_it_repr)
-
     omp_destroy_lock(&reg_lock)
-
     regularize(model, item_alpha, user_alpha)
+    if verbose:
+        fprintf(stderr, b"[DEBUG] fit_warp: epoch complete\n")
 
-    fprintf(stderr, b"[DEBUG] fit_warp: epoch complete\n")

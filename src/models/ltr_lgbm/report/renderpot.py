@@ -51,7 +51,6 @@ OUTPUT_DIR   = (LocDir.parents[4] / rpath).parents[0]
 DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
 
-from pdb import set_trace
 def copymaps(mapdict : Dict, 
              goal    : Path,
              dirlist : List = ['css', 'js', 'icon'],

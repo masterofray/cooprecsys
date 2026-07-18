@@ -10,6 +10,12 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-30"
 
+'''
+This script flex.py was for group split train test
+that for COO or CSR matrix data. You could not use
+train test split in sklearn usually, so this purpose
+to be created.
+'''
 
 import gc
 import sys
@@ -75,8 +81,7 @@ def coo_ttsplit(interactions: sp.spmatrix,
               ncols       = _cfg.getint('tqdm', 'ncols'),
               bar_format  = _cfg.get('tqdm', 'BarFormats'),
               unit        = 'process',
-              mininterval = 0.1)
-              as pbar:
+              mininterval = 0.1) as pbar:
         pbar.set_postfix_str("converting to COO")
         interactions = interactions.tocoo()
         shape = interactions.shape
@@ -146,7 +151,7 @@ def user_based_train_test_split(
     train_rows, train_cols, train_data = list(), list(), list()
     test_rows,  test_cols,  test_data  = list(), list(), list()
 
-    for user_id in tqdm(range(n_users)
+    for user_id in tqdm(range(n_users),
                         desc        = "User-based split",
                         colour      = _cfg.get('tqdm', 'colour'),
                         ncols       = _cfg.getint('tqdm', 'ncols'),
@@ -197,4 +202,4 @@ def user_based_train_test_split(
 
 
 if __name__ == "__main__":
-    pass
+    print('This is Flex!')

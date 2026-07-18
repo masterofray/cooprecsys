@@ -20,6 +20,8 @@ from .feat_utils     import (prepare_inference_data,
                              load_feature_columns, 
                              load_encoders,
                              Inference_DataSplit,
+                             Normalize_LargeSeries,
+                             Filter_TopN,
                              TrueString)
 
 __all__ = [
@@ -33,5 +35,7 @@ __all__ = [
     "load_group_sizes",
     "load_feature_columns",
     "load_encoders",
+    'Normalize_LargeSeries',
+    'Filter_TopN',
     "TrueString",
     ]
