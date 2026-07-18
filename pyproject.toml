@@ -10,7 +10,7 @@ build-backend  = "setuptools.build_meta"
 
 [project]
 name           = "cooprecsys"
-version        = "0.0.1rc3"
+version        = "0.0.2"
 description    = """
 CoopRecSys (Koperasi Recommender System) is a \
 high-performance recommendation engine designed \
@@ -54,7 +54,7 @@ dependencies    = ["cloudpickle>=3.1.1",
                    "matplotlib>=3.10.8",
                    "numba>=0.60.0",
                    "optuna>=4.4.0",
-                   "pandas>=2.2.3,<3.0.0",
+                   "pandas>=2.2.0,<3.0.4",
                    "psutil>=5.9.0",
                    "pyarrow>=19.0.0",
                    "scann>=1.4.2",

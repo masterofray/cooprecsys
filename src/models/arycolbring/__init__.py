@@ -13,8 +13,18 @@ __created__    = "2026-06-04"
 from .trainer      import AryColBringModelTrainer, RunTrainer
 from .inference    import AryColBringInference
 from .reasoner2api import InferenceService
+from .assist       import (norm_exchange,
+                           fileload_interactions,
+                           describe_interactions,
+                           validate_sparse_matrix)
+
 
 __all__ = ['AryColBringModelTrainer', 
            'RunTrainer',
            'AryColBringInference',
-           'InferenceService']
+           'InferenceService',
+           'norm_exchange',
+           'fileload_interactions',
+           'describe_interactions',
+           'validate_sparse_matrix',
+           ]

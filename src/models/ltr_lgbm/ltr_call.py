@@ -47,10 +47,10 @@ from typing      import Any, Dict, List, Optional
 
 LocDir = Path(__file__).resolve()
 sys.path.append(str(LocDir.parents[0]))
-from ftcore      import (BayesianTuner, MLflowMonitor, 
+from .ftcore      import (BayesianTuner, MLflowMonitor, 
                          Visualizer, MLPstyle)
-from inout       import LTRTrainer, LTRInference
-from dataprepared import data_aftermath
+from .inout       import LTRTrainer, LTRInference
+from .dataprepared import data_aftermath
 
 sys.path.append(str(LocDir.parents[2]))
 from prepare     import Dict2Json

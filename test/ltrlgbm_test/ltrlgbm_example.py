@@ -29,7 +29,7 @@ from sklearn.model_selection import GroupShuffleSplit
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
 from configs import LTRConfig, logger
-from models.ltr_lgbm import lgbm_fit_transform
+from models  import lgbm_fit_transform
 
 def maintest():
     logger.info("=" * 60)

@@ -39,8 +39,8 @@ from db       import duckdb_connection
 from features import load_data
 from prepare  import DetectReco_Identifier
 from qrates   import GenQuasi_Lazy, DMD
-from models.arycolbring.assist import norm_exchange
-from models.arycolbring import AryColBringModelTrainer as ACBmodel
+from models   import norm_exchange
+from models   import AryColBringModelTrainer as ACBmodel
 
 
 class AryColBring_Train_Test:

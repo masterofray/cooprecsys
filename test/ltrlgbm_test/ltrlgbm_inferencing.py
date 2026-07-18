@@ -15,7 +15,7 @@ from pathlib  import Path
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
 sys.path.append(str(LocDir))
-from models.ltr_lgbm import InferenceTest
+from models import InferenceTest
 
 def inference_test():
     Args      = {'Datapath'  : LocDir.parents[0]/'data'/'sampledata.parquet',
