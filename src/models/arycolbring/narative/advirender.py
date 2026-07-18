@@ -25,7 +25,6 @@ Generates comprehensive HTML reports for the training phase including:
 Static assets are copied to the output directory so the HTML is self-contained.
 """
 
-import sys
 import json
 import math
 import shutil
@@ -41,9 +40,9 @@ from .rensupport import (Tplatedir, advdir, OUTPUT_DIR,
                          safe_float, detect_gauge_metric)
 
 LocDir    = Path(__file__).parent.resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs import logger, _cfg
-from assets  import Gen_MiniStats
+#sys.path.append(str(LocDir.parents[2]))
+from ....configs import logger, _cfg
+from ....assets  import Gen_MiniStats
 
 
 # ================================================================
@@ -263,7 +262,7 @@ if __name__ == "__main__":
         input_path = Path(args.input)
         if not input_path.exists():
             print(f"Error: Input file not found: {input_path}")
-            sys.exit(1)
+            raise FileNotFoundError(f'Not found: {input_path}')
         with open(input_path, "r", encoding="utf-8") as f:
             context_data = json.load(f)
         print(f"Loaded context from: {input_path}")

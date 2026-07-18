@@ -23,21 +23,21 @@ Integrates:
     - Performance monitoring (latency, throughput)
 """
 
-import sys
 import json
 import time
-import numpy as np
-from   pathlib   import Path
-from   tqdm.auto import tqdm
-from   datetime  import datetime
-from   typing    import (Any, Dict, List,
-                         Optional, Tuple, Union)
-from   .inout    import TheReasoner
-from   .narative import genReasoner
+import numpy  as np
+import pandas as pd
+from   pathlib    import Path
+from   tqdm.auto  import tqdm
+from   datetime   import datetime
+from   typing     import (Any, Dict, List,
+                          Optional, Tuple, Union)
+from   .inout     import TheReasoner, AryInfFallBack
+from   .narative  import genReasoner
 
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs import _cfg, logger
+#LocDir = Path(__file__).resolve()
+#sys.path.append(str(LocDir.parents[2]))
+from ...configs import _cfg, logger
 
 
 class AryColBringInference:
@@ -66,8 +66,9 @@ class AryColBringInference:
         self.model_path    = Path(model_path)
         self.num_threads   = num_threads
         self.cache_enabled = cache_enabled
-        self.config        = self._get_config()
-        self.predictor     = self._load_model()
+        self._archive       = self._read_archive()
+        self.config         = self._get_config()
+        self.predictor       = self._load_model()
         self.prediction_cache: Dict[str, float] = dict() if cache_enabled else None
         self.inference_stats = {"n_predictions"    : 0,
                                 "n_users_served"   : 0,
@@ -75,14 +76,17 @@ class AryColBringInference:
                                 "start_time"       : datetime.now().isoformat()}
 
 
-    def _load_model(self) -> TheReasoner:
+    def _read_archive(self) -> np.lib.npyio.NpzFile:
+        """Read the saved .npz archive once and reuse it for config + weights."""
         logger.info("Loading model from: %s", self.model_path)
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model file not found: {self.model_path}")
-        
-        data      = np.load(self.model_path, allow_pickle = True)
-        config    = json.loads(str(data["config"]))
-        predictor = TheReasoner(**config)
+        return np.load(self.model_path, allow_pickle = True)
+
+
+    def _load_model(self) -> TheReasoner:
+        data      = self._archive
+        predictor = TheReasoner(**self.config)
         predictor.item_embeddings = data["item_embeddings"]
         predictor.user_embeddings = data["user_embeddings"]
         predictor.item_biases     = data["item_biases"]
@@ -96,8 +100,7 @@ class AryColBringInference:
     def _get_config(self) -> Dict[str, Any]:
         """Get model configuration."""
         try:
-            data = np.load(self.model_path, allow_pickle = True)
-            return json.loads(str(data["config"]))
+            return json.loads(str(self._archive["config"]))
         except Exception as e:
             logger.warning("Could not load config: %s", e)
             return dict()
@@ -139,13 +142,13 @@ class AryColBringInference:
                     self.prediction_cache[cache_key]))
                 else:
                     uncached_indices.append(i)
-            if len(cached_results) == len(user_ids):
-                results = np.zeros(len(user_ids), dtype = np.float32)
-                for idx, score in cached_results:
-                    results[idx] = score
-                return results
-            
-            # Partial cache - need to compute uncached
+
+            # Seed results with whatever was already cached.
+            results = np.zeros(len(user_ids), dtype = np.float32)
+            for idx, score in cached_results:
+                results[idx] = score
+
+            # Only compute the pairs that weren't cached.
             if uncached_indices:
                 uncached_users  = user_ids[uncached_indices]
                 uncached_items  = item_ids[uncached_indices]
@@ -154,22 +157,12 @@ class AryColBringInference:
                                   item_ids    = uncached_items,
                                   num_threads = self.num_threads)
 
-                # Update cache
                 for idx, score in zip(uncached_indices, uncached_scores):
                     cache_key = f"{user_ids[idx]}_{item_ids[idx]}"
                     self.prediction_cache[cache_key] = float(score)
-                
-                # Merge results
-                results = np.zeros(len(user_ids), dtype=np.float32)
-                for idx, score in cached_results:
                     results[idx] = score
-                for idx, score in zip(uncached_indices, uncached_scores):
-                    results[idx] = score
-                predictions      = results
-            else:
-                predictions = np.array(
-                              [score for _ , score in cached_results], 
-                              dtype = np.float32)
+
+            predictions = results
 
         else:
             # No cache - compute all
@@ -178,7 +171,7 @@ class AryColBringInference:
                           item_ids    = item_ids,
                           num_threads = self.num_threads)
         
-        # Update stats
+        # Update stats (always, regardless of cache hit/miss path)
         latency_ms = (time.perf_counter() - start_time) * 1000
         self.inference_stats["n_predictions"]    += len(user_ids)
         self.inference_stats["total_latency_ms"] += latency_ms
@@ -201,6 +194,7 @@ class AryColBringInference:
         The return is list of tuples, e.g. [(item_id, score), ...]
         sorted by score descending
         """
+        start_time     = time.perf_counter()
         n_total_items  = self.predictor.item_embeddings.shape[0]
         if exclude_items:
             candidates = [i for i in range(n_total_items) if i not in exclude_items]
@@ -262,6 +256,79 @@ class AryColBringInference:
         logger.info("Batch complete with users = %d total = %.2fms avg = %.2fms",
                      len(user_ids), total_latency, avg_latency)
         return results
+
+
+    def clean_recommend(
+        self,
+        user_id         : int,
+        purchase_data   : pd.DataFrame,
+        n_items         : int = 10,
+        user_col        : Optional[str] = None,
+        item_col        : Optional[str] = None,
+        overscan_factor : int = 3,
+        output_format   : str = "duckdb",
+        db_path         : Optional[Union[str, Path]] = None,
+        table_name      : str = "clean_recommendations",
+        ) -> Union[pd.DataFrame, str]:
+        """
+        Rekomendasi Top-N yang sudah dibersihkan dari item yang pernah
+        dibeli user_id, dengan fallback berlapis lewat AryInfFallBack:
+
+        1. Cek riwayat pembelian user_id di purchase_data (kolom user/item
+           terdeteksi otomatis, apapun nama kolomnya).
+        2. Ambil rekomendasi Top-N dari model (di-overscan lebih besar
+           dari n_items supaya ada kandidat cadangan).
+        3. Buang item yang ternyata sudah pernah dibeli user_id.
+        4. Tambal (patch) slot yang kosong dari kandidat cadangan
+           model tadi (item-item peringkat di bawah Top-N asli).
+        5. Kalau kandidat model masih belum cukup untuk menutup n_items,
+           fallback ke algoritma Item-to-Item (cosine similarity atas
+           embedding item hasil training), diseed dari riwayat pembelian.
+        6. Kembalikan sebagai pandas.DataFrame ("dataframe"), atau
+           ekspor ke DuckDB flat-file .db ("duckdb").
+
+        purchase_data   : DataFrame riwayat transaksi (kolom bebas, akan
+                          dideteksi otomatis). user_id/item_id di dalamnya
+                          harus berada di ruang ID yang sama dengan yang
+                          dipakai model (lihat catatan di AryInfFallBack).
+        overscan_factor : Kelipatan n_items yang diminta ke model.predict
+                          untuk membentuk kandidat cadangan (Point 4).
+        output_format   : "dataframe" atau "duckdb".
+        db_path/table_name : hanya dipakai kalau output_format = "duckdb".
+        """
+        if output_format not in ("dataframe", "duckdb"):
+            msg = f"output_format must be 'dataframe' or 'duckdb', got '{output_format}'."
+            logger.error(msg)
+            raise ValueError(msg)
+
+        fallback = AryInfFallBack(
+                   purchase_data   = purchase_data,
+                   item_embeddings = self.predictor.item_embeddings,
+                   user_col        = user_col,
+                   item_col        = item_col)
+
+        n_total_items  = self.predictor.item_embeddings.shape[0]
+        overscan_n     = min(max(n_items * max(overscan_factor, 1), n_items), n_total_items)
+        candidate_pool = self.recommend(user_id = user_id, n_items = overscan_n)
+
+        result_df = fallback.clean_recommendations(
+                    user_id        = user_id,
+                    candidate_pool = candidate_pool,
+                    n_items        = n_items)
+
+        if len(result_df) < n_items:
+            logger.warning(
+            "clean_recommend for user %s only produced %d/%d item(s) even "
+            "after Item-to-Item fallback (catalog may be too small or "
+            "user has bought almost the entire catalog).",
+             user_id, len(result_df), n_items)
+
+        if output_format == "duckdb":
+            return fallback.export_duckdb(
+                   result_df  = result_df,
+                   db_path    = db_path,
+                   table_name = table_name)
+        return result_df
 
 
     def get_metrics(self) -> Dict[str, float]:

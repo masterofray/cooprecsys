@@ -10,19 +10,19 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-07-06"
 
-import sys
+
 import numpy   as np
 from pathlib   import Path
 from tqdm.auto import tqdm
 from typing    import Dict, List, Any
 from jinja2    import Environment, FileSystemLoader, select_autoescape
 
-LocDir     = Path(__file__).parent.resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs   import logger, _cfg
-from assets    import VendorPath
-from prepare   import FileCopier
+#sys.path.append(str(LocDir.parents[2]))
+from ....configs   import logger, _cfg
+from ....assets    import VendorPath
+from ....prepare   import FileCopier
 
+LocDir     = Path(__file__).parent.resolve()
 Tplatedir  = LocDir / "templates"
 advdir     = LocDir / "sttrain"
 readir     = LocDir / "stinferc"
