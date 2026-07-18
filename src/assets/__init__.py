@@ -11,6 +11,8 @@ __status__     = "Development"
 __created__    = "2026-07-06"
 
 
+from .statsrender import Gen_MiniStats
+
 from pathlib  import Path
 assDir = Path(__file__).parent.resolve()
 

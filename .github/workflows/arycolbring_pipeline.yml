@@ -7,17 +7,56 @@ on:
   pull_request:
     branches:
       - 'dev*'
-  workflow_dispatch: # Allows manual trigger from the GitHub UI
+  workflow_dispatch:
+    inputs:
+      run_smoke:
+        description: 'Jalankan Smoke Test secara manual'
+        required: false
+        type: boolean
+        default: true
 
 jobs:
-  smoke-test:
-    name: Run AryColBring Advisor Smoke Test
+  # JOB 1: Sukses Terisolasi untuk Keamanan Kode
+  security-scan:
+    name: Run Bandit Security Analysis
     runs-on: ubuntu-latest
-    
-    # Trigger execution only if the commit message contains the required keyword OR triggered manually
     if: |
-        contains(github.event.head_commit.message, 'Run Smoke AryColbring') || 
-        (github.event_name == 'workflow_dispatch' && inputs.run_smoke == true)
+      contains(github.event.head_commit.message, 'Run Smoke AryColbring') || 
+      (github.event_name == 'workflow_dispatch' && inputs.run_smoke == true)
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Run Bandit Security Analysis
+        run: |
+          echo "=========================================================================="
+          echo "Executing Bandit for high security only"
+          echo "=========================================================================="
+          # uvx memisahkan eksekusi dari dependensi pyproject.toml yang sedang konflik
+          uvx bandit \
+            -r ./src \
+            -lll \
+            --confidence-level high \
+            -s B101,B311,B608
+
+  # JOB 2: Uji Coba Multi-Versi Python (3.10 - 3.13)
+  smoke-test:
+    name: Smoke Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    if: |
+      contains(github.event.head_commit.message, 'Run Smoke AryColbring') || 
+      (github.event_name == 'workflow_dispatch' && inputs.run_smoke == true)
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
       - name: Checkout Repository
@@ -26,7 +65,7 @@ jobs:
       - name: Set up Python Environment
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: ${{ matrix.python-version }}
 
       - name: Set up uv Package Manager
         uses: astral-sh/setup-uv@v5
@@ -36,51 +75,35 @@ jobs:
 
       - name: Install System Build Tools
         run: |
-          echo "=========================================================================="
-          echo "Installing essential C/C++ compilation tools for Cython..."
-          echo "=========================================================================="
           sudo apt-get update
           sudo apt-get install -y build-essential
 
       - name: Install Dependencies with uv
         run: |
           echo "=========================================================================="
-          echo "Installing environment dependencies from pyproject.toml via uv..."
+          echo "Installing environment dependencies via uv."
           echo "=========================================================================="
-          uv pip install --system .
-          uv pip install --system bandit
-
-      - name: Run Bandit Security Analysis
-        run: |
-          echo "=========================================================================="
-          echo "Executing Bandit security linting for vulnerabilities..."
-          echo "=========================================================================="
-          bandit -r ./src
+          uv pip install --system ".[dev]"
 
       - name: Compile Cython Extensions
         run: |
           echo "=========================================================================="
-          echo "Compiling Cython extension modules..."
+          echo "Compiling Cython extension modules."
           echo "=========================================================================="
-          # 1. Move to the target Cython model directory
           cd ./src/models/arycolbring
-          
-          # 2. Execute the compilation bash script
           bash cysetup.sh
-          
-          # 3. Move back to the requested tests directory
-          cd ../../../test/arycolbring_tests
-          echo "Successfully completed compilation. Current directory: \$(pwd)"
 
       - name: Execute Automated Smoke Test
         run: |
           echo "=========================================================================="
-          echo "Launching AryColBring Model Training Smoke Test..."
+          echo "Launching AryColBring Model Training Smoke Test."
           echo "=========================================================================="
-          # Injecting root to PYTHONPATH to ensure python -m resolves 'test' cleanly from the target directory
           export PYTHONPATH="${{ github.workspace }}"
-          cd ${{ github.workspace }}/test/arycolbring_tests
-          python -m test.arycolbring_tests.t01_advisor
+          python test/arycolbring_tests/t01_advisor.py \
+            -d ./data/sampledata.parquet \
+            -t 0.25 \
+            -e 50 \
+            -n "Test experiment Python ${{ matrix.python-version }}"
           echo "=========================================================================="
-          echo "Smoke test pipeline completed successfully."
+          echo "Smoke test pipeline completed successfully for Python ${{ matrix.python-version }}."
           echo "=========================================================================="

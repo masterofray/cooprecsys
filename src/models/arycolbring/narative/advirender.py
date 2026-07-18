@@ -8,12 +8,12 @@ __version__    = "0.1.0"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-05-31"
+__created__    = "2026-07-06"
 
 
 """
 advirender.py
-------------------
+_________________________________________
 Training dashboard renderer for AryColBring collaborative filtering model.
 Generates comprehensive HTML reports for the training phase including:
 - Training metrics (loss curves, convergence)
@@ -25,8 +25,6 @@ Generates comprehensive HTML reports for the training phase including:
 Static assets are copied to the output directory so the HTML is self-contained.
 """
 
-import os
-import sys
 import json
 import math
 import shutil
@@ -42,9 +40,9 @@ from .rensupport import (Tplatedir, advdir, OUTPUT_DIR,
                          safe_float, detect_gauge_metric)
 
 LocDir    = Path(__file__).parent.resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs import logger, _cfg
-
+#sys.path.append(str(LocDir.parents[2]))
+from ....configs import logger, _cfg
+from ....assets  import Gen_MiniStats
 
 
 # ================================================================
@@ -53,9 +51,10 @@ from configs import logger, _cfg
 def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Generate scorecards dynamically from metrics."""
     if not metrics:
-        return []
-    cards = []
-    color_cycle = ["blue", "green", "purple", "orange", "cyan", "red"]
+        return list()
+    cards    = list()
+    cocycle  = ["blue", "green", "purple",
+                "orange", "cyan", "red"]
     icon_map = {"blue"   : "fas fa-chart-line",
                 "green"  : "fas fa-network-wired",
                 "purple" : "fas fa-bullseye",
@@ -64,19 +63,17 @@ def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
                 "red"    : "fas fa-chart-column"}
     try:
         for idx, (metric_name, metric_value) in enumerate(metrics.items()):
-            color = color_cycle[idx % len(color_cycle)]
-            cards.append({
-                "label": bealabel(metric_name),
-                "value": safe_float(metric_value),
-                "sub": "Training metric",
-                "color": color,
-                "icon_emoji": f'<i class="{icon_map[color]}"></i>',
-            })
+            color = cocycle[idx % len(cocycle)]
+            cards.append({"label"      : bealabel(metric_name),
+                          "value"      : safe_float(metric_value),
+                          "sub"        : "Training metric",
+                          "color"      : color,
+                          "icon_emoji" : f'<i class="{icon_map[color]}"></i>'})
         logger.info("Generated %d scorecards.", len(cards))
         return cards
     except Exception as exc:
-        logger.error("Scorecard generation failed.", exc_info=True)
-        raise RuntimeError("Failed generating scorecards.") from exc
+        logger.error("Scorecard generation failed.", exc_info = True)
+        raise RuntimeError() from exc
 
 
 def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -101,22 +98,6 @@ def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     except Exception as exc:
         logger.error("Gauge generation failed.", exc_info=True)
         raise RuntimeError("Failed generating gauges.") from exc
-
-
-def generate_stat_minis(training_context: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Generate mini statistics cards."""
-    stats = []
-    try:
-        data_stats = training_context.get("data_statistics", {})
-        stats.append({"label": "Users",        "value": str(data_stats.get("n_users", 0)),        "percent": 100})
-        stats.append({"label": "Items",        "value": str(data_stats.get("n_items", 0)),        "percent": 100})
-        stats.append({"label": "Interactions", "value": str(data_stats.get("n_interactions", 0)), "percent": 100})
-        sparsity = data_stats.get("sparsity", data_stats.get("density", 0))
-        stats.append({"label": "Sparsity",     "value": f"{sparsity:.2%}",                        "percent": 100})
-        logger.info("Generated %d mini stat cards.", len(stats))
-    except Exception as exc:
-        logger.error("Mini stat generation failed.", exc_info=True)
-    return stats
 
 
 def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -145,7 +126,7 @@ def build_training_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
 
         context["scorecards"] = generate_scorecards(metrics)
         context["gauges"]     = generate_gauges(metrics)
-        context["stat_minis"] = generate_stat_minis(context)
+        context["stat_minis"] = Gen_MiniStats(pd.DataFrame(context['predictiondata']))
         context["charts"]     = normalize_charts(context.get("charts", []))
         context["bar_labels"] = list(metrics.keys())  if metrics else []
         context["bar_data"]   = list(metrics.values()) if metrics else []
@@ -194,7 +175,7 @@ def render_training_report(context: Dict[str, Any], output_path: Path) -> str:
     logger.debug("Rendering training report.")
     try:
         env = get_env()
-        template = env.get_template("base.html.j2")
+        template = env.get_template("train_base.html.j2")
         html = template.render(**context)
         logger.info("Rendered HTML size = %.2f KB", len(html.encode("utf-8")) / 1024)
         return html
@@ -236,21 +217,13 @@ def generate_training_report(
         output_path = output_dir / report_name
 
         # ── 3. Copy static assets ──
-        static_paths = copier(output_dir)
+        static_paths = runcopy(advisor = True, dest = output_dir)
 
         # ── 4. Build context ──
+        if isinstance(context_data, Path):
+            with context_data.open(mode="r", encoding="utf-8") as jfile:
+                context_data = json.load(fp = jfile)
         context = build_training_context(context_data)
-        context.update(static_paths)
-
-        # ── 5. Save context JSON (debug mode) ──
-        dlevel = True
-        if _cfg:
-            dlevel = _cfg.get("logging", "level", fallback="DEBUG") in ["DEBUG", "INFO"]
-        if dlevel:
-            ctx_json_path = output_dir / "TrainingContext.json"
-            with open(ctx_json_path, "w", encoding="utf-8") as fx:
-                json.dump(context, fx, ensure_ascii=False, indent=2, default=str)
-            logger.debug("Context JSON saved to %s", ctx_json_path)
 
         # ── 6. Render HTML ──
         html = render_training_report(context=context, output_path=output_path)
@@ -289,7 +262,7 @@ if __name__ == "__main__":
         input_path = Path(args.input)
         if not input_path.exists():
             print(f"Error: Input file not found: {input_path}")
-            sys.exit(1)
+            raise FileNotFoundError(f'Not found: {input_path}')
         with open(input_path, "r", encoding="utf-8") as f:
             context_data = json.load(f)
         print(f"Loaded context from: {input_path}")

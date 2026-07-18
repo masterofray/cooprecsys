@@ -356,3 +356,7 @@ def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     except Exception as exc:
         logger.error("Chart normalization failed.", exc_info=True)
         raise RuntimeError("Failed normalizing charts.") from exc
+
+
+if __name__ == '__main__':
+    pass

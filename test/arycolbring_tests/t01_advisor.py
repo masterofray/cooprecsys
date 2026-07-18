@@ -32,15 +32,15 @@ from pdb      import set_trace
 from typing   import Optional, Tuple, Union, List, Dict
 from argparse import ArgumentParser
 
-LocDir = Path(__file__).resolve().parents[2] / 'src'
-sys.path.append(str(LocDir))
-from configs  import _cfg, logger
-from db       import duckdb_connection
-from features import load_data
-from prepare  import DetectReco_Identifier
-from qrates   import GenQuasi_Lazy, DMD
-from models.arycolbring import AryColBringModelTrainer as ACBmodel
-from models.arycolbring.assist import fileload_interactions, describe_interactions
+#LocDir = Path(__file__).resolve().parents[2] / 'src'
+#sys.path.append(str(LocDir))
+from src.configs  import _cfg, logger
+from src.db       import duckdb_connection
+from src.features import load_data
+from src.prepare  import DetectReco_Identifier
+from src.qrates   import GenQuasi_Lazy, DMD
+from src.models   import norm_exchange
+from src.models   import AryColBringModelTrainer as ACBmodel
 
 
 class AryColBring_Train_Test:
@@ -172,12 +172,17 @@ class AryColBring_Train_Test:
         return self
 
     def _RatePosthoc(self):
-        self.Collect    = DetectReco_Identifier(self.Data.columns.to_numpy())
+        self.Collect    = DetectReco_Identifier(Dataprocess = self.Data)
         self.DataMerge  = self.data_rate.merge(self.Data,
                           on = [self.Collect['user_col'], self.Collect['item_col']])
         it01            = [self.Collect["quantity_col"],
                            self.Collect["total_col"], 
                            self.Collect["discount_col"]]
+        Data02          = norm_exchange(
+                            data       = self.DataMerge,
+                            user_col   = self.Collect['user_col'],
+                            item_col   = self.Collect['item_col'],
+                            rating_col = _cfg.get('RATING', 'ColumnName'))
         self.ItemFeats.extend(it01)
         self.ItemFeats  = list(set([it02 for it02 in self.ItemFeats if it02 is not None]))
         return self
@@ -226,6 +231,8 @@ class AryColBring_Train_Test:
                           validation_data = self._TEST[0],
                           evaluate_every  = 1,
                          )
+        self.ACBmodel._user_ids = self._TRAIN[4]
+        self.ACBmodel._item_ids = self._TRAIN[5]
         self._report_path = self.ACBmodel.generate_training_report(
                             output_dir      = str(self.output_dir),
                             experiment_name = exname)
@@ -337,6 +344,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    #Sample Command:
+    #python -m test.arycolbring_tests.t01_advisor -d ./data/sampledata.parquet -t 0.25 -e 50 -n "Test experiment"
     print("Running the AryColBring_Reasoner_Test")
     try:
         sys.exit(main())

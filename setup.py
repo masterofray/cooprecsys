@@ -52,11 +52,25 @@ class Proxies(build_ext):
                 target_dir = d
                 break
 
-        script_name = "cysetup.sh"
         if target_dir:
+            is_windows = sys.platform.startswith("win")
+
+            if is_windows:
+                script_name = "cysetup.ps1"
+                cmd = ["pwsh", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", script_name]
+            else:
+                script_name = "cysetup.sh"
+                cmd = ["bash", script_name]
+
+            if not (target_dir / script_name).exists():
+                raise FileNotFoundError(
+                    f"Expected '{script_name}' in {target_dir} for this platform "
+                    f"(sys.platform={sys.platform!r}), but it was not found."
+                )
+
             print(f"->> Delegating Cython kernel compilation to: "
                   f"{script_name} in {target_dir}")
-            subprocess.check_call(["bash", script_name], cwd=target_dir)
+            subprocess.check_call(cmd, cwd=target_dir)
             fix      = Path(self.build_lib).resolve()
             dest_dir = fix / "cooprecsys" / "models" / "arycolbring" / "CLproximity"
             dest_dir.mkdir(parents = True, exist_ok = True)
@@ -78,7 +92,7 @@ if __name__ == '__main__':
         package_data = {"": ["*.c", "*.so", "*.pyd", "*.dll", "*.dylib", 
                              "*.pyx", "*.pxd", "config.ini", "py.typed",
                              "*.html", "*.j2", "*.png", "*.css", "*.js",
-                             "*.ico", "*.sh", "*.md", "*.sql", "*.jpg",
+                             "*.ico", "*.sh", "*.ps1", "*.md", "*.sql", "*.jpg",
                              ]},
         include_package_data = True,
         ext_modules          = [Extension("cooprecsys", sources=[])],

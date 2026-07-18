@@ -12,10 +12,8 @@ __created__    = "2026-04-25"
 
 from .callduckdb import DuckDBManager, duckdb_connection
 
-__version__ = "0.0.1.dev0"
+__version__ = "0.0.2"
 
-__all__ = [
-    "__version__",
-    "DuckDBManager",
-    "duckdb_connection",
-    ]
+__all__ = ["__version__",
+           "DuckDBManager",
+           "duckdb_connection"]

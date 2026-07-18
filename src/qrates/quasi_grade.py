@@ -30,7 +30,7 @@ def GenQuasi_Lazy(data : pd.DataFrame) -> pd.DataFrame:
     assert isinstance(data, pd.DataFrame), 'This is not a dataframe.'
     assert not data.empty, 'The data is empty'
     assert data.shape[0] >= 20, 'The data lenght is too small.'
-    ColmCollect   = DetectReco_Identifier(data.columns.to_numpy())
+    ColmCollect   = DetectReco_Identifier(data)
     NoneKeys      = [key for key, value in ColmCollect.items() if value is None]
     logger.info(f'There are {len(NoneKeys)} keys that already Null.')
     Quasi         = GenQuasi_Grade(
@@ -240,9 +240,12 @@ def Decomposition_Matrix_Dev(
     del DataMaps, row_arr, col_arr, rating_arr, weight_arr
     gc.collect()
     logger.info("Pipeline features completed successfully.")
-    TheResult = (interactions, user_features_sparse, 
-                 item_features_sparse, sample_weight,
-                 user_ids, item_ids)
+    TheResult = (interactions,
+                 user_features_sparse, 
+                 item_features_sparse,
+                 sample_weight,
+                 user_ids,
+                 item_ids)
     return TheResult
 
 

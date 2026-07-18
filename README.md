@@ -1,12 +1,13 @@
 [![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=master)](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: Python](https://img.shields.io/badge/code%20style-python-blue)](https://www.python.org/)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/masterofray/cooprecsys/blob/dev/notebook/AryColBring_Training_Pipeline.ipynb)
 
 # CoopRecSys
 <p align="center">
-    <img src="./img/cooprecsys.jpg" alt="CoopRecSys Logo" width="100%">
 </p>
+    <img src="./img/cooprecsys_banner.jpg" alt="CoopRecSys Logo" width="100%">
 
 **Koperasi Recommender System ML/AI Module**
 A production-grade machine learning and AI module for building intelligent recommendation systems tailored for cooperative (koperasi) product recommendations. This system combines collaborative filtering, learning-to-rank techniques, and explainable AI dashboards.

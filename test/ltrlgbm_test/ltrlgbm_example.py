@@ -19,7 +19,6 @@ configures the pipeline, and triggers all downstream LTR processes.
 '''
 
 import os
-import sys
 import mlflow
 import pandas as pd
 from pathlib import Path
@@ -27,9 +26,9 @@ from sklearn.model_selection import GroupShuffleSplit
 
 #mlflow.set_tracking_uri("sqlite:///mlflow.db")
 LocDir = Path(__file__).resolve().parents[2] / 'src'
-sys.path.append(str(LocDir))
-from configs import LTRConfig, logger
-from models.ltr_lgbm import lgbm_fit_transform
+#sys.path.append(str(LocDir))
+from src.configs import LTRConfig, logger
+from src.models  import lgbm_fit_transform
 
 def maintest():
     logger.info("=" * 60)

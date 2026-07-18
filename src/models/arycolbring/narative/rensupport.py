@@ -10,24 +10,24 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-07-06"
 
-import sys
+
 import numpy   as np
 from pathlib   import Path
 from tqdm.auto import tqdm
 from typing    import Dict, List, Any
 from jinja2    import Environment, FileSystemLoader, select_autoescape
 
-LocDir     = Path(__file__).parent.resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs   import logger, _cfg
-from assets    import VendorPath
-from prepare   import FileCopier
+#sys.path.append(str(LocDir.parents[2]))
+from ....configs   import logger, _cfg
+from ....assets    import VendorPath
+from ....prepare   import FileCopier
 
+LocDir     = Path(__file__).parent.resolve()
 Tplatedir  = LocDir / "templates"
 advdir     = LocDir / "sttrain"
 readir     = LocDir / "stinferc"
 IMG_DIR    = LocDir.parents[3] / 'img'
-OUTPUT_DIR = (LocDir.parents[3] / _cfg.get('PATHS', 'ACB_rpath')).resolve()
+OUTPUT_DIR = (LocDir.parents[3] / _cfg.get('PATHS', 'ACB_rpath') / 'ACB_reports').resolve()
 
 def get_env() -> Environment:
     """Initialize Jinja2 environment."""
@@ -35,12 +35,20 @@ def get_env() -> Environment:
     try:
         env = Environment(
               loader        = FileSystemLoader(str(Tplatedir)),
-              autoescape    = select_autoescape(["html", "xml"]),
+              autoescape    = select_autoescape(
+                              enabled_extensions = ("html", "xml"),
+                              default_for_string = True,
+                              default            = False),
               trim_blocks   = True,
               lstrip_blocks = True)
         logger.debug("Jinja environment initialized successfully.")
     except Exception as exc:
-        env = Environment()
+        #env = Environment() # B701
+        env = Environment(
+              autoescape    = select_autoescape(
+                              enabled_extensions = ("html", "xml"),
+                              default_for_string = True,
+                              default            = False))
         logger.error("Failed initializing Jinja environment.", exc_info = True)
         raise RuntimeError() from exc
     finally:
@@ -120,10 +128,10 @@ def safe_float(value     : Any,
 
 
 def detect_gauge_metric(metric_name: str) -> bool:
-    """Detect whether metric should become gauge widget."""
     metric_name = metric_name.lower()
-    keywords    = ["ndcg", "map", "mrr", "precision",
-                   "recall", "accuracy", "auc", "f1"]
+    keywords    = ["ndcg", "map", "mrr",
+                   "precision", "recall", 
+                   "accuracy", "auc", "f1"]
     return any(k in metric_name for k in keywords)
 
 

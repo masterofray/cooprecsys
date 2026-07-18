@@ -45,12 +45,12 @@ import matplotlib.pyplot as plt
 from typing import Any, Dict, List, Optional
 
 matplotlib.use("Agg")
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
+#LocDir = Path(__file__).resolve().parents[3]
+#sys.path.append(str(LocDir))
 
-from prepare import Dict2Json, FLmiss
-from configs import LTRConfig, logger, _cfg
-from models.ltr_lgbm.report import repot
+from ....prepare import Dict2Json, FLmiss
+from ....configs import LTRConfig, logger, _cfg
+from ..report import repot
 
 # ---------------------------------------------------------------------------
 # Seaborn global theme

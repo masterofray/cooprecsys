@@ -36,16 +36,18 @@ def fit_warp_kos(
         int k,
         int n,
         int num_threads,
-        random_state):
+        random_state,
+        bint verbose = False):
     """
     One epoch of WARP-kOS.
 
     Outer loop is `range`, not `prange`, to avoid reduction‑variable warnings
     on `sampled` and `sampled_local`.
     """
-    fprintf(stderr,
-            b"[DEBUG] fit_warp_kos: no_examples=%d k=%d n=%d num_threads=%d\n",
-            user_ids.shape[0], k, n, num_threads)
+    if verbose:
+        fprintf(stderr,
+                b"[DEBUG] fit_warp_kos: no_examples=%d k=%d n=%d num_threads=%d\n",
+                user_ids.shape[0], k, n, num_threads)
 
     cdef int i, j, no_examples, user_id, positive_item_id, negative_item_id
     cdef int sampled, sampled_local, row, sampled_positive_item_id
@@ -70,7 +72,8 @@ def fit_warp_kos(
         return
 
     omp_init_lock(&reg_lock)
-    fprintf(stderr, b"[DEBUG] fit_warp_kos: OMP lock initialised\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] fit_warp_kos: OMP lock initialised\n")
 
     user_repr   = <flt*>malloc(sizeof(flt) * (model.no_components + 1))
     pos_it_repr = <flt*>malloc(sizeof(flt) * (model.no_components + 1))
@@ -165,7 +168,6 @@ def fit_warp_kos(
     free(pos_pairs)
 
     omp_destroy_lock(&reg_lock)
-
     regularize(model, item_alpha, user_alpha)
-
-    fprintf(stderr, b"[DEBUG] fit_warp_kos: epoch complete\n")
+    if verbose:
+        fprintf(stderr, b"[DEBUG] fit_warp_kos: epoch complete\n")
