@@ -18,8 +18,8 @@ from pathlib  import Path
 from datetime import datetime
 from typing   import Any, Dict, List, Optional
 
-LocDir    = Path(__file__).parent.resolve()
-sys.path.append(str(LocDir.parents[2]))
+LocDir    = Path(__file__).resolve()
+sys.path.append(str(LocDir.parents[1]))
 from configs import logger, _cfg
 
 
