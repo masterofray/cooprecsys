@@ -10,12 +10,12 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-13"
 
-import sys
+#import sys
 from pathlib  import Path
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
-sys.path.append(str(LocDir))
-from models.ltr_lgbm import InferenceTest
+#sys.path.append(str(LocDir))
+from src.models import InferenceTest
 
 def inference_test():
     Args      = {'Datapath'  : LocDir.parents[0]/'data'/'sampledata.parquet',

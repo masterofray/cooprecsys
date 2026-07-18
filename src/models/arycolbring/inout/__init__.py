@@ -10,7 +10,8 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-29"
 
-from .approximator    import AryColBringPredictor as TheReasoner
-from .model_architect import AryColBringTrainer   as TheAdvisor
+from .approximator      import AryColBringPredictor as TheReasoner
+from .model_architect   import AryColBringTrainer   as TheAdvisor
+from .fallback_reasoner import AryInfFallBack
 
-__all__ = ["AryColBringPredictor", "AryColBringTrainer"]
+__all__ = ["AryColBringPredictor", "AryColBringTrainer", 'AryInfFallBack']

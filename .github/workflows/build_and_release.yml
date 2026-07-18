@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, e.g. 0.0.1rc3 (blank = build-only run)"
+        description: "Version to release, e.g. 0.0.2 (blank = build-only run)"
         required: false
         type: string
 

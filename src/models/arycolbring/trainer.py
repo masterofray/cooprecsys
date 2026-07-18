@@ -21,7 +21,6 @@ Integrates:
 - Model serialization for production deployment
 """
 
-import sys
 import json
 import numpy as np
 import scipy.sparse as sp
@@ -41,10 +40,10 @@ from .eval     import (precision_at_k,
                        ILD_k,
                        Novelty_k)
 
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs   import logger
-from features  import Normalize_LargeSeries, Filter_TopN
+#LocDir = Path(__file__).resolve()
+#sys.path.append(str(LocDir.parents[2]))
+from ...configs   import logger
+from ...features  import Normalize_LargeSeries, Filter_TopN
 
 
 def Adjusted_CSRshape(matrix     : sp.csr_matrix, 

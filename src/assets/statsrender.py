@@ -18,9 +18,10 @@ from pathlib  import Path
 from datetime import datetime
 from typing   import Any, Dict, List, Optional
 
-LocDir    = Path(__file__).parent.resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs import logger, _cfg
+#ConfDir = Path(__file__).resolve()
+#sys.path.append(str(ConfDir.parents[1]))
+#from configs import logger, _cfg
+from ..configs import logger, _cfg
 
 
 def Gen_MiniStats(data: pd.DataFrame,
