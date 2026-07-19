@@ -11,6 +11,7 @@ __status__     = "Development"
 __created__    = "2026-07-06"
 
 
+import math
 import numpy   as np
 from pathlib   import Path
 from tqdm.auto import tqdm
@@ -78,7 +79,20 @@ def copymaps(mapdict : Dict,
 
 def runcopy(advisor : bool = True, 
             dest    : Path = None,
-           ) -> None:
+           ) -> Dict[str, str]:
+    """
+    Copy vendor CSS/JS/icon assets (plus favicon/logo) into `dest` so the
+    generated HTML report is self-contained.
+
+    BUGFIX: this used to have no `return` statement at all (implicit
+    `None`), even though its own type hint / every caller's variable name
+    ("static_paths") assumed it handed back something. rearender.py did
+    `context.update(static_paths)` on that `None` and crashed with
+    `TypeError: 'NoneType' object is not iterable`. Copying itself was
+    always working fine (side effect below) -- only the return value was
+    missing. Now returns the copied assets' paths, relative to `dest`,
+    so callers can safely merge it into a Jinja context.
+    """
     dirname  = 'advisor' if advisor else 'reason'
     dest     = OUTPUT_DIR / dirname / 'assets' if dest is None else Path(dest).resolve()
     copy_map = {VendorPath['vcss'] : dest / 'css',
@@ -94,6 +108,16 @@ def runcopy(advisor : bool = True,
         _ = FileCopier(Scrpath = src,
                        Destdir = dst_dir)
     logger.debug('runcopy already finish.')
+
+    # NOTE: the exact keys below ("static_css", "static_js") match what
+    # templates/infrc_base.html.j2 (and train_base.html.j2) reference via
+    # {{ static_css }}/{{ static_js }} -- confirmed by reading the actual
+    # template source, not guessed.
+    return {"static_css"      : "css",
+            "static_js"       : "js",
+            "static_icon_dir" : "icon",
+            "favicon_path"    : "favicon.ico",
+            "logo_path"       : "logo_red.jpg"}
 
 
 def bealabel(label: str) -> str:

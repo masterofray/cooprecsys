@@ -8,7 +8,7 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-05-31"
+__modified__   = "2026-07-18"
 
 
 """
@@ -25,6 +25,7 @@ Integrates:
 
 import json
 import time
+import inspect
 import numpy  as np
 import pandas as pd
 from   pathlib    import Path
@@ -32,8 +33,8 @@ from   tqdm.auto  import tqdm
 from   datetime   import datetime
 from   typing     import (Any, Dict, List,
                           Optional, Tuple, Union)
-from   .inout     import TheReasoner, AryInfFallBack
-from   .narative  import genReasoner
+from   .inout             import TheReasoner, AryInfFallBack
+from   .narative          import genReasoner
 
 #LocDir = Path(__file__).resolve()
 #sys.path.append(str(LocDir.parents[2]))
@@ -81,16 +82,31 @@ class AryColBringInference:
         logger.info("Loading model from: %s", self.model_path)
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model file not found: {self.model_path}")
-        return np.load(self.model_path, allow_pickle = True)
+        return np.load(self.model_path, allow_pickle = False)
 
 
     def _load_model(self) -> TheReasoner:
-        data      = self._archive
-        predictor = TheReasoner(**self.config)
+        data = self._archive
+        valid_params = set(inspect.signature(TheReasoner.__init__).parameters) - {"self"}
+        model_kwargs  = {k: v for k, v in self.config.items() if k in valid_params}
+        dropped_keys  = set(self.config) - valid_params
+        if dropped_keys:
+            logger.debug("Ignoring non-constructor config key(s): %s", sorted(dropped_keys))
+
+        predictor = TheReasoner(**model_kwargs)
         predictor.item_embeddings = data["item_embeddings"]
         predictor.user_embeddings = data["user_embeddings"]
         predictor.item_biases     = data["item_biases"]
         predictor.user_biases     = data["user_biases"]
+        predictor.item_embedding_gradients = np.zeros_like(predictor.item_embeddings)
+        predictor.item_embedding_momentum  = np.zeros_like(predictor.item_embeddings)
+        predictor.item_bias_gradients      = np.zeros_like(predictor.item_biases)
+        predictor.item_bias_momentum       = np.zeros_like(predictor.item_biases)
+        predictor.user_embedding_gradients = np.zeros_like(predictor.user_embeddings)
+        predictor.user_embedding_momentum  = np.zeros_like(predictor.user_embeddings)
+        predictor.user_bias_gradients      = np.zeros_like(predictor.user_biases)
+        predictor.user_bias_momentum       = np.zeros_like(predictor.user_biases)
+
         logger.debug("Model loaded successfully: users = %d items = %d",
                       predictor.user_embeddings.shape[0],
                       predictor.item_embeddings.shape[0])
@@ -100,7 +116,8 @@ class AryColBringInference:
     def _get_config(self) -> Dict[str, Any]:
         """Get model configuration."""
         try:
-            return json.loads(str(self._archive["config"]))
+            raw_config_bytes = self._archive["config"].tobytes()
+            return json.loads(raw_config_bytes.decode('utf-8'))
         except Exception as e:
             logger.warning("Could not load config: %s", e)
             return dict()
@@ -118,8 +135,12 @@ class AryColBringInference:
         start_time = time.perf_counter()
         if isinstance(user_ids, int):
             user_ids = np.array([user_ids], dtype = np.int32)
+        elif not isinstance(user_ids, np.ndarray):
+            user_ids = np.asarray(user_ids, dtype = np.int32)
         if isinstance(item_ids, int):
             item_ids = np.array([item_ids], dtype = np.int32)
+        elif not isinstance(item_ids, np.ndarray):
+            item_ids = np.asarray(item_ids, dtype = np.int32)
         if len(user_ids) != len(item_ids):
             logger.warning("user_ids and item_ids must have same length")
             #raise ValueError()
@@ -258,18 +279,17 @@ class AryColBringInference:
         return results
 
 
-    def clean_recommend(
-        self,
-        user_id         : int,
-        purchase_data   : pd.DataFrame,
-        n_items         : int = 10,
-        user_col        : Optional[str] = None,
-        item_col        : Optional[str] = None,
-        overscan_factor : int = 3,
-        output_format   : str = "duckdb",
-        db_path         : Optional[Union[str, Path]] = None,
-        table_name      : str = "clean_recommendations",
-        ) -> Union[pd.DataFrame, str]:
+    def clean_recommend(self,
+                        user_id         : int,
+                        purchase_data   : pd.DataFrame,
+                        n_items         : int = 10,
+                        user_col        : Optional[str] = None,
+                        item_col        : Optional[str] = None,
+                        overscan_factor : int = 3,
+                        output_format   : str = "dataframe",
+                        db_path         : Optional[Union[str, Path]] = None,
+                        table_name      : str = "clean_recommendations",
+                       ) -> Union[pd.DataFrame, str]:
         """
         Rekomendasi Top-N yang sudah dibersihkan dari item yang pernah
         dibeli user_id, dengan fallback berlapis lewat AryInfFallBack:

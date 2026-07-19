@@ -33,131 +33,25 @@ Modular structure:
 Static assets are copied to the output directory so the HTML is self-contained.
 """
 
-import os
-import sys
 import json
-import math
-import shutil
+import pandas as pd
 from pathlib import Path
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-import numpy as np
-import pandas as pd
+from .rensupport import (Tplatedir, readir, OUTPUT_DIR, 
+                         get_env, runcopy, bealabel,
+                         safe_float, detect_gauge_metric)
 
 LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[3]))
+#sys.path.append(str(LocDir.parents[3]))
+from ....configs import logger, _cfg
 
-TEMPLATE_DIR = LocDir.parent / "templates"
-STATIC_DIR   = LocDir.parent / "static"
-
-try:
-    from configs import logger, _cfg
-except ImportError:
-    import logging
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
-    logger = logging.getLogger(__name__)
-    _cfg = None
-
-
-# ================================================================
-# JINJA2 ENVIRONMENT
-# ================================================================
-
-def get_env() -> Environment:
-    """Initialize Jinja2 environment."""
-    logger.debug("Initializing Jinja environment.")
-    try:
-        env = Environment(
-            loader        = FileSystemLoader(str(TEMPLATE_DIR)),
-            autoescape    = select_autoescape(["html", "xml"]),
-            trim_blocks   = True,
-            lstrip_blocks = True,
-        )
-        logger.info("Jinja environment initialized successfully.")
-        return env
-    except Exception as exc:
-        logger.error("Failed initializing Jinja environment.", exc_info=True)
-        raise RuntimeError("Jinja environment initialization failed.") from exc
-
-
-# ================================================================
-# STATIC ASSET COPYING
-# ================================================================
-
-def copy_static_assets(output_dir: Path) -> Dict[str, str]:
-    """Copy all static assets (css/, js/, vendor/) into output directory."""
-    logger.debug("Copying static assets to output directory.")
-    dest_static = output_dir / "static"
-
-    if dest_static.exists():
-        shutil.rmtree(dest_static)
-
-    try:
-        shutil.copytree(STATIC_DIR, dest_static, dirs_exist_ok=False)
-        logger.info("Static assets copied to %s", dest_static)
-    except Exception as exc:
-        logger.error("Failed copying static assets.", exc_info=True)
-        raise RuntimeError("Static asset copy failed.") from exc
-
-    return {
-        "static_css":    "static/css",
-        "static_js":     "static/js",
-        "static_vendor": "static/vendor",
-        "static_img":    "static",
-    }
-
-
-# ================================================================
-# HELPERS
-# ================================================================
-
-def beautify_label(label: str) -> str:
-    try:
-        label = label.replace("_", " ")
-        replacements = {
-            "ndcg": "NDCG", "map": "MAP", "mrr": "MRR",
-            "auc": "AUC", "ctr": "CTR", "at": "@",
-            "precision": "Precision", "recall": "Recall",
-            "latency": "Latency", "throughput": "Throughput", "qps": "QPS",
-        }
-        for old, new in replacements.items():
-            label = label.replace(old, new)
-        return label.title()
-    except Exception:
-        return str(label)
-
-
-def safe_float(value: Any, precision: int = 4) -> str:
-    try:
-        if isinstance(value, (int, float)):
-            if math.isnan(value):
-                return "NaN"
-            return f"{value:.{precision}f}"
-        return str(value)
-    except Exception:
-        return str(value)
-
-
-def detect_gauge_metric(metric_name: str) -> bool:
-    metric_name = metric_name.lower()
-    keywords = ["ndcg", "map", "mrr", "precision", "recall", "accuracy", "auc", "f1", "coverage"]
-    return any(k in metric_name for k in keywords)
-
-
-# ================================================================
-# CONTEXT BUILDERS
-# ================================================================
 
 def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     if not metrics:
-        return []
-    cards = []
+        return list()
+    cards = list()
     color_cycle = ["blue", "green", "purple", "orange", "cyan", "red"]
     icon_map = {
         "blue":   "fas fa-chart-line",
@@ -170,7 +64,7 @@ def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
     for idx, (metric_name, metric_value) in enumerate(metrics.items()):
         color = color_cycle[idx % len(color_cycle)]
         cards.append({
-            "label": beautify_label(metric_name),
+            "label": bealabel(metric_name),
             "value": safe_float(metric_value),
             "sub": "Inference metric",
             "color": color,
@@ -181,7 +75,7 @@ def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
-    gauges = []
+    gauges = list()
     for metric_name, metric_value in metrics.items():
         if not detect_gauge_metric(metric_name):
             continue
@@ -190,7 +84,7 @@ def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
         except (ValueError, TypeError):
             continue
         gauges.append({
-            "label": beautify_label(metric_name),
+            "label": bealabel(metric_name),
             "value": metric_value,
             "display": f"{percent:.2f}%",
             "percent": round(percent, 2),
@@ -200,7 +94,7 @@ def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def generate_stat_minis(context: Dict[str, Any]) -> List[Dict[str, Any]]:
-    stats = []
+    stats = list()
     inf = context.get("inference_statistics", {})
     stats.append({"label": "Predictions",  "value": str(inf.get("n_predictions", 0)),                     "percent": 100})
     stats.append({"label": "Users Served", "value": str(inf.get("n_users_served", 0)),                    "percent": 100})
@@ -212,8 +106,8 @@ def generate_stat_minis(context: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     if not charts:
-        return []
-    normalized = []
+        return list()
+    normalized = list()
     for chart in charts:
         if not isinstance(chart, dict):
             continue
@@ -237,8 +131,8 @@ def build_inference_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
         context["gauges"]     = generate_gauges(metrics)
         context["stat_minis"] = generate_stat_minis(context)
         context["charts"]     = normalize_charts(context.get("charts", []))
-        context["bar_labels"] = list(metrics.keys())  if metrics else []
-        context["bar_data"]   = list(metrics.values()) if metrics else []
+        context["bar_labels"] = list(metrics.keys())  if metrics else list()
+        context["bar_data"]   = list(metrics.values()) if metrics else list()
 
         # Predictions
         predictions = context.get("predictions", [])
@@ -247,7 +141,7 @@ def build_inference_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
             context["rankings"]       = pred_df.to_dict(orient="records")
             context["total_rankings"] = int(pred_df.shape[0])
         else:
-            context["rankings"]       = []
+            context["rankings"]       = list()
             context["total_rankings"] = 0
 
         context.setdefault("generated_at",    datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -291,7 +185,11 @@ def render_inference_report(context: Dict[str, Any], output_path: Path) -> str:
     logger.debug("Rendering inference report.")
     try:
         env = get_env()
-        template = env.get_template("base.html.j2")
+        # BUGFIX: "base.html.j2" doesn't exist in templates/ -- the actual
+        # inference template is "infrc_base.html.j2" (the training
+        # counterpart in advirender.py correctly uses "train_base.html.j2").
+        # This raised jinja2.exceptions.TemplateNotFound on every run.
+        template = env.get_template("infrc_base.html.j2")
         html = template.render(**context)
         logger.info("Rendered HTML size = %.2f KB", len(html.encode("utf-8")) / 1024)
         return html
@@ -333,11 +231,11 @@ def generate_inference_report(
         output_path = output_dir / report_name
 
         # 3. Copy static assets
-        static_paths = copy_static_assets(output_dir)
+        static_paths = runcopy(advisor = False, dest = output_dir)
 
         # 4. Build context
         context = build_inference_context(context_data)
-        context.update(static_paths)
+        context.update(static_paths or {})
 
         # 5. Save context JSON (debug mode)
         dlevel = True
@@ -385,7 +283,7 @@ if __name__ == "__main__":
         input_path = Path(args.input)
         if not input_path.exists():
             print(f"Error: Input file not found: {input_path}")
-            sys.exit(1)
+            raise FileNotFoundError(f'Not Found {input_path}!')
         with open(input_path, "r", encoding="utf-8") as f:
             context_data = json.load(f)
         print(f"Loaded context from: {input_path}")

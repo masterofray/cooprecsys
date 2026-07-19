@@ -9,9 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <!-- Vendor (local) -->
-    <link rel="stylesheet" href="{{ static_vendor }}/fontawesome_6.5.1_all.css">
-    <script src="{{ static_vendor }}/chart.4.5.1.min.js"></script>
-    <script src="{{ static_vendor }}/plotly-2.35.2.min.js"></script>
+    <link rel="stylesheet" href="{{ static_css }}/fontawesome_6.5.1_all.css">
+    <script src="{{ static_js }}/chart.4.5.1.min.js"></script>
+    <script src="{{ static_js }}/plotly-2.35.2.min.js"></script>
 
     <!-- CSS -->
     <link rel="stylesheet" href="{{ static_css }}/base.css">
@@ -81,10 +81,10 @@
             <button class="page-tab" data-tab="config"><i class="fas fa-gear"></i> Config</button>
         </nav>
 
-        {% include 'overview.html.j2' %}
-        {% include 'rankings.html.j2' %}
-        {% include 'diagnostics.html.j2' %}
-        {% include 'config.html.j2' %}
+        {% include 'infrc_overview.html.j2' %}
+        {% include 'infrc_rankings.html.j2' %}
+        {% include 'infrc_diagnostics.html.j2' %}
+        {% include 'infrc_config.html.j2' %}
 
         <footer class="footer">
             <p>&copy; 2026 <strong>AryColBring</strong> — Production Inference System</p>
