@@ -279,6 +279,13 @@ class AryColBringInference:
         return results
 
 
+    def _resolve_overscan(self, n_items: int, overscan_factor: int) -> int:
+        """Kandidat yang diminta ke model.recommend() sebelum dibersihkan
+        (Point 4 di clean_recommend: butuh 'cadangan' buat nambal)."""
+        n_total_items = self.predictor.item_embeddings.shape[0]
+        return min(max(n_items * max(overscan_factor, 1), n_items), n_total_items)
+
+
     def clean_recommend(self,
                         user_id         : int,
                         purchase_data   : pd.DataFrame,
@@ -315,6 +322,10 @@ class AryColBringInference:
                           untuk membentuk kandidat cadangan (Point 4).
         output_format   : "dataframe" atau "duckdb".
         db_path/table_name : hanya dipakai kalau output_format = "duckdb".
+
+        Untuk banyak user sekaligus, pakai batch_clean_recommend() --
+        jauh lebih efisien karena AryInfFallBack (peta pembelian +
+        normalisasi embedding) dibangun sekali saja, bukan per user.
         """
         if output_format not in ("dataframe", "duckdb"):
             msg = f"output_format must be 'dataframe' or 'duckdb', got '{output_format}'."
@@ -327,8 +338,7 @@ class AryColBringInference:
                    user_col        = user_col,
                    item_col        = item_col)
 
-        n_total_items  = self.predictor.item_embeddings.shape[0]
-        overscan_n     = min(max(n_items * max(overscan_factor, 1), n_items), n_total_items)
+        overscan_n     = self._resolve_overscan(n_items, overscan_factor)
         candidate_pool = self.recommend(user_id = user_id, n_items = overscan_n)
 
         result_df = fallback.clean_recommendations(
@@ -349,6 +359,91 @@ class AryColBringInference:
                    db_path    = db_path,
                    table_name = table_name)
         return result_df
+
+
+    def batch_clean_recommend(self,
+                              user_ids        : List[int],
+                              purchase_data   : pd.DataFrame,
+                              n_items         : int = 10,
+                              user_col        : Optional[str] = None,
+                              item_col        : Optional[str] = None,
+                              overscan_factor : int = 3,
+                              output_format   : str = "dataframe",
+                              db_path         : Optional[Union[str, Path]] = None,
+                              table_name      : str = "clean_recommendations",
+                             ) -> Union[pd.DataFrame, str]:
+        """
+        Versi batch dari clean_recommend(): rekomendasi Top-N yang sudah
+        dibersihkan dari item yang pernah dibeli + fallback Item-to-Item,
+        untuk BANYAK user sekaligus.
+
+        Berbeda dengan memanggil clean_recommend() satu-satu di dalam loop,
+        di sini AryInfFallBack (peta pembelian & embedding item yang sudah
+        dinormalisasi) dibangun SEKALI di awal, lalu dipakai ulang untuk
+        semua user -- bukan dibangun ulang setiap user.
+
+        Returns
+        -------
+        pandas.DataFrame gabungan semua user (kolom: user_id, rank,
+        item_id, score, source, is_fallback), atau path DuckDB kalau
+        output_format = "duckdb".
+        """
+        if output_format not in ("dataframe", "duckdb"):
+            msg = f"output_format must be 'dataframe' or 'duckdb', got '{output_format}'."
+            logger.error(msg)
+            raise ValueError(msg)
+        if not user_ids:
+            msg = "user_ids must be a non-empty list."
+            logger.error(msg)
+            raise ValueError(msg)
+
+        fallback   = AryInfFallBack(
+                     purchase_data   = purchase_data,
+                     item_embeddings = self.predictor.item_embeddings,
+                     user_col        = user_col,
+                     item_col        = item_col)
+        overscan_n = self._resolve_overscan(n_items, overscan_factor)
+
+        logger.info("Batch clean recommendations: %d users, top-%d items "
+                     "(overscan = %d).", len(user_ids), n_items, overscan_n)
+
+        frames          = list()
+        short_users     = 0
+        for user_id in tqdm(
+                user_ids,
+                desc        = "Clean Recommendation",
+                colour      = _cfg.get('tqdm', 'colour'),
+                ncols       = _cfg.getint('tqdm', 'ncols'),
+                bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                unit        = 'userID',
+                mininterval = 0.1):
+            candidate_pool = self.recommend(user_id = user_id, n_items = overscan_n)
+            result_df      = fallback.clean_recommendations(
+                             user_id        = user_id,
+                             candidate_pool = candidate_pool,
+                             n_items        = n_items)
+            if len(result_df) < n_items:
+                short_users += 1
+            frames.append(result_df)
+
+        if short_users:
+            logger.warning("%d/%d user(s) ended up with fewer than %d clean "
+                           "recommendation(s) even after Item-to-Item fallback.",
+                            short_users, len(user_ids), n_items)
+
+        combined_df = (pd.concat(frames, ignore_index = True) if frames
+                      else pd.DataFrame(columns = ["user_id", "rank", "item_id",
+                                                   "score", "source", "is_fallback"]))
+        logger.info("Batch clean recommendations complete: %d user(s), %d row(s).",
+                     combined_df["user_id"].nunique() if len(combined_df) else 0,
+                     len(combined_df))
+
+        if output_format == "duckdb":
+            return fallback.export_duckdb(
+                   result_df  = combined_df,
+                   db_path    = db_path,
+                   table_name = table_name)
+        return combined_df
 
 
     def get_metrics(self) -> Dict[str, float]:
