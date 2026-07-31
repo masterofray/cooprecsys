@@ -26,9 +26,10 @@
                             <th>#</th>
                             <th>User ID</th>
                             <th>Item ID</th>
-                            <th>Score</th>
+                            <th class="sortable-col" data-sort-column="score" title="Click to sort">Score <i class="fas fa-sort"></i></th>
                             <th>Rank</th>
                             <th>Confidence</th>
+                            <th>Similar Items (Top 3)</th>
                         </tr>
                         <tr class="filter-row">
                             <th></th>
@@ -37,6 +38,7 @@
                             <th><input type="text" class="table-filter" data-column="score" placeholder="e.g., > 0.8"></th>
                             <th><input type="text" class="table-filter" data-column="rank" placeholder="e.g., <= 5"></th>
                             <th><input type="text" class="table-filter" data-column="confidence" placeholder="High/Med/Low"></th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -59,6 +61,14 @@
                                     <span class="badge-confidence badge-medium"><i class="fas fa-circle-exclamation"></i> Medium</span>
                                 {% else %}
                                     <span class="badge-confidence badge-low"><i class="fas fa-circle-xmark"></i> Low</span>
+                                {% endif %}
+                            </td>
+                            <td class="similar-items-cell">
+                                {% set similar = pred.get('similar_items') %}
+                                {% if similar %}
+                                    {% for sim_id in similar %}<span class="pill-item">{{ sim_id }}</span>{% endfor %}
+                                {% else %}
+                                    <span class="text-muted-cell">—</span>
                                 {% endif %}
                             </td>
                         </tr>

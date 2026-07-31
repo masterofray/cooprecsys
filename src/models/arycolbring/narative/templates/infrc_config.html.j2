@@ -27,7 +27,7 @@
                     <tr><td>Predictions</td><td>{{ inference_statistics.get('n_predictions', 'N/A') }}</td></tr>
                     <tr><td>Users Served</td><td>{{ inference_statistics.get('n_users_served', 'N/A') }}</td></tr>
                     <tr><td>Avg Latency</td><td>{{ "%.2f" | format(inference_statistics.get('avg_latency_ms', 0)) }} ms</td></tr>
-                    <tr><td>Coverage</td><td>{{ "%.4f" | format(inference_statistics.get('coverage', 0)) }}</td></tr>
+                    <tr><td>Throughput</td><td>{{ "%.1f" | format(inference_statistics.get('throughput_preds_per_sec', 0)) }} preds/s</td></tr>
                 </table>
             </div>
         </div>
