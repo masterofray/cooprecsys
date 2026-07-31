@@ -55,8 +55,8 @@
                     plugins: { legend: { display: false } },
                     layout: { padding: { left: 10, right: 25, top: 5, bottom: 5 } },
                     scales: {
-                        x: { beginAtZero: true, ticks: { color: '#3d6b3d' }, grid: { color: 'rgba(45,90,45,0.08)' } },
-                        y: { ticks: { color: '#3d6b3d', autoSkip: false }, grid: { display: false } }
+                        x: { beginAtZero: true, ticks: { color: '#495057' }, grid: { color: 'rgba(33,37,41,0.08)' } },
+                        y: { ticks: { color: '#495057', autoSkip: false }, grid: { display: false } }
                     }
                 }
             });
@@ -70,7 +70,7 @@
             var datasetsRaw = safeParse(canvas.dataset.datasets);
             if (!labels.length || !datasetsRaw.length) return;
 
-            var palette = ['#1565c0', '#2e7d32', '#6a1b9a'];
+            var palette = ['#4ECDC4', '#FF6B35', '#6a1b9a'];
             var datasets = datasetsRaw.map(function (ds, i) {
                 return {
                     label: ds.label,
@@ -92,17 +92,17 @@
                         legend: { position: 'top', labels: { padding: 20 } },
                         tooltip: {
                             backgroundColor: '#ffffff',
-                            titleColor: '#1a3a1a',
-                            bodyColor: '#3d6b3d',
-                            borderColor: 'rgba(45,90,45,0.15)',
+                            titleColor: '#212529',
+                            bodyColor: '#495057',
+                            borderColor: 'rgba(33,37,41,0.15)',
                             borderWidth: 1,
                             padding: 12,
                             cornerRadius: 8
                         }
                     },
                     scales: {
-                        x: { grid: { color: 'rgba(45,90,45,0.08)' } },
-                        y: { grid: { color: 'rgba(45,90,45,0.08)' }, beginAtZero: true }
+                        x: { grid: { color: 'rgba(33,37,41,0.08)' } },
+                        y: { grid: { color: 'rgba(33,37,41,0.08)' }, beginAtZero: true }
                     }
                 }
             });
