@@ -38,7 +38,7 @@
 }
 
 .kpi-card {
-    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    background: linear-gradient(135deg, var(--card-highlight), #FFE0CC);
     border: 1px solid var(--accent-light);
     border-radius: var(--radius-lg);
     padding: 20px;
@@ -63,7 +63,7 @@
 .metrics-detail-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
 .metrics-detail-table th { background: var(--card-highlight); color: var(--accent); font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; border-bottom: 2px solid var(--border-light); }
 .metrics-detail-table td { padding: 10px 16px; border-bottom: 1px solid var(--border); color: var(--text); font-variant-numeric: tabular-nums; }
-.metrics-detail-table tbody tr:hover { background: rgba(46,125,50,0.04); }
+.metrics-detail-table tbody tr:hover { background: rgba(255, 107, 53,0.04); }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {

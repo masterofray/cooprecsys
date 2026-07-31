@@ -163,7 +163,7 @@
     align-items: center;
     justify-content: center;
     text-align: center;
-    background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+    background: linear-gradient(135deg, var(--card-highlight), #FFE0CC);
     border: 2px solid var(--accent-light);
     border-radius: var(--radius-lg);
     padding: 32px;
