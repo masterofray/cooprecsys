@@ -35,86 +35,27 @@ from copy     import deepcopy
 from datetime import datetime
 from typing   import Any, Dict, List, Optional
 from jinja2   import Environment, FileSystemLoader, select_autoescape
-from .rensupport import (Tplatedir, advdir, OUTPUT_DIR, 
-                         get_env, runcopy, bealabel,
-                         safe_float, detect_gauge_metric)
+from .rensupport import (Tplatedir, advdir, OUTPUT_DIR,
+                         get_env, runcopy)
 
 LocDir    = Path(__file__).parent.resolve()
 #sys.path.append(str(LocDir.parents[2]))
 from ....configs import logger, _cfg
-from ....assets  import Gen_MiniStats
+from ....assets  import (Gen_MiniStats, generate_scorecards as _gen_scorecards,
+                         generate_gauges, normalize_charts, overall_score_percent)
 
 
 # ================================================================
 # CONTEXT BUILDERS
 # ================================================================
+# NOTE: generate_scorecards/generate_gauges/normalize_charts used to be
+# defined here AND (near-identically) in rearender.py. Both copies now
+# live once in src/assets/dashboard_utils.py -- see that module for the
+# implementation and its unit tests.
 def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Generate scorecards dynamically from metrics."""
-    if not metrics:
-        return list()
-    cards    = list()
-    cocycle  = ["blue", "green", "purple",
-                "orange", "cyan", "red"]
-    icon_map = {"blue"   : "fas fa-chart-line",
-                "green"  : "fas fa-network-wired",
-                "purple" : "fas fa-bullseye",
-                "orange" : "fas fa-gauge-high",
-                "cyan"   : "fas fa-desktop",
-                "red"    : "fas fa-chart-column"}
-    try:
-        for idx, (metric_name, metric_value) in enumerate(metrics.items()):
-            color = cocycle[idx % len(cocycle)]
-            cards.append({"label"      : bealabel(metric_name),
-                          "value"      : safe_float(metric_value),
-                          "sub"        : "Training metric",
-                          "color"      : color,
-                          "icon_emoji" : f'<i class="{icon_map[color]}"></i>'})
-        logger.info("Generated %d scorecards.", len(cards))
-        return cards
-    except Exception as exc:
-        logger.error("Scorecard generation failed.", exc_info = True)
-        raise RuntimeError() from exc
-
-
-def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Generate gauge widgets dynamically."""
-    gauges = []
-    try:
-        for metric_name, metric_value in metrics.items():
-            if not detect_gauge_metric(metric_name):
-                continue
-            try:
-                percent = float(metric_value) * 100
-            except (ValueError, TypeError):
-                continue
-            gauges.append({
-                "label": bealabel(metric_name),
-                "value": metric_value,
-                "display": f"{percent:.2f}%",
-                "percent": round(percent, 2),
-            })
-        logger.info("Generated %d gauges.", len(gauges))
-        return gauges
-    except Exception as exc:
-        logger.error("Gauge generation failed.", exc_info=True)
-        raise RuntimeError("Failed generating gauges.") from exc
-
-
-def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Normalize chart metadata."""
-    if not charts:
-        return []
-    normalized = []
-    for chart in charts:
-        if not isinstance(chart, dict):
-            continue
-        normalized.append({
-            "title": chart.get("title", "Untitled Chart"),
-            "type":  chart.get("type"),
-            "data":  chart.get("data"),
-            "full":  "importance" in chart.get("title", "").lower(),
-        })
-    return normalized
+    """Training-dashboard scorecards (thin wrapper: fixes the 'sub' copy
+    to read "Training metric", matching this report's original wording)."""
+    return _gen_scorecards(metrics, sub_label="Training metric")
 
 
 def build_training_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -141,13 +82,9 @@ def build_training_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
         context.setdefault("no_components",   context.get("no_components", 10))
         context.setdefault("training_time_sec", context.get("training_time_sec", 0))
 
-        # Overall score
-        try:
-            gauge_values = [float(v) for k, v in metrics.items() if detect_gauge_metric(k)]
-            osv = round(sum(gauge_values) / len(gauge_values) * 100, 2) if gauge_values else 0
-            context["overall_score_percent"] = osv
-        except (ValueError, TypeError):
-            context["overall_score_percent"] = 0
+        # Overall score (average of ranking/quality gauge metrics only --
+        # see dashboard_utils.overall_score_percent()).
+        context["overall_score_percent"] = overall_score_percent(metrics)
         context["overall_score"] = f'{context["overall_score_percent"]}%'
 
         context.setdefault("training_params", {

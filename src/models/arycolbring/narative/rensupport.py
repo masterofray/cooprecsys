@@ -11,16 +11,16 @@ __status__     = "Development"
 __created__    = "2026-07-06"
 
 
-import math
 import numpy   as np
 from pathlib   import Path
 from tqdm.auto import tqdm
-from typing    import Dict, List, Any
+from typing    import Dict, List, Optional
 from jinja2    import Environment, FileSystemLoader, select_autoescape
 
 #sys.path.append(str(LocDir.parents[2]))
 from ....configs   import logger, _cfg
-from ....assets    import VendorPath
+from ....assets    import (VendorPath, bealabel, safe_float,
+                           detect_gauge_metric)
 from ....prepare   import FileCopier
 
 LocDir     = Path(__file__).parent.resolve()
@@ -43,24 +43,27 @@ def get_env() -> Environment:
               trim_blocks   = True,
               lstrip_blocks = True)
         logger.debug("Jinja environment initialized successfully.")
-    except Exception as exc:
-        #env = Environment() # B701
-        env = Environment(
-              autoescape    = select_autoescape(
-                              enabled_extensions = ("html", "xml"),
-                              default_for_string = True,
-                              default            = False))
-        logger.error("Failed initializing Jinja environment.", exc_info = True)
-        raise RuntimeError() from exc
-    finally:
         return env
+    except Exception as exc:
+        # BUGFIX: this used to build a fallback (loader-less) Environment
+        # here and then hit a `finally: return env` below -- in Python, a
+        # `return` inside `finally` always wins and silently discards any
+        # in-flight exception, so the `raise RuntimeError() from exc` a
+        # few lines down was dead code: every failure here was silently
+        # swallowed and replaced with a broken Environment that has no
+        # template loader (any .get_template() call on it would then fail
+        # with a confusing, unrelated error). Now it just logs and raises,
+        # which is what the code already looked like it was trying to do.
+        logger.error("Failed initializing Jinja environment.", exc_info = True)
+        raise RuntimeError("Failed to initialize Jinja environment.") from exc
 
 
 def copymaps(mapdict : Dict, 
              goal    : Path,
              train   : bool = True,
-             dirlist : List = ['css', 'js'],
+             dirlist : Optional[List] = None,
             ) -> Dict:
+    dirlist       = dirlist if dirlist is not None else ['css', 'js']
     fixpath       = advdir if train else readir
     for fdr in tqdm(dirlist,
                     desc   = 'Directory Dest',
@@ -118,45 +121,6 @@ def runcopy(advisor : bool = True,
             "static_icon_dir" : "icon",
             "favicon_path"    : "favicon.ico",
             "logo_path"       : "logo_red.jpg"}
-
-
-def bealabel(label: str) -> str:
-    try:
-        label = label.replace("_", " ")
-        replacements = {"ndcg": "NDCG",
-                        "map": "MAP",
-                        "mrr": "MRR",
-                        "auc": "AUC",
-                        "ctr": "CTR",
-                        "at": "@",
-                        "precision": "Precision",
-                        "recall": "Recall"}
-        for old, new in replacements.items():
-            label = label.replace(old, new)
-        return label.title()
-    except Exception:
-        return str(label)
-
-
-def safe_float(value     : Any, 
-               precision : int = 4,
-              ) -> str:
-    try:
-        if isinstance(value, (int, float)):
-            if math.isnan(value):
-                return "NaN"
-            return f"{value:.{precision}f}"
-        return str(value)
-    except Exception:
-        return str(value)
-
-
-def detect_gauge_metric(metric_name: str) -> bool:
-    metric_name = metric_name.lower()
-    keywords    = ["ndcg", "map", "mrr",
-                   "precision", "recall", 
-                   "accuracy", "auc", "f1"]
-    return any(k in metric_name for k in keywords)
 
 
 if __name__ == '__main__':
