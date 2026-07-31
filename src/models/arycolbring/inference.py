@@ -471,18 +471,41 @@ class AryColBringInference:
             metrics            : Optional[Dict[str, float]]     = None,
             predictions_sample : Optional[List[Dict[str, Any]]] = None,
             charts             : Optional[List[Dict[str, Any]]] = None,
+            item_ids           : Optional[List[Any]]            = None,
+            include_embeddings : bool                           = True,
         ) -> Path:
-        """Generate an inference performance dashboard report."""
+        """Generate an inference performance dashboard report.
+
+        Parameters
+        ----------
+        item_ids: optional catalog ids for `self.predictor.item_embeddings`
+            rows (defaults to positional indices `0..n_items-1`, since
+            this predictor has no separate id-mapping table). Used to
+            label the embedding scatter, similarity heatmap, and the
+            "Similar Items" column of the recommendations table.
+        include_embeddings: set False to skip the embedding-derived
+            visualizations (e.g. for a very large catalog where even the
+            top-N similarity heatmap isn't wanted on every report).
+        """
         logger.info("Generating inference report.")
         default_metrics = self.get_metrics()
         if metrics:
             default_metrics.update(metrics)
+        # NOTE: no "coverage" here -- there used to be a hardcoded 0.75
+        # placeholder passed as if it were a measured catalog-coverage
+        # number. Nothing in this class computes real coverage, so it
+        # was removed rather than shipped as fake data. The report now
+        # only carries measured production metrics (latency/qps/
+        # throughput/predictions/users-served) plus, when embeddings are
+        # available, real visualizations (see build_visualizations() in
+        # narative/rearender.py) in place of that removed metric.
         context_data = {
             "metrics"             : default_metrics,
             "inference_statistics": {"n_predictions"  : default_metrics["n_predictions"],
                                      "n_users_served" : default_metrics["n_users_served"],
                                      "avg_latency_ms" : default_metrics["avg_latency_ms"],
-                                     "coverage"       : 0.75,},  #Placeholder
+                                     "throughput_preds_per_sec":
+                                         default_metrics["throughput_preds_per_sec"]},
             "experiment_name"     : experiment_name,
             "model_version"       : "0.0.1", #Placeholder
             "batch_size"          : 100,     #Placeholder
@@ -490,6 +513,14 @@ class AryColBringInference:
             "predictions"         : predictions_sample or list(),
             "charts"              : charts or list(),
             }
+
+        if include_embeddings and getattr(self.predictor, "item_embeddings", None) is not None:
+            embeddings = self.predictor.item_embeddings
+            ids = list(item_ids) if item_ids is not None else list(range(embeddings.shape[0]))
+            context_data["item_embeddings"] = embeddings
+            context_data["item_ids"]        = ids
+            context_data["embeddings"]      = {"vectors": embeddings, "ids": ids}
+
         # Generate report
         SimpanPath  = genReasoner(
                       context_data = context_data,
