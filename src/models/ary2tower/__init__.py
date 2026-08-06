@@ -14,6 +14,10 @@ from .config    import TwoTowerConfig
 from .towers    import TwoTowerWeights, UserTower, ItemTower
 from .trainer   import TwoTowerTrainer
 from .inference import TwoTowerInference
+from .report    import generate_two_tower_report
+from . import viztower
+from . import inout
+from . import narative
 
 __all__ = ['TwoTowerConfig',
            'TwoTowerWeights',
@@ -21,4 +25,8 @@ __all__ = ['TwoTowerConfig',
            'ItemTower',
            'TwoTowerTrainer',
            'TwoTowerInference',
+           'generate_two_tower_report',
+           'viztower',
+           'inout',
+           'narative',
            ]

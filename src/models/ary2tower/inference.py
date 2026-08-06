@@ -15,10 +15,31 @@ inference.py
 _________________________________________
 TwoTowerInference: predict()/recommend() for a trained two-tower model.
 
+The core scoring (build_pairs + predict) now delegates to
+inout/approximator.py's TwoTowerPredictor -- this class adds the
+serving-layer concerns on top of it: an LRU cache for tower outputs,
+latency/throughput stats, top-N recommend()/batch_recommend(), and
+report generation. Same relationship arycolbring/inference.py's
+AryColBringInference has to TheReasoner (inout/approximator.py).
+
 API shape deliberately mirrors AryColBringInference
 (src/models/arycolbring/inference.py) -- same method names/semantics
 (predict, recommend, get_metrics) -- so callers already familiar with
 the arycolbring inference path don't need to learn a second API.
+
+FALLBACK FOR SHORT RESULTS (exclude_purchased): when a caller asks for
+`n_items` recommendations with already-purchased items excluded, the
+raw top-N candidate pool can come up short for some users (a heavy
+repeat buyer may have already purchased most of what the model would
+otherwise rank highly for them). `recommend()`/`batch_recommend()`
+optionally backfill any such shortfall via
+inout/fallback_reasoner.py's TwoTowerFallBack -- pure item-to-item
+cosine similarity over the item tower's own output embeddings, seeded
+by the user's purchase history. Deliberately NOT similar-user/
+"favorite user" modeling and NOT query/keyword-based retrieval (both
+would need infrastructure this module doesn't have and would answer a
+different question), and never re-suggests an item the user already
+bought -- see TwoTowerFallBack's own docstring.
 """
 
 import logging
@@ -37,6 +58,8 @@ except ImportError:  # pragma: no cover - fallback for standalone/test use
 
 from .config import TwoTowerConfig
 from .towers import TwoTowerWeights, UserTower, ItemTower, dot_product_similarity
+from .inout.approximator import TwoTowerPredictor
+from .inout.fallback_reasoner import TwoTowerFallBack
 
 
 class _LRUCache:
@@ -78,25 +101,51 @@ class TwoTowerInference:
 
     def __init__(self, model_path: Union[str, Path],
                  num_threads: int = 4, cache_enabled: bool = True,
-                 cache_capacity: int = 4096):
+                 cache_capacity: int = 4096,
+                 purchase_data=None, user_col: str = "user_id",
+                 item_col: str = "item_id"):
         # Local import to avoid a hard circular dependency at module
         # load time (trainer.py also imports from towers.py/config.py).
         from .trainer import TwoTowerTrainer
 
         self._trainer = TwoTowerTrainer.load_model(model_path)
         self.weights = self._trainer.weights
-        self.user_tower = UserTower(self.weights)
-        self.item_tower = ItemTower(self.weights)
+        self.predictor = TwoTowerPredictor(self._trainer.n_users, self._trainer.n_items,
+                                           config=self._trainer.config, weights=self.weights)
+        self.user_tower = self.predictor.user_tower
+        self.item_tower = self.predictor.item_tower
         self.num_threads = num_threads
         self.cache_enabled = cache_enabled
         self._user_cache = _LRUCache(cache_capacity) if cache_enabled else None
         self._item_cache = _LRUCache(cache_capacity) if cache_enabled else None
+
+        self._fallback: Optional[TwoTowerFallBack] = None
+        if purchase_data is not None:
+            self.set_purchase_data(purchase_data, user_col=user_col, item_col=item_col)
 
         self.inference_stats = {"n_predictions": 0, "n_users_served": 0,
                                 "total_latency_ms": 0.0,
                                 "start_time": datetime.now()}
         logger.info("TwoTowerInference loaded from %s (n_users=%d, n_items=%d)",
                     model_path, self._trainer.n_users, self._trainer.n_items)
+
+    def set_purchase_data(self, purchase_data, user_col: str = "user_id",
+                          item_col: str = "item_id") -> None:
+        """Enable `exclude_purchased=True` on recommend()/batch_recommend()
+        by supplying purchase history. Can be called after construction
+        instead of passing `purchase_data` to __init__ (e.g. once fresh
+        purchase data becomes available in a long-lived serving process).
+
+        Builds the fallback's item-similarity space from the item
+        tower's own OUTPUT embeddings (running the whole catalogue
+        through `item_tower.forward()` once) -- the same space
+        recommend() scores in -- not the raw pre-tower lookup table.
+        """
+        n_items = self.weights.item_embeddings.shape[0]
+        item_tower_outputs = self.item_tower.forward(np.arange(n_items))
+        self._fallback = TwoTowerFallBack(purchase_data, item_tower_outputs,
+                                          user_col=user_col, item_col=item_col)
+        logger.info("Purchase data set: exclude_purchased=True is now available.")
 
     def _user_output(self, user_id: int) -> np.ndarray:
         if self.cache_enabled:
@@ -150,8 +199,22 @@ class TwoTowerInference:
         return scores
 
     def recommend(self, user_id: int, n_items: int = 10,
-                  exclude_items: Optional[List[int]] = None) -> List[Tuple[int, float]]:
-        """Top-N items for `user_id`, sorted by score descending."""
+                  exclude_items: Optional[List[int]] = None,
+                  exclude_purchased: bool = False) -> List[Tuple[int, float]]:
+        """Top-N items for `user_id`, sorted by score descending.
+
+        Parameters
+        ----------
+        exclude_purchased : if True, filter out items `user_id` has
+            already purchased (leaving ONLY items never bought before),
+            backfilling any resulting shortfall via item-to-item
+            cosine-similarity fallback seeded by the user's purchase
+            history -- so the result still has `n_items` entries
+            (unless the catalogue itself is smaller than that) instead
+            of silently coming up short for heavy repeat buyers.
+            Requires purchase data -- see set_purchase_data() /
+            the `purchase_data` constructor argument.
+        """
         start = time.perf_counter()
         exclude = set(exclude_items or [])
         n_catalog_items = self.weights.item_embeddings.shape[0]
@@ -164,8 +227,39 @@ class TwoTowerInference:
         item_out = self._item_outputs(candidate_ids)
         scores = item_out @ user_out
 
-        top_n_idx = np.argsort(scores)[::-1][:n_items]
-        recommendations = [(int(candidate_ids[i]), float(scores[i])) for i in top_n_idx]
+        if exclude_purchased:
+            if self._fallback is None:
+                raise ValueError(
+                    "recommend(exclude_purchased=True) requires purchase data -- pass "
+                    "purchase_data=... to TwoTowerInference(...) or call "
+                    "set_purchase_data(...) first.")
+            # Score the WHOLE (exclude_items-filtered) candidate pool,
+            # not just a naive top-N slice, and hand it to
+            # clean_recommendations() to filter-then-truncate (instead
+            # of truncate-then-filter). This is what actually fixes the
+            # "some customers get fewer than n_items" bug: with the old
+            # top-N-first ordering, filtering purchased items out
+            # *afterward* could shrink an already-truncated list. With
+            # the whole pool scored first, filtered[:n_items] already
+            # reaches n_items whenever that many non-purchased items
+            # exist anywhere in the catalogue. The item-to-item fallback
+            # inside clean_recommendations() only matters as a genuine
+            # last resort when a user has purchased so much of the
+            # catalogue that fewer than n_items non-purchased items
+            # exist at all -- at which point nothing (fallback included)
+            # can manufacture more real items to recommend.
+            ranked_idx = np.argsort(scores)[::-1]
+            candidate_pool = [(int(candidate_ids[i]), float(scores[i])) for i in ranked_idx]
+            cleaned = self._fallback.clean_recommendations(user_id, candidate_pool, n_items=n_items)
+            recommendations = list(zip(cleaned["item_id"].tolist(), cleaned["score"].tolist()))
+            if len(recommendations) < n_items:
+                logger.warning("recommend(user_id=%s, exclude_purchased=True): only %d/%d "
+                               "items available after excluding purchases -- catalogue is "
+                               "too small to fill the request even with fallback.",
+                               user_id, len(recommendations), n_items)
+        else:
+            top_n_idx = np.argsort(scores)[::-1][:n_items]
+            recommendations = [(int(candidate_ids[i]), float(scores[i])) for i in top_n_idx]
 
         latency_ms = (time.perf_counter() - start) * 1000
         self.inference_stats["n_predictions"] += len(recommendations)
@@ -173,9 +267,11 @@ class TwoTowerInference:
         self.inference_stats["total_latency_ms"] += latency_ms
         return recommendations
 
-    def batch_recommend(self, user_ids: List[int], n_items: int = 10) -> Dict[int, List[Tuple[int, float]]]:
+    def batch_recommend(self, user_ids: List[int], n_items: int = 10,
+                        exclude_purchased: bool = False) -> Dict[int, List[Tuple[int, float]]]:
         """recommend() for multiple users at once."""
-        return {uid: self.recommend(uid, n_items=n_items) for uid in user_ids}
+        return {uid: self.recommend(uid, n_items=n_items, exclude_purchased=exclude_purchased)
+                for uid in user_ids}
 
     def get_metrics(self) -> Dict[str, float]:
         """Real production-inference metrics only (latency/throughput/
@@ -195,3 +291,33 @@ class TwoTowerInference:
             "cache_size_users": len(self._user_cache) if self.cache_enabled else 0,
             "cache_size_items": len(self._item_cache) if self.cache_enabled else 0,
         }
+
+    def generate_inference_report(self, user_ids: List[int], n_items: int = 10,
+                                   experiment_name: str = "ary2tower Inference Run",
+                                   output_dir: Optional[Union[str, Path]] = None,
+                                   include_embeddings: bool = True,
+                                   exclude_purchased: bool = False) -> Path:
+        """Generate the interactive HTML inference dashboard for this
+        model, covering `recommend()` output for each id in `user_ids`.
+
+        Mirrors AryColBringInference.generate_inference_report()'s API
+        shape -- see report.py / narative/a2trearender.py for the
+        renderer this delegates to.
+        """
+        predictions: List[Dict[str, Any]] = list()
+        for user_id in user_ids:
+            recs = self.recommend(user_id, n_items=n_items, exclude_purchased=exclude_purchased)
+            predictions.extend({"user_id": user_id, "item_id": item_id,
+                               "score": score, "rank": rank + 1}
+                              for rank, (item_id, score) in enumerate(recs))
+
+        item_embeddings = self.weights.item_embeddings if include_embeddings else None
+        item_ids = list(range(item_embeddings.shape[0])) if item_embeddings is not None else None
+
+        # Local import to avoid importing arycolbring at module load time
+        # for callers who never generate a report.
+        from .report import generate_two_tower_report
+        return generate_two_tower_report(
+            predictions=predictions, metrics=self.get_metrics(),
+            item_embeddings=item_embeddings, item_ids=item_ids,
+            experiment_name=experiment_name, output_dir=output_dir)
