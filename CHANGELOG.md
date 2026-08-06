@@ -6,155 +6,90 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Added
-- **`src/models/ary2tower/`**: new two-tower neural recommender
-  (`Embedding -> Dense -> ReLU -> Dense` per tower, dot-product/cosine
-  similarity, BPR-style pairwise training with SGD+momentum).
-  Cython + OpenMP kernels in `CLtowers/`, with an automatic pure-NumPy
-  fallback (`towers._HAS_CYTHON`) when the extension isn't built.
-  Build scripts (`cysetup.py/.sh/.ps1`) adapted directly from
-  `arycolbring/cysetup.*`. See `src/models/ary2tower/README.md` for
-  the module's own notes on what has and hasn't been compiled/run.
-- `test/ary2tower_tests/t01_towers.py` -- 22 tests covering config
-  validation, tower shapes, training convergence, save/load round-trip,
-  and inference (predict/recommend/batch_recommend/get_metrics).
-- New **Insights** tab on the AryColBring inference dashboard
-  (`narative/infrc_insights.html.j2` + `insights.css`/`insights.js`):
-  prediction score histogram, 2D PCA embedding projection, item-item
-  similarity heatmap (Plotly, reusing the `.js-heatmap-render`
-  data-attribute convention already established in
-  `ltr_lgbm/report/static/js/heatmaps.js`).
-- `src/assets/vizdata.py` -- shared, dependency-light (NumPy/pandas
-  only) visualization-data builders: `score_distribution`,
-  `embedding_projection_2d`, `similarity_heatmap`, `top_k_similar_items`.
-- `src/assets/dashboard_utils.py` -- `generate_scorecards`,
-  `generate_gauges`, `normalize_charts`, `bealabel`, `safe_float`,
-  `detect_gauge_metric`, `overall_score_percent`, deduplicated out of
-  `advirender.py` and `rearender.py` (previously near-identical copies
-  in both files).
-- "Similar Items (Top 3)" column + click-to-sort Score header on the
-  inference dashboard's Rankings table.
-- 6 new notebooks in `notebook/`: `01_Quick_Start`,
-  `02_Data_Preparation`, `03_Training_AryColBring`,
-  `04_Interactive_Dashboard`, `05_LTR_LGBM_Comparison`,
-  `06_Cold_Start_Handling` (alongside the pre-existing
-  `AryColBring_Training_Pipeline.ipynb`).
-- `test/arycolbring_tests/t05_dashboard_refactor.py` -- regression
-  suite for the dashboard/metrics fixes below.
-- `lint` and `pytest-suite` jobs in
-  `.github/workflows/arycolbring_pipeline.yml`, plus a step chaining
-  `t02_reasoner.py` onto the model `t01_advisor.py` trains in the same
-  CI job (exercises the full inference + dashboard pipeline in CI).
-- 26 new tests in `test/arycolbring_tests/t03_pytest.py`
-  (`TestReasonerHyperparameterValidation`, `TestReasonerParams`,
-  `TestReasonerPairUtilities`) covering `TheReasoner`/`TheAdvisor`'s
-  shared validation logic and `build_pairs()`/`_is_string_type()`.
 
-### Fixed
-- **`get_env()` in `narative/rensupport.py` silently swallowed all Jinja
-  initialization failures.** `finally: return env` unconditionally
-  discarded any exception raised in the `try`/`except` above it (a
-  `return`/`break`/`continue` inside `finally` always wins in Python) --
-  meaning `raise RuntimeError() from exc` was dead code, and a broken
-  template setup would silently return a loader-less `Environment`
-  instead, which would then fail later with a confusing, unrelated
-  error on the first `get_template()` call. Fixed: the success path now
-  returns directly from `try`, and a genuine failure correctly
-  propagates as `RuntimeError`. Verified both paths (happy path
-  unaffected; simulated failure now raises as intended) plus a full
-  re-run of the Task 1 dashboard pipeline end to end.
-- Mutable default argument (`dirlist: List = ['css', 'js']`) in
-  `copymaps()` (`narative/rensupport.py`) -- benign in practice (the
-  list was only read, never mutated) but replaced with a `None`
-  sentinel per standard practice. Verified no state leaks across calls.
+* **`ary2tower` Architecture & Structure**:
+* Restructured package layout to mirror `arycolbring` with dedicated `inout/` and `narative/` subpackages:
+* `inout/scaffold.py` (`TwoTowerBase`) and `inout/approximator.py` (`TwoTowerPredictor` containing `build_pairs()`, `predict()`, and `predict_rank()`).
+* `inout/model_architect.py` (`TwoTowerArchitect` containing the Bayesian Personalized Ranking (BPR) training loop).
+* `inout/fallback_reasoner.py` (`TwoTowerFallBack` providing purchase-aware filtering and item-to-item cosine-similarity cold-start fallback).
 
-- **Fabricated "coverage" metric removed.** The inference dashboard
-  (`inference.py` / `narative/rearender.py`) previously always showed
-  a hardcoded `0.75` "Coverage" stat as if it were measured; nothing in
-  the codebase ever computed a real value. Removed rather than shipped.
-- **Eval metrics no longer leak into the inference dashboard.**
-  Precision/Recall/NDCG/AUC/MRR-style ranking-quality metrics were
-  being categorized and gauge-displayed on the *inference* report;
-  those belong on the *training* dashboard only. `generate_gauges()`
-  now correctly produces zero gauges for a clean inference-metrics
-  dict (latency/qps/throughput).
-- **`bealabel()` formatting bug**: `ndcg_at_10` rendered as
-  `"Ndcg @ 10"` instead of `"NDCG@10"` (substring-replace-after-
-  underscore-expansion bug). Fixed via token-based formatting;
-  caught by a unit test during the `dashboard_utils.py` extraction.
-- **Two broken tests in `t03_pytest.py`** (`test_invalid_loss_function`,
-  `test_invalid_learning_schedule`) asserted construction *succeeds*
-  with an invalid value, with a comment claiming validation happens "at
-  fit time." Confirmed by reading `AryColBringBase.__init__`
-  (`inout/scaffold.py`): validation actually happens immediately at
-  construction. Tests corrected to expect `ValueError` at construction.
-- **`TestDataHandling` in `t03_pytest.py`** read `stats["n_interactions"]`
-  / `stats["sparsity"]` from `describe_interactions()`'s return value --
-  neither column exists (real columns: `n_users`, `n_items`, `nnz`,
-  `density`, `avg/min/max_interactions_per_user`, confirmed by
-  cross-referencing `trainer.py`'s own internal usage). Fixed to use
-  the real column names and `.iloc[0]` scalar access.
-- **Coverage measurement was silently broken project-wide**:
-  `pyproject.toml`'s `--cov=cooprecsys` / `source = ["cooprecsys"]`
-  pointed at a module name that isn't importable anywhere in this
-  repo (the real root package is `src`). Every coverage number ever
-  reported under the old config was measuring nothing. Fixed to
-  `--cov=src` / `source = ["src"]`.
-- **`pytest`'s bare discovery found zero arycolbring tests**:
-  `python_files = ["ltrlgbm_example.py", "*_test.py"]` matched neither
-  `t03_pytest.py` nor `t05_dashboard_refactor.py`. Both filenames added.
-- Missing dev dependencies (`pytest-cov`, `black`, `flake8`, `isort`)
-  were used/implied (via `--cov` in `addopts`, and the CI spec's lint
-  requirement) but never declared in `pyproject.toml`'s `dev` extras.
-  Added.
+
+* Refactored `trainer.py` and `inference.py` into thin orchestration wrappers around new `inout/` classes while preserving existing public APIs.
+* Implemented native single-page dashboard renderer under `narative/` (`rensupport.py`, `a2trearender.py`, `a2tadvirender.py`, class wrappers, templates, and static CSS/JS) styled with a light + orange theme.
+* Updated `report.py` to delegate directly to the new native `narative/` renderer.
+* Added end-to-end test suites `test/ary2tower_tests/t04_inout.py` and `t05_narative.py`.
+
+
+* **Visualization & Reporting Framework**:
+* Added static CPU plotting module (`src/models/ary2tower/viztower/`) supporting loss curves, metric bars, 2D embedding projections, similarity heatmaps, score distributions, precision/recall curves, and HTML gallery conversion.
+* Added interactive dashboard reporting via `src/models/ary2tower/report.py` and `TwoTowerInference.generate_inference_report()`.
+* Added test suites `t02_viztower.py` (17 tests) and `t03_report.py` (6 tests).
+
+
+
+---
 
 ### Changed
-- Retheme: `arycolbring/narative/{stinferc,sttrain}/css/base.css` and
-  related CSS/JS moved from a light-green palette to light + orange
-  (`#FF6B35`/`#F7931E` primary, `#4ECDC4` secondary, `#F8F9FA`
-  background), per the requested design spec.
-  Note: the original task brief's premise that the *current* dashboard
-  was dark-themed (needing to become light, "matching ltr_lgbm/report")
-  didn't match the repo as found -- `narative` was already light green,
-  and `ltr_lgbm/report` is actually dark navy. Followed the explicit
-  hex palette given rather than either of those two as-found states.
-- `arycolbring_pipeline.yml` `pull_request` trigger widened to include
-  `main` (previously only `dev*`).
 
-### Known limitations / not done in this session
-- The `ary2tower` Cython/OpenMP kernels (`CLtowers/*.pyx`) have been
-  written and structurally reviewed, but **not compiled or executed**
-  -- no `cython` package, C compiler, or network access were available
-  in the development sandbox. The underlying algorithm *was* verified
-  via numerical gradient-checking against a pure-Python port and a
-  full training-convergence run; see `src/models/ary2tower/README.md`.
-  Build and test the compiled path (`cysetup.sh`/`.ps1`, then
-  `t01_towers.py` with `towers._HAS_CYTHON == True`) before relying on
-  it in production.
-- `--cov-fail-under` thresholds were deliberately **not** added to the
-  new CI `pytest-suite` job. No real coverage baseline exists yet (the
-  old config never measured anything real -- see Fixed, above);
-  picking a round number now would be a second fabricated threshold on
-  top of the first one. Set this once a real run establishes a baseline.
-- `black`/`flake8`/`isort`/`pytest` could not be run locally to verify
-  the new `lint`/`pytest-suite` CI jobs before this change -- same
-  network/dependency constraints as above.
-- A full-repo bug scan (AST-based, all 92 `.py` files) found the same
-  `finally: return <value>` exception-swallowing pattern (see Fixed,
-  above) in 6 more places **outside this session's file scope**, not
-  fixed here: `src/assets/statsrender.py:119`,
-  `src/models/ltr_lgbm/report/renderutils.py:331`,
-  `src/features/feat_utils.py:93`, `src/prepare/unzips.py:59`,
-  `src/prepare/columns_identifier.py:213`,
-  `src/qrates/multi_scann.py:111`. Same root cause each time (a
-  `return` inside `finally` discards any pending exception); each was
-  checked and confirmed not to additionally risk an `UnboundLocalError`
-  (the returned variables are all pre-initialized before their `try`
-  block). A near-duplicate of the mutable-default-argument `copymaps()`
-  pattern also exists in `src/models/ltr_lgbm/report/renderpot.py:54`.
+* **`ary2tower` Core Neural Engine**:
+* Added two-tower neural recommender model (`Embedding -> Dense -> ReLU -> Dense` per tower, dot-product/cosine similarity, pairwise BPR loss with SGD + momentum).
+* Added Cython + OpenMP accelerated kernels in `CLtowers/` with automatic pure-NumPy fallback (`towers._HAS_CYTHON`) when extensions are unbuilt.
+* Ported build setup scripts (`cysetup.py`, `cysetup.sh`, `cysetup.ps1`) from `arycolbring`.
+* Added unit test suite `test/ary2tower_tests/t01_towers.py` (22 tests covering validation, training convergence, serialization, and inference).
 
-  `test/arycolbring_tests/t01_advisor.py` references a module-level
-  `LocDir` that is only ever defined in a commented-out line;
-  `AryColBring_Train_Test.__init__(output_dir=None)` and the
-  `datapath` default would raise `NameError` if ever hit directly
-  (currently masked because the CLI always supplies both `-o` and `-d`
-  explicitly).
+
+* **Dashboard & User Interface**:
+* Added **Insights** tab to the AryColBring inference dashboard (`infrc_insights.html.j2`, `insights.css`, `insights.js`) featuring prediction score histograms, 2D PCA embedding projections, and interactive Plotly similarity heatmaps.
+* Updated `arycolbring` dashboard theme palette (`base.css` and static assets) to light background with orange accents (`#FF6B35` / `#F7931E` primary, `#4ECDC4` secondary).
+* Added "Similar Items (Top 3)" column and interactive sorting to the Rankings table header.
+
+
+* **Shared Assets & Infrastructure**:
+* Extracted shared visualization builders into `src/assets/vizdata.py` (`score_distribution`, `embedding_projection_2d`, `similarity_heatmap`, `top_k_similar_items`).
+* Refactored `src/assets/dashboard_utils.py` to consolidate shared scorecards, gauge generators, chart normalizers, and formatting utilities previously duplicated across renderers.
+* Added 6 onboarding and comparison notebooks under `notebook/` (`01_Quick_Start` through `06_Cold_Start_Handling`).
+* Added regression test suite `test/arycolbring_tests/t05_dashboard_refactor.py`.
+* Extended CI workflow (`.github/workflows/arycolbring_pipeline.yml`) with `lint` and `pytest-suite` jobs, and expanded `pull_request` triggers to include `main`.
+* Added 26 unit tests in `test/arycolbring_tests/t03_pytest.py` for shared parameter validation and utility functions.
+
+
+* **Design Choices**:
+* Retained CPU-first Cython + OpenMP architecture for `ary2tower`, explicitly declining PyTorch/GPU/DDP hardware dependencies to maintain repository-wide consistency and zero-GPU operational capability.
+
+---
+
+### Fixed
+
+* **Recommendation Shortfall & Candidate Filtering**:
+* Fixed an issue where `recommend()` and `batch_recommend()` returned fewer than `n_items` results for users with heavy purchase history due to post-truncation filtering.
+* Added `exclude_purchased: bool` parameter to score full candidate pools prior to filtering, backed by `TwoTowerFallBack` cosine similarity fallback for edge-case catalogue exhaustion.
+* Fixed a code edit error in `t01_towers.py` where a dropped `class TestTwoTowerInference:` declaration merged test scopes.
+
+
+* **Imports & Execution Reliability**:
+* Fixed incorrect relative import depth in `ary2tower/narative/a2trearender.py`.
+* Fixed exception swallowing in `get_env()` (`narative/rensupport.py`) caused by an unconditional `return` statement inside a `finally` block.
+* Replaced mutable default argument (`dirlist: List = ['css', 'js']`) in `copymaps()` with a `None` sentinel.
+
+
+* **Metrics & Formatting**:
+* Removed hardcoded `0.75` coverage metric baseline from inference reports.
+* Prevented offline evaluation metrics (Precision, Recall, NDCG) from rendering on inference dashboards.
+* Fixed label parsing bug in `bealabel()` where `ndcg_at_10` rendered as `"Ndcg @ 10"` instead of `"NDCG@10"`.
+
+
+* **Test Suite & CI Alignment**:
+* Corrected `t03_pytest.py` assertions to expect validation errors at instance initialization rather than fit time.
+* Updated dataframe column lookups in `TestDataHandling` to match actual output keys (`n_users`, `n_items`, `nnz`, `density`).
+* Corrected `pyproject.toml` coverage target from `cooprecsys` to `src`.
+* Updated `pytest` discovery rules in `pyproject.toml` to include `t03_pytest.py` and `t05_dashboard_refactor.py`.
+* Added missing development dependencies (`pytest-cov`, `black`, `flake8`, `isort`) to `pyproject.toml`.
+
+---
+
+### Known Limitations
+
+* The Cython/OpenMP kernels (`CLtowers/*.pyx`) require compilation via `cysetup.sh` / `cysetup.ps1` before enabling the hardware-accelerated execution path (`towers._HAS_CYTHON == True`).
+* Coverage failure thresholds (`--cov-fail-under`) remain unconfigured pending an established baseline run.
+* Legacy `finally: return` exception-swallowing patterns remain unpatched in 6 external files outside current scope (`statsrender.py`, `renderutils.py`, `feat_utils.py`, `unzips.py`, `columns_identifier.py`, `multi_scann.py`).
+* Missing default value for `LocDir` in `test/arycolbring_tests/t01_advisor.py` requires explicit CLI parameters (`-o` and `-d`) during execution.

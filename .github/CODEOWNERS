@@ -1,6 +1,5 @@
-*       @masterofray
-
-# Perubahan pada logika model LTR atau sistem rekomendasi harus ditinjau di sini.
+# Owner of this Repository
+*       @aryanto
 /src/   @masterofray
 
 # Spesifik untuk konfigurasi CI/CD dan GitHub Actions.
