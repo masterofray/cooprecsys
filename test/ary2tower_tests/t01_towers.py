@@ -25,6 +25,7 @@ where `python cysetup.py build_ext --inplace` has been run first.
 """
 
 import numpy as np
+import pandas as pd
 import pytest
 import scipy.sparse as sp
 
@@ -183,6 +184,100 @@ class TestTwoTowerTrainer:
 # ================================================================
 # TwoTowerInference
 # ================================================================
+
+class TestExcludePurchased:
+    """recommend(exclude_purchased=True): guarantees n_items whenever
+    that many non-purchased catalogue items exist at all (fixes the
+    'some customers get fewer than n_items' bug), and degrades
+    gracefully (fewer results, no crash) only when a user has
+    genuinely purchased almost the whole catalogue."""
+
+    @pytest.fixture
+    def trained_model_path(self, tmp_path):
+        rng = np.random.default_rng(0)
+        n_users, n_items, true_dim = 20, 50, 4
+        true_user = rng.normal(size=(n_users, true_dim))
+        true_item = rng.normal(size=(n_items, true_dim))
+        true_scores = true_user @ true_item.T
+        rows, cols = [], []
+        for u in range(n_users):
+            liked = np.argsort(true_scores[u])[::-1][:5]
+            rows += [u] * len(liked)
+            cols += list(liked)
+        mat = sp.csr_matrix((np.ones(len(rows)), (rows, cols)), shape=(n_users, n_items))
+        trainer = TwoTowerTrainer(n_users, n_items,
+                                  config=TwoTowerConfig(embedding_dim=6, hidden_dim=8,
+                                                        output_dim=4, n_epochs=8, random_state=0))
+        trainer.fit(mat)
+        path = tmp_path / "model.npz"
+        trainer.save_model(path)
+        return path, n_users, n_items, true_scores
+
+    def test_exclude_purchased_without_purchase_data_raises(self, trained_model_path):
+        path, *_ = trained_model_path
+        infer = TwoTowerInference(path)
+        with pytest.raises(ValueError):
+            infer.recommend(0, n_items=10, exclude_purchased=True)
+
+    def test_exclude_purchased_fills_shortfall_when_catalogue_allows(self, trained_model_path):
+        """The core bug being fixed: even when a user has purchased
+        exactly the items the model would naively rank highest, they
+        must still get the full n_items -- pulled from further down
+        the ranking, not artificially truncated first."""
+        path, n_users, n_items, true_scores = trained_model_path
+        # Purchase the top 15 items for user 0 -- deliberately the ones
+        # a naive top-N-then-filter approach would have returned.
+        top_15_for_user0 = np.argsort(true_scores[0])[::-1][:15].tolist()
+        purchase_data = pd.DataFrame({"user_id": [0] * 15, "item_id": top_15_for_user0})
+
+        infer = TwoTowerInference(path, purchase_data=purchase_data)
+        recs = infer.recommend(0, n_items=10, exclude_purchased=True)
+        assert len(recs) == 10
+        rec_ids = {iid for iid, _ in recs}
+        assert not (rec_ids & set(top_15_for_user0)), "no purchased item should be recommended"
+
+    def test_exclude_purchased_degrades_gracefully_when_catalogue_exhausted(self, trained_model_path):
+        path, n_users, n_items, true_scores = trained_model_path
+        # Purchase 45 of the 50 catalogue items -- only 5 non-purchased
+        # items can possibly exist; asking for 10 must not crash.
+        purchased = list(range(45))
+        purchase_data = pd.DataFrame({"user_id": [1] * len(purchased), "item_id": purchased})
+
+        infer = TwoTowerInference(path, purchase_data=purchase_data)
+        recs = infer.recommend(1, n_items=10, exclude_purchased=True)
+        assert len(recs) == 5
+        rec_ids = {iid for iid, _ in recs}
+        assert not (rec_ids & set(purchased))
+
+    def test_set_purchase_data_after_construction(self, trained_model_path):
+        path, n_users, n_items, true_scores = trained_model_path
+        infer = TwoTowerInference(path)
+        purchase_data = pd.DataFrame({"user_id": [0, 0], "item_id": [1, 2]})
+        infer.set_purchase_data(purchase_data)
+        recs = infer.recommend(0, n_items=5, exclude_purchased=True)
+        assert len(recs) == 5
+        assert not ({iid for iid, _ in recs} & {1, 2})
+
+    def test_exclude_purchased_false_is_unaffected(self, trained_model_path):
+        """Baseline behavior (no purchase filtering) must be identical
+        to before this feature existed."""
+        path, *_ = trained_model_path
+        infer = TwoTowerInference(path)
+        recs = infer.recommend(0, n_items=10)
+        assert len(recs) == 10
+
+    def test_batch_recommend_exclude_purchased(self, trained_model_path):
+        path, n_users, n_items, true_scores = trained_model_path
+        purchase_data = pd.DataFrame({
+            "user_id": [0] * 10 + [1] * 3,
+            "item_id": np.argsort(true_scores[0])[::-1][:10].tolist() + [5, 6, 7],
+        })
+        infer = TwoTowerInference(path, purchase_data=purchase_data)
+        results = infer.batch_recommend([0, 1], n_items=8, exclude_purchased=True)
+        assert len(results[0]) == 8
+        assert len(results[1]) == 8
+        assert not ({iid for iid, _ in results[1]} & {5, 6, 7})
+
 
 class TestTwoTowerInference:
 

@@ -10,10 +10,3 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-02"
 
-#from .arycolbring_tests import *
-from .ltrlgbm_test import lgbmtest, inference_test
-
-if __name__ == '__main__':
-    print('Doing Test data!!!')
-    lgbmtest()
-    inference_test()

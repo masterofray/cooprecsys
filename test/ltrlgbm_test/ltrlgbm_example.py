@@ -18,7 +18,6 @@ This script loads 'sampledata.parquet', prepares a group-aware train/test split,
 configures the pipeline, and triggers all downstream LTR processes.
 '''
 
-import os
 import mlflow
 import pandas as pd
 from pathlib import Path
@@ -101,4 +100,8 @@ def maintest():
         raise RuntimeError()
 
 if __name__ == "__main__":
+    import os
+    os.environ.setdefault("MLFLOW_ALLOW_FILE_STORE", "true")
+    tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+    mlflow.set_tracking_uri(tracking_uri)
     maintest()
