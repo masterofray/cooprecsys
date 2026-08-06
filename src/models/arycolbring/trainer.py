@@ -262,7 +262,7 @@ class AryColBringModelTrainer:
             overlap = test_interactions.multiply(train_interactions.astype(bool))
             if overlap.nnz > 0:
                 logger.info("Data Leakage Detected! "
-                "Membuang %d interaksi overlap dari test_interactions.",
+                "Take out %d Overlap Interaction from test_interactions.",
                 overlap.nnz)
                 test_interactions = test_interactions - overlap
                 test_interactions.eliminate_zeros()
@@ -271,8 +271,8 @@ class AryColBringModelTrainer:
         # have same rows ILD / Novelty
         if item_features is None or (
         item_features.shape[0] < expected_items):
-            logger.warning("item_features kurang baris (%s) atau None."
-            "Membuat fallback Identity Matrix untuk %d items.", 
+            logger.warning("item_features less than (%s) rows or None."
+            "\nCreate fallback Identity Matrix for %d items.", 
             item_features.shape if item_features is not None else "None",
             expected_items)
             item_features = sp.eye(expected_items, format = "csr")
