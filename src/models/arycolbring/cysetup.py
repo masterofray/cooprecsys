@@ -28,7 +28,7 @@ if __name__ == '__main__':
         omp_lib            = list()
     elif sys.platform == "darwin":
         # Homebrew LLVM clang supports -fopenmp
-        extra_compile_args = ["-O3", "-fopenmp", "-march=native"]
+        extra_compile_args = ["-O3", "-fopenmp", "-ffast-math"]
         extra_link_args    = ["-fopenmp"]
         omp_lib            = ["omp"]
     else: 
@@ -39,8 +39,10 @@ if __name__ == '__main__':
         extra_link_args    = ["-fopenmp"]
         omp_lib            = list()
 
+    modpreffix = "cooprecsys.models.arycolbring.CLproximity"
     for pyx in CYTHON_DIR.glob("*.pyx"):
-        module_name = (f"CLproximity.{pyx.stem}")
+        #module_name = (f"CLproximity.{pyx.stem}")
+        module_name = (f"{modpreffix}.{pyx.stem}")
         relative    = pyx.relative_to(BASE_DIR)
         exts.append(Extension(
             name               = module_name,
@@ -53,11 +55,11 @@ if __name__ == '__main__':
             )
     setup(
         name            = "arycolbring",
-        version         = "0.0.1",
+        version         = "0.0.2",
         description     = ("Ultra-optimised user-to-item collaborative filtering "
                            "with Cython + OpenMP kernels"),
         author          = "aryanto",
-        python_requires = ">=3.8",
+        python_requires = ">=3.10",
         packages        = find_packages(),
         ext_modules     = cythonize(
                           exts,

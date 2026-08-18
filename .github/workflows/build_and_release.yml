@@ -383,6 +383,22 @@ jobs:
           echo "wheel_file=$WHEEL_FILE" >> "$GITHUB_OUTPUT"
           echo "Resolved wheel: $WHEEL_FILE"
 
+      - name: Inspect wheel structure and binary (.so) files
+        run: |
+          # Install tree di runner Ubuntu
+          sudo apt-get update -qq && sudo apt-get install -y -qq tree
+
+          echo "=== 1. Summary File Binary (.so) & Config (.ini) ==="
+          unzip -l "${{ steps.wheel_info.outputs.wheel_file }}" | grep -E '\.so|\.ini' || echo "WARNING: No .so or .ini files found!"
+
+          echo -e "\n=== 2. Detailed Tree Structure ==="
+          mkdir -p /tmp/whl_contents
+          unzip -q "${{ steps.wheel_info.outputs.wheel_file }}" -d /tmp/whl_contents
+
+          tree /tmp/whl_contents
+
+          rm -rf /tmp/whl_contents
+
       - name: Create isolated test environment via uv
         run: uv venv test_env --python ${{ matrix.python-version }}
 
@@ -392,7 +408,6 @@ jobs:
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           uv pip show cooprecsys
           python -c "import cooprecsys; print('SUCCESS:', cooprecsys.__file__)"
-
       - name: Install test dependencies
         run: |
           source test_env/bin/activate
