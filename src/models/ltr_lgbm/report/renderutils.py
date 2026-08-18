@@ -12,7 +12,6 @@ __created__    = "2026-05-23"
 
 import os
 import re
-import sys
 import json
 import math
 import pandas as pd
@@ -26,8 +25,7 @@ LocDir = Path(__file__).resolve()
 TEMPLATE_DIR = LocDir.parent / "templates"
 STATIC_DIR   = LocDir.parent / "static"
 
-sys.path.append(str(LocDir.parents[3]))
-from configs import logger
+from ....configs import logger
 
 # JINJA ENVIRONMENT
 #__________________________________________________________

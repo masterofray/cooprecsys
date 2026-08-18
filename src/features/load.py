@@ -19,17 +19,14 @@ Supported:
 - DuckDB (.db / .duckdb)
 """
 
-
 import os
 import gc
 import sys
 import pandas as pd
 from pathlib  import Path
 
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs  import logger
-from db       import DuckDBManager, duckdb_connection
+from ..configs  import logger
+from ..db       import DuckDBManager, duckdb_connection
 
 
 # ==========================================================

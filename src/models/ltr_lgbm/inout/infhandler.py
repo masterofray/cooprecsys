@@ -11,10 +11,8 @@ __status__     = "Development"
 __created__    = "2026-05-13"
 
 
-import sys
 import numpy as np
 import pandas as pd
-from pathlib import Path
 from copy import deepcopy
 from tqdm.auto import tqdm
 from collections import defaultdict
@@ -23,9 +21,7 @@ from typing import Dict, List, Optional
 from .infsupport import (_CustomerCfg, ContentBasedStrategy, FallbackContext,
                          HybridStrategy, CollaborativeStrategy)
 
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[3]))
-from configs import logger, _cfg
+from ....configs import logger, _cfg
 
 
 #-------------------------------------------------------------------------------

@@ -18,16 +18,11 @@ to be created.
 '''
 
 import gc
-import sys
 import numpy as np
 import scipy.sparse as sp
-from   pathlib import Path
 from   tqdm.auto import tqdm
 from   typing import Optional, Tuple
-
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import logger, _cfg
+from ..configs import logger, _cfg
 
 
 def _shuffle(uids   : np.ndarray,

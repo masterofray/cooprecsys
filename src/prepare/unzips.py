@@ -12,14 +12,9 @@ __created__    = "2026-05-21"
 
 
 import os
-import sys
 import zipfile
-from pathlib import Path
 from getpass import getpass
-
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import logger
+from ..configs import logger
 
 
 def Unzip(Zips       : str,

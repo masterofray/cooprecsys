@@ -10,7 +10,7 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-28"
 
-import sys
+
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -20,15 +20,8 @@ from typing import Dict, List, Callable, Optional, Any
 from sklearn.base import BaseEstimator, TransformerMixin
 pd.set_option('display.max_columns', None)
 
-try:
-    LocDir = Path(__file__).resolve().parents[1]
-    sys.path.append(str(LocDir))
-    from db import DuckDBManager, duckdb_connection
-    from config import logger
-except Exception:
-    import duckdb
-    DuckDBManager = None
-    duckdb_connection = None
+from ..db import DuckDBManager, duckdb_connection
+from ..config import logger
 
 @dataclass
 class AutoFeatureEngineer(

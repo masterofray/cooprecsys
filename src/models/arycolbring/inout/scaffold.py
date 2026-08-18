@@ -21,7 +21,6 @@ must implement the four public API methods declared here as
 `@abstractmethod`.
 """
 
-import sys
 import numpy as np
 import scipy.sparse as sp
 from   tqdm.auto import tqdm
@@ -29,13 +28,9 @@ from   pathlib   import Path
 from   abc       import ABC, abstractmethod
 from   typing    import Any, Dict, Optional, Union
 
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[1]))
-from assist      import validate_sparse_matrix
-from CLproximity import CSRMatrix, FastAryColBring
-
-sys.path.append(str(LocDir.parents[3]))
-from configs import _cfg, logger
+from ..assist      import validate_sparse_matrix
+from ..CLproximity import CSRMatrix, FastAryColBring
+from ....configs import _cfg, logger
 cydtype = np.float32
 
 

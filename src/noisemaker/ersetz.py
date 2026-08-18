@@ -38,7 +38,6 @@ _encode_to_sparse     – one-hot + min-max -> CSR sparse matrix
 """
 
 import gc
-import sys
 import numpy  as np
 import pandas as pd
 import scipy.sparse as sp
@@ -46,10 +45,8 @@ from pathlib   import Path
 from tqdm.auto import tqdm
 from typing    import Dict, List, NamedTuple, Tuple
 
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import logger, _cfg
-from db      import duckdb_connection
+from ..configs import logger, _cfg
+from ..db      import duckdb_connection
 
 DType = _cfg.get('model', 'dtype')
 

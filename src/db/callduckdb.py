@@ -11,18 +11,12 @@ __status__     = "Development"
 __created__    = "2026-04-25"
 
 import gc
-import os
-import sys
 import duckdb
 import configparser
 import pandas as pd
-from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional, Tuple, List, Dict, Union
-
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import logger
+from ..configs import logger
 
 class DuckDBManager:
     """

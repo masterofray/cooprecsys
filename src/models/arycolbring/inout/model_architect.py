@@ -29,15 +29,10 @@ from   tqdm.auto import tqdm
 from   pathlib   import Path
 from   typing    import Optional
 from   .scaffold import AryColBringBase, cydtype
-
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[1]))
-from assist      import validate_sparse_matrix
-from CLproximity import (CSRMatrix, fit_logistic,
+from ..assist      import validate_sparse_matrix
+from ..CLproximity import (CSRMatrix, fit_logistic,
                          fit_warp, fit_bpr, fit_warp_kos)
-
-sys.path.append(str(LocDir.parents[3]))
-from configs import _cfg, logger, verbose
+from ....configs import _cfg, logger, verbose
 
 
 

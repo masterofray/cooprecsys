@@ -11,20 +11,13 @@ __status__     = "Development"
 __created__    = "2026-06-01"
 
 import gc
-import sys
 import numpy as np
 import scipy.sparse as sp
-from   pathlib    import Path
 from   tqdm.auto  import tqdm
 from   typing     import Optional
 from   .take_rank import _get_ranks
-
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[1]))
-from CLproximity import CSRMatrix, calculate_auc_from_rank
-
-sys.path.append(str(LocDir.parents[3]))
-from configs import _cfg, logger
+from ..CLproximity import CSRMatrix, calculate_auc_from_rank
+from ....configs import _cfg, logger
 
 
 def precision_at_k(

@@ -21,7 +21,6 @@ the context is closed.
 """
 
 import os
-import sys
 import mlflow
 import mlflow.lightgbm
 import lightgbm as lgb
@@ -29,10 +28,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from mlflow.types.schema import Schema, ColSpec
 from mlflow.models.signature import ModelSignature
-
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-from configs import LTRConfig, logger, _cfg
+from ....configs import LTRConfig, logger, _cfg
 
 if _cfg.getboolean('DEFAULT', 'is_cicd'):
     mlflow.set_tracking_uri("file:./mlruns")

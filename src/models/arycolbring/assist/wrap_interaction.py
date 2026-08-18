@@ -10,16 +10,12 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-30"
 
-import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
 import scipy.sparse as sp
-
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-from configs import _cfg, logger
-from db      import duckdb_connection
+from ....configs import _cfg, logger
+from ....db      import duckdb_connection
 
 
 def describe_interactions(interactions: sp.spmatrix) -> pd.DataFrame:

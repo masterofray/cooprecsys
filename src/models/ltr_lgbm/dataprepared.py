@@ -12,7 +12,6 @@ __created__    = "2026-05-05"
 
 
 import re
-import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -20,9 +19,8 @@ from copy import deepcopy
 from typing import List, Optional, Tuple
 
 LocDir = Path(__file__).resolve()
-sys.path.append(LocDir.parents[2])
-from configs import logger
-from features import DateProcessor, LabelEncoderManager
+from ...configs import logger
+from ...features import DateProcessor, LabelEncoderManager
 
 
 def data_aftermath(train_df       : pd.DataFrame,

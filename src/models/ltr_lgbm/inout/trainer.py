@@ -21,19 +21,14 @@ evals_result, runtime) is stored on ``self`` for downstream consumers
 (:class:`Visualizer`, :class:`MLflowMonitor`).
 """
 
-
 import os
-import sys
 import time
 import numpy    as np
 import lightgbm as lgb
 from pathlib    import Path
 from tqdm.auto  import tqdm
 from typing     import Any, Dict
-
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-from configs import logger, _cfg
+from ....configs import logger, _cfg
 
 
 class LTRTrainer:

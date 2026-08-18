@@ -22,7 +22,6 @@ Enterprise-grade HTML dashboard generator for:
 
 import os
 import re
-import sys
 import json
 import math
 import random
@@ -40,9 +39,8 @@ from .renderutils import (get_env, static_prefix, load_context,
     generate_stat_minis, normalize_charts)
 
 LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[3]))
-from configs import logger, _cfg
-from prepare import latest_found, FileCopier
+from ....configs import logger, _cfg
+from ....prepare import latest_found, FileCopier
 
 rpath        = _cfg.get('PATHS', 'html_report_path')
 STATIC_DIR   = LocDir.parent / "static"

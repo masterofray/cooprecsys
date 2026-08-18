@@ -11,17 +11,12 @@ __status__     = "Development"
 __created__    = "2026-06-05"
 
 
-import sys
 import time
-from   pathlib    import Path
 from   tqdm.auto  import tqdm
 from   datetime   import datetime
 from   typing     import Any, Dict, List
 from   .inference import AryColBringInference
-
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[2]))
-from configs import logger
+from ...configs import logger
 
 
 class InferenceService:

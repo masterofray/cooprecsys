@@ -13,7 +13,6 @@ __created__    = "2026-06-06"
 
 
 import gc
-import sys
 import numpy     as np
 import pandas    as pd
 from   pathlib   import Path
@@ -27,10 +26,9 @@ from   sklearn.preprocessing import MinMaxScaler
 from   sklearn.decomposition import PCA
 
 LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[1]))
-from configs import logger, _cfg, _cfglist
-from prepare import DetectReco_Identifier
-from db      import DuckDBManager
+from ..configs import logger, _cfg, _cfglist
+from ..prepare import DetectReco_Identifier
+from ..db      import DuckDBManager
 
 
 fp01 = LocDir.parent/'sqlrender'/"Weighted_Score.sql"

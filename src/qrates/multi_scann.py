@@ -12,7 +12,6 @@ __created__    = "2026-06-07"
 
 
 import gc
-import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -22,12 +21,10 @@ from jinja2 import Template
 from typing import Dict, List, Tuple, Any
 from scann import scann_ops_pybind as sopy
 from sklearn.preprocessing import StandardScaler
+from ..configs import _cfg, logger, _cfglist
+from ..db      import duckdb_connection
 
 LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import _cfg, logger, _cfglist
-from db      import duckdb_connection
-
 
 
 def DFMerger(DataArray: List[pd.DataFrame]) -> pd.DataFrame:

@@ -23,7 +23,6 @@ That class does to load a trained booster and scores / ranks query groups.
 """
 
 import os
-import sys
 import numpy as np
 import pandas as pd
 import lightgbm as lgb
@@ -31,10 +30,7 @@ from pathlib import Path
 from copy import deepcopy
 from tqdm.auto import tqdm
 from typing import List, Optional
-
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-from configs import LTRConfig, logger, _cfg
+from ....configs import LTRConfig, logger, _cfg
 
 
 class LTRInference:

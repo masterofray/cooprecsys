@@ -37,18 +37,14 @@ import duckdb
 import numpy as np
 import pandas as pd
 from copy import deepcopy
-from pathlib import Path
 from tqdm.auto import tqdm
 from datetime import datetime
 from typing import List, Tuple
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from ..configs import LTRConfig, _cfg, logger
+from ..db import DuckDBManager, duckdb_connection
 
-LocDir = Path(__file__).resolve().parents[1]
 dates  = f'{datetime.now():%Y%m%d}'
-sys.path.append(str(LocDir))
-from configs import LTRConfig, _cfg, logger
-from db import DuckDBManager, duckdb_connection
-
 
 # ---------------------------------------------------------------------------
 # Module-level worker - must be picklable (top-level function)

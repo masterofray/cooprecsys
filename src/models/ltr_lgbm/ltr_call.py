@@ -35,7 +35,6 @@ Pipeline stages
 
 
 import os
-import sys
 import time
 import argparse
 import pandas as pd
@@ -45,17 +44,13 @@ from pathlib     import Path
 from datetime    import datetime
 from typing      import Any, Dict, List, Optional
 
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[0]))
 from .ftcore      import (BayesianTuner, MLflowMonitor, 
                          Visualizer, MLPstyle)
 from .inout       import LTRTrainer, LTRInference
 from .dataprepared import data_aftermath
-
-sys.path.append(str(LocDir.parents[2]))
-from prepare     import Dict2Json
-from configs     import LTRConfig, logger
-from features    import DataProcessor, TrueString
+from ...prepare     import Dict2Json
+from ...configs     import LTRConfig, logger
+from ...features    import DataProcessor, TrueString
 
 plt.rcParams.update(MLPstyle)
 

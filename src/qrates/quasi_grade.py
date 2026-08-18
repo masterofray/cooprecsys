@@ -12,7 +12,6 @@ __created__    = "2026-06-06"
 
 
 import gc
-import sys
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -20,10 +19,10 @@ from pathlib import Path
 from typing  import Optional, Tuple, List
 
 LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import logger, _cfg
-from db      import duckdb_connection
-from prepare import DetectReco_Identifier
+
+from ..configs import logger, _cfg
+from ..db      import duckdb_connection
+from ..prepare import DetectReco_Identifier
 
 
 def GenQuasi_Lazy(data : pd.DataFrame) -> pd.DataFrame:

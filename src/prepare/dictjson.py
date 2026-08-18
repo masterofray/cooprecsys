@@ -10,16 +10,12 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-07"
 
-import sys
 import json
 import joblib
 import pandas as pd
 from pathlib import Path
 from typing import Dict, Any, Optional
-
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import logger
+from ..configs import logger
 
 
 def Dict2Json(data       : Dict[str, Any],

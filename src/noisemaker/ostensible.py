@@ -11,7 +11,6 @@ __status__     = "Development"
 __created__    = "2026-06-06"
 
 import gc
-import sys
 import numpy  as np
 import pandas as pd
 import scipy.sparse as sp
@@ -22,10 +21,8 @@ from  .ersetz    import (ExchangeResult,
                          _aggregate_features,
                          _encode_to_sparse)
 
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs import logger, _cfg
-from db      import duckdb_connection
+from ..configs import logger, _cfg
+from ..db      import duckdb_connection
 DType = _cfg.get('model', 'dtype')
 
 def extended_norm_exchange(

@@ -10,7 +10,6 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-16"
 
-import sys
 import pandas as pd
 #import lightgbm as lgb
 from pathlib  import Path
@@ -20,10 +19,10 @@ from typing   import List, Tuple
 from .inout   import AdaptiveFallbackRanker, LTRModelInference
 
 LocDir = Path(__file__).resolve().parents[2]
-sys.path.append(str(LocDir))
-from prepare  import latest_found
-from configs  import LTRConfig, logger, FallbackConfig, _cfg
-from features import (LabelEncoderManager, load_data, TrueString,
+
+from ...prepare  import latest_found
+from ...configs  import LTRConfig, logger, FallbackConfig, _cfg
+from ...features import (LabelEncoderManager, load_data, TrueString,
                       DateProcessor, Inference_DataSplit, DataProcessor)
 
 

@@ -12,16 +12,12 @@ __created__    = "2026-04-25"
 
 
 import gc
-import sys
 import numpy as np
 import scipy.sparse as sp
 from   tqdm.auto import tqdm
 from   pathlib   import Path
 from   typing    import Optional
-
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-from configs import _cfg, logger
+from ....configs import _cfg, logger
 
 
 def CCC_k(

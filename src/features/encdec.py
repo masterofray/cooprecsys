@@ -19,7 +19,6 @@ Author: MiniMax Agent
 '''
 
 import os
-import sys
 import json
 import pandas as pd
 import cloudpickle as cp
@@ -32,9 +31,8 @@ from typing    import Dict, List, Optional, Any, Union
 from sklearn.preprocessing import LabelEncoder
 
 LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[1]))
-from configs  import logger, _cfg
-from prepare  import latest_found
+from ..configs  import logger, _cfg
+from ..prepare  import latest_found
 
 
 class LabelEncoderManager(object):

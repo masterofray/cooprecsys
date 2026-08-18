@@ -10,9 +10,7 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-03"
 
-import os
 import re
-import sys
 import json
 import time
 import numpy  as np
@@ -24,10 +22,8 @@ from typing          import Dict, List, Optional, Tuple
 from .encdec         import LabelEncoderManager
 from .date_processor import DateProcessor
 
-LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(LocDir)
-from configs import _cfg, logger
-from db      import duckdb_connection
+from ..configs import _cfg, logger
+from ..db      import duckdb_connection
 
 
 def Normalize_LargeSeries(

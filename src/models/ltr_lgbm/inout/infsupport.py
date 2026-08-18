@@ -10,7 +10,6 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-11"
 
-import sys
 import hashlib
 import joblib
 import contextlib
@@ -37,9 +36,7 @@ try:
 except ImportError:
     _ANNOY_AVAILABLE = False
 
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-from configs import logger, _cfg
+from ....configs import logger, _cfg
 
 
 @contextlib.contextmanager

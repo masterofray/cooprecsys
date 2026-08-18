@@ -12,7 +12,6 @@ __created__    = "2026-06-06"
 
 
 import re
-import sys
 import numpy   as np
 import pandas  as pd
 from pathlib   import Path
@@ -21,8 +20,7 @@ from typing    import Dict, Optional
 
 
 LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(str(LocDir))
-from configs   import logger, _cfg
+from ..configs   import logger, _cfg
 
 
 def validate_cardinality(

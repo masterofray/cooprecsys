@@ -19,7 +19,6 @@ Uses centralized LTRConfig from lgbm_config.py.
 """
 
 import os
-import sys
 import json
 import numpy as np
 import pandas as pd
@@ -28,13 +27,9 @@ from pathlib import Path
 from copy import deepcopy
 from tqdm.auto import tqdm
 from typing import List, Optional, Dict, Any, Tuple
-
-
-LocDir = Path(__file__).resolve().parents[3]
-sys.path.append(str(LocDir))
-from configs import LTRConfig, logger, _cfg
-from prepare import latest_found
-from features import (LabelEncoderManager,
+from ....configs import LTRConfig, logger, _cfg
+from ....prepare import latest_found
+from ....features import (LabelEncoderManager,
                       load_feature_columns,
                       load_group_sizes,
                       load_encoders)

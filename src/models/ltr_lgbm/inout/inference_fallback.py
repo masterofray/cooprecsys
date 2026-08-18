@@ -18,7 +18,6 @@ Professional‑grade adaptive fallback ranker with DuckDB acceleration,
 joblib parallel processing, and full‑featured fallback strategies.
 """
 
-import sys
 import hashlib
 import numpy as np
 import pandas as pd
@@ -38,12 +37,10 @@ from .infcore    import LTRModelInference
 from .infsupport import (Joblibar, _CustomerCfg, ANNIndex, 
                          ContentBasedStrategy, PopularityStrategy, 
                          HybridStrategy, CollaborativeStrategy)
+from ....db         import DuckDBManager
+from ....configs    import logger, _cfg, FallbackConfig
 
 LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[3]))
-from db         import DuckDBManager
-from configs    import logger, _cfg, FallbackConfig
-
 
 # ---------------------------------------------------------------------------
 # Main Ranker with DuckDB & joblib

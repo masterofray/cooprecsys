@@ -12,7 +12,6 @@ __created__    = "2026-05-03"
 
 
 import re
-import sys
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -23,8 +22,7 @@ from warnings import filterwarnings
 from typing import Optional, Dict, List, Tuple, Any
 
 LocDir = Path(__file__).resolve().parents[1]
-sys.path.append(LocDir)
-from configs import _cfg, logger
+from ..configs import _cfg, logger
 filterwarnings('ignore', category=UserWarning, module='pandas')
 
 

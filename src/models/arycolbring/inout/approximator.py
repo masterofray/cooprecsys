@@ -28,24 +28,17 @@ _______________________________________________________________
    instance attributes before calling ``predict`` or ``predict_rank``.
 """
 
-import sys
 import psutil
 import numpy as np
 import pandas as pd
-from pathlib import Path
 import scipy.sparse as sp
 from typing import Optional, Union, Tuple
 from sklearn.preprocessing import LabelEncoder
 from .scaffold import AryColBringBase, cydtype
-
-LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[1]))
-from CLproximity import (CSRMatrix,
+from ..CLproximity import (CSRMatrix,
                          predict_ranks,
                          predict_arycolbring)
-
-sys.path.append(str(LocDir.parents[3]))
-from configs import _cfg, logger, verbose
+from ....configs import _cfg, logger, verbose
 
 
 class AryColBringPredictor(AryColBringBase):
