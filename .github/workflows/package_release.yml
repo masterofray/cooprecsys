@@ -1,103 +1,165 @@
 name: CoopRecSys Package Publisher
 
 on:
-  push:
-    branches:
-      - master
-      - dev
+  release:
+    types:
+      - published
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "GitHub Release tag to publish to PyPI, e.g. v0.0.2"
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: pypi-publish-${{ github.workflow }}-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
-  build-wheels:
-    if: startsWith(github.event.head_commit.message, 'release:')
-    name: Build wheel (${{ matrix.python-tag }})
+  publish:
+    name: Publish GitHub Release artifacts to PyPI
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-tag: [cp38, cp39, cp310, cp311, cp312, cp313, cp314]
+
     steps:
+      # ------------------------------------------------------------
+      # 1. Checkout repository
+      # ------------------------------------------------------------
       - name: Checkout Repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Prepare Build Environment
-        run: chmod +x ./src/models/arycolbring/cysetup.sh
-
-      - name: Build wheel for ${{ matrix.python-tag }}
-        uses: pypa/cibuildwheel@v3.2.0     # pin >=3.0 for cp314 support
+      # ------------------------------------------------------------
+      # 2. Resolve release tag
+      # ------------------------------------------------------------
+      - name: Resolve Release Tag
+        id: release
+        shell: bash
         env:
-          CIBW_BUILD: "${{ matrix.python-tag }}-manylinux_x86_64"
-          CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
-          CIBW_ARCHS_LINUX: "x86_64"
-          CIBW_BEFORE_BUILD: "bash ./src/models/arycolbring/cysetup.sh"
-          CIBW_ENVIRONMENT_LINUX: >
-            CFLAGS='-Wno-array-bounds -Wno-format'
-            CXXFLAGS='-Wno-array-bounds -Wno-format'
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
 
-      - name: Verify Built Wheel
-        run: ls -lah wheelhouse/
+          TAG="${RELEASE_TAG}"
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: cooprecsys-wheel-${{ matrix.python-tag }}
-          path: wheelhouse/*.whl
-          retention-days: 90
+          if [[ -z "$TAG" ]]; then
+            echo "::error::Release tag is empty."
+            exit 1
+          fi
 
-  test-install:
-    name: Test install (Python ${{ matrix.python-version }})
-    needs: build-wheels
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13", "3.14"]
-    steps:
-      - name: Download all built wheels
-        uses: actions/download-artifact@v4
-        with:
-          path: wheelhouse
-          merge-multiple: true
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
+            echo "::error::Invalid release tag: $TAG"
+            echo "::error::Expected format: vX.Y.Z"
+            exit 1
+          fi
 
-      - name: Set up Python ${{ matrix.python-version }}
+          echo "Publishing release: $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------
+      # 3. Set up Python
+      # ------------------------------------------------------------
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.12"
 
-      - name: Install and import
+      # ------------------------------------------------------------
+      # 4. Install Twine
+      # ------------------------------------------------------------
+      - name: Install Twine
         run: |
           python -m pip install --upgrade pip
-          pip install --no-index --find-links=wheelhouse/ cooprecsys
-          python -c "import cooprecsys; print('OK, Python ${{ matrix.python-version }}:', cooprecsys.__file__)"
+          python -m pip install --upgrade twine
 
-  publish:
-    name: Validate and Publish to PyPI
-    needs: test-install
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all built wheels
-        uses: actions/download-artifact@v4
-        with:
-          path: wheelhouse
-          merge-multiple: true
-
-      - name: Validate Package
+      # ------------------------------------------------------------
+      # 5. Download artifacts from GitHub Release
+      # ------------------------------------------------------------
+      - name: Download GitHub Release artifacts
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
-          python -m pip install --upgrade pip twine
-          twine check wheelhouse/*
-          ls -lah wheelhouse/
+          set -euo pipefail
 
-      - name: Publish To PyPI
+          rm -rf dist
+          mkdir -p dist
+
+          echo "Downloading artifacts for release: $TAG"
+
+          gh release download "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "*.whl" \
+            --pattern "*.tar.gz" \
+            --dir dist
+
+      # ------------------------------------------------------------
+      # 6. Inspect artifacts
+      # ------------------------------------------------------------
+      - name: Inspect release artifacts
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "PYPI RELEASE ARTIFACTS"
+          echo "=========================================="
+
+          ls -lah dist/
+
+          WHEEL_COUNT=$(find dist -maxdepth 1 -type f -name "*.whl" | wc -l)
+          SDIST_COUNT=$(find dist -maxdepth 1 -type f -name "*.tar.gz" | wc -l)
+
+          echo "Wheel count : $WHEEL_COUNT"
+          echo "Sdist count : $SDIST_COUNT"
+
+          if [ "$WHEEL_COUNT" -eq 0 ]; then
+            echo "::error::No wheel artifacts found in GitHub Release."
+            exit 1
+          fi
+
+          if [ "$SDIST_COUNT" -eq 0 ]; then
+            echo "::warning::No source distribution (.tar.gz) found."
+          fi
+
+      # ------------------------------------------------------------
+      # 7. Validate package metadata
+      # ------------------------------------------------------------
+      - name: Validate package with Twine
+        run: |
+          set -euo pipefail
+
+          python -m twine check dist/*
+
+      # ------------------------------------------------------------
+      # 8. Publish to PyPI
+      # ------------------------------------------------------------
+      - name: Publish to PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
-        run: twine upload --skip-existing wheelhouse/*
+        run: |
+          set -euo pipefail
 
+          python -m twine upload \
+            --skip-existing \
+            dist/*
+
+      # ------------------------------------------------------------
+      # 9. Release summary
+      # ------------------------------------------------------------
       - name: Release Summary
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
         run: |
           echo "=================================================="
-          echo "Release Completed"
-          echo "Wheels built for Python 3.8-3.14 and published to PyPI."
+          echo "CoopRecSys PyPI Release Completed"
+          echo "=================================================="
+          echo "GitHub Release : $TAG"
+          echo "Package        : cooprecsys"
+          echo "Python          : 3.10 - 3.13"
+          echo "Repository      : $GITHUB_REPOSITORY"
           echo "=================================================="

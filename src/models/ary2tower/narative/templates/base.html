@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title | default('ary2tower Dashboard') }}</title>
+    <script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+    <link rel="stylesheet" href="static/css/{{ theme_css | default('supportinfer.css') }}">
+</head>
+<body>
+<div class="a2t-wrapper">
+    <header class="a2t-header">
+        <div class="a2t-logo">A2T</div>
+        <div class="a2t-titles">
+            <h1>{{ page_title | default('ary2tower Dashboard') }}</h1>
+            <p class="a2t-subtitle">{{ subtitle | default('') }}</p>
+        </div>
+        <div class="a2t-meta">
+            <span>{{ experiment_name | default('') }}</span>
+            <span>{{ generated_at | default('') }}</span>
+        </div>
+    </header>
+
+    <main class="a2t-main">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer class="a2t-footer">
+        <span>ary2tower — Two-Tower Neural Recommender</span>
+    </footer>
+</div>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>

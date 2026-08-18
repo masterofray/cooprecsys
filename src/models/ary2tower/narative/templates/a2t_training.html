@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<section class="a2t-section">
+    <h2><i class="a2t-icon">&#9679;</i> Training Metrics</h2>
+    <div class="scorecard-grid">
+        {% for card in scorecards %}
+        <div class="scorecard scorecard-{{ card.color }}">
+            <div class="scorecard-label">{{ card.label }}</div>
+            <div class="scorecard-value">{{ card.value }}</div>
+            <div class="scorecard-sub">{{ card.sub }}</div>
+        </div>
+        {% else %}
+        <p class="a2t-empty">No metrics available for this report.</p>
+        {% endfor %}
+    </div>
+</section>
+
+{% if gauges %}
+<section class="a2t-section">
+    <h2><i class="a2t-icon">&#9679;</i> Ranking Quality
+        <span class="a2t-badge">Overall {{ overall_score_percent | default(0) }}%</span>
+    </h2>
+    <div class="gauge-grid">
+        {% for gauge in gauges %}
+        <div class="gauge-card">
+            <div class="gauge-label">{{ gauge.label }}</div>
+            <div class="gauge-display">{{ gauge.display }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+<section class="a2t-section">
+    <h2><i class="a2t-icon">&#9679;</i> Training Loss</h2>
+    {% if loss_history and loss_history|length > 0 %}
+    <div class="js-loss-render"
+         data-loss='{{ loss_history | tojson }}'
+         style="height:340px;"></div>
+    {% else %}
+    <p class="a2t-empty">No loss history for this report.</p>
+    {% endif %}
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="static/js/{{ theme_js | default('supporttrain.js') }}"></script>
+{% endblock %}

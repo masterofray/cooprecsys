@@ -105,11 +105,40 @@
         URL.revokeObjectURL(url);
     };
 
+    function initSortableHeaders(table) {
+        if (!table) return;
+        var headers = table.querySelectorAll('.sortable-col');
+        headers.forEach(function (th) {
+            th.addEventListener('click', function () {
+                var column = th.getAttribute('data-sort-column');
+                var tbody = table.querySelector('tbody');
+                if (!tbody) return;
+                var ascending = !th.classList.contains('sort-asc');
+                headers.forEach(function (h) { h.classList.remove('sort-asc', 'sort-desc'); });
+                th.classList.add(ascending ? 'sort-asc' : 'sort-desc');
+
+                var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+                rows.sort(function (a, b) {
+                    var cellA = a.querySelector('[data-column="' + column + '"]');
+                    var cellB = b.querySelector('[data-column="' + column + '"]');
+                    var valA = cellA ? parseFloat(cellA.textContent) : 0;
+                    var valB = cellB ? parseFloat(cellB.textContent) : 0;
+                    if (isNaN(valA)) valA = -Infinity;
+                    if (isNaN(valB)) valB = -Infinity;
+                    return ascending ? valA - valB : valB - valA;
+                });
+                rows.forEach(function (row) { tbody.appendChild(row); });
+                console.log('[Rankings] Sorted by ' + column + ' (' + (ascending ? 'asc' : 'desc') + ').');
+            });
+        });
+    }
+
     function initRankings(container) {
         if (!container) return;
         var table = container.querySelector('.rankings-table');
         initHoverEffects(table);
         initTableFiltering(table);
+        initSortableHeaders(table);
         initKeyboardShortcuts(container);
         console.log('[Rankings] Initialized.');
     }

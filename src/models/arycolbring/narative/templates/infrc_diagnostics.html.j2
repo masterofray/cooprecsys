@@ -42,12 +42,10 @@
                             <td><strong>{{ metric_name.replace('_', ' ') | title }}</strong></td>
                             <td>{{ "%.6f" | format(metric_value) if metric_value is number else metric_value }}</td>
                             <td>
-                                {% if 'precision' in metric_name or 'recall' in metric_name or 'ndcg' in metric_name or 'auc' in metric_name or 'mrr' in metric_name %}
-                                    <span class="badge-confidence badge-high">Ranking</span>
-                                {% elif 'latency' in metric_name or 'qps' in metric_name or 'throughput' in metric_name %}
+                                {% if 'latency' in metric_name or 'qps' in metric_name or 'throughput' in metric_name %}
                                     <span class="badge-confidence badge-medium">Performance</span>
-                                {% elif 'coverage' in metric_name %}
-                                    <span class="badge-confidence badge-high">Coverage</span>
+                                {% elif 'predictions' in metric_name or 'users' in metric_name %}
+                                    <span class="badge-confidence badge-high">Volume</span>
                                 {% else %}
                                     <span class="badge-confidence badge-low">Other</span>
                                 {% endif %}
@@ -70,7 +68,7 @@
 
         <div class="cards-row">
             {% set ds_colors = ['blue','green','orange','purple'] %}
-            {% set ds_icons = ['fas fa-bullseye','fas fa-users','fas fa-clock','fas fa-shield-halved'] %}
+            {% set ds_icons = ['fas fa-bullseye','fas fa-users','fas fa-clock','fas fa-gauge-high'] %}
             {% for stat in stat_minis %}
             <div class="scorecard" data-color="{{ ds_colors[loop.index0 % 4] }}">
                 <div class="scorecard-icon"><i class="{{ ds_icons[loop.index0 % 4] }}"></i></div>

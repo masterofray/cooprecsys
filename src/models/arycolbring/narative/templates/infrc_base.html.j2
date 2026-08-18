@@ -9,9 +9,9 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 
     <!-- Vendor (local) -->
-    <link rel="stylesheet" href="{{ static_vendor }}/fontawesome_6.5.1_all.css">
-    <script src="{{ static_vendor }}/chart.4.5.1.min.js"></script>
-    <script src="{{ static_vendor }}/plotly-2.35.2.min.js"></script>
+    <link rel="stylesheet" href="{{ static_css }}/fontawesome_6.5.1_all.css">
+    <script src="{{ static_js }}/chart.4.5.1.min.js"></script>
+    <script src="{{ static_js }}/plotly-2.35.2.min.js"></script>
 
     <!-- CSS -->
     <link rel="stylesheet" href="{{ static_css }}/base.css">
@@ -20,6 +20,7 @@
     <link rel="stylesheet" href="{{ static_css }}/rankings.css">
     <link rel="stylesheet" href="{{ static_css }}/diagnostics.css">
     <link rel="stylesheet" href="{{ static_css }}/config.css">
+    <link rel="stylesheet" href="{{ static_css }}/insights.css">
 </head>
 <body>
 
@@ -39,6 +40,10 @@
             <button class="sidebar-link" data-page="rankings">
                 <span class="sidebar-icon"><i class="fas fa-trophy"></i></span>
                 <span>Rankings</span>
+            </button>
+            <button class="sidebar-link" data-page="insights">
+                <span class="sidebar-icon"><i class="fas fa-diagram-project"></i></span>
+                <span>Insights</span>
             </button>
             <button class="sidebar-link" data-page="diagnostics">
                 <span class="sidebar-icon"><i class="fas fa-microscope"></i></span>
@@ -77,14 +82,16 @@
         <nav class="page-tabs">
             <button class="page-tab active" data-tab="overview"><i class="fas fa-chart-bar"></i> Overview</button>
             <button class="page-tab" data-tab="rankings"><i class="fas fa-trophy"></i> Rankings</button>
+            <button class="page-tab" data-tab="insights"><i class="fas fa-diagram-project"></i> Insights</button>
             <button class="page-tab" data-tab="diagnostics"><i class="fas fa-microscope"></i> Diagnostics</button>
             <button class="page-tab" data-tab="config"><i class="fas fa-gear"></i> Config</button>
         </nav>
 
-        {% include 'overview.html.j2' %}
-        {% include 'rankings.html.j2' %}
-        {% include 'diagnostics.html.j2' %}
-        {% include 'config.html.j2' %}
+        {% include 'infrc_overview.html.j2' %}
+        {% include 'infrc_rankings.html.j2' %}
+        {% include 'infrc_insights.html.j2' %}
+        {% include 'infrc_diagnostics.html.j2' %}
+        {% include 'infrc_config.html.j2' %}
 
         <footer class="footer">
             <p>&copy; 2026 <strong>AryColBring</strong> — Production Inference System</p>
@@ -98,6 +105,7 @@
 <script src="{{ static_js }}/spa.js"></script>
 <script src="{{ static_js }}/overview.js"></script>
 <script src="{{ static_js }}/rankings.js"></script>
+<script src="{{ static_js }}/insights.js"></script>
 <script src="{{ static_js }}/diagnostics.js"></script>
 <script src="{{ static_js }}/config.js"></script>
 <script src="{{ static_js }}/dashboard.js"></script>

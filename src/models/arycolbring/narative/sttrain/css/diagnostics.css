@@ -77,7 +77,7 @@
     font-variant-numeric: tabular-nums;
 }
 
-.metrics-detail-table tbody tr:hover { background: rgba(46,125,50,0.04); }
+.metrics-detail-table tbody tr:hover { background: rgba(255, 107, 53,0.04); }
 .metrics-detail-table td strong { color: var(--text-secondary); }
 
 /* ── Training History ── */
@@ -104,7 +104,7 @@
     color: var(--text);
 }
 
-.history-table tbody tr:hover { background: rgba(46,125,50,0.04); }
+.history-table tbody tr:hover { background: rgba(255, 107, 53,0.04); }
 
 /* ── Responsive ── */
 @media (max-width: 768px) {

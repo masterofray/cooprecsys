@@ -8,7 +8,7 @@ __version__    = "0.0.1"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-05-31"
+__modified__   = "2026-07-18"
 
 
 """
@@ -25,6 +25,7 @@ Integrates:
 
 import json
 import time
+import inspect
 import numpy  as np
 import pandas as pd
 from   pathlib    import Path
@@ -32,8 +33,8 @@ from   tqdm.auto  import tqdm
 from   datetime   import datetime
 from   typing     import (Any, Dict, List,
                           Optional, Tuple, Union)
-from   .inout     import TheReasoner, AryInfFallBack
-from   .narative  import genReasoner
+from   .inout             import TheReasoner, AryInfFallBack
+from   .narative          import genReasoner
 
 #LocDir = Path(__file__).resolve()
 #sys.path.append(str(LocDir.parents[2]))
@@ -81,16 +82,31 @@ class AryColBringInference:
         logger.info("Loading model from: %s", self.model_path)
         if not self.model_path.exists():
             raise FileNotFoundError(f"Model file not found: {self.model_path}")
-        return np.load(self.model_path, allow_pickle = True)
+        return np.load(self.model_path, allow_pickle = False)
 
 
     def _load_model(self) -> TheReasoner:
-        data      = self._archive
-        predictor = TheReasoner(**self.config)
+        data = self._archive
+        valid_params = set(inspect.signature(TheReasoner.__init__).parameters) - {"self"}
+        model_kwargs  = {k: v for k, v in self.config.items() if k in valid_params}
+        dropped_keys  = set(self.config) - valid_params
+        if dropped_keys:
+            logger.debug("Ignoring non-constructor config key(s): %s", sorted(dropped_keys))
+
+        predictor = TheReasoner(**model_kwargs)
         predictor.item_embeddings = data["item_embeddings"]
         predictor.user_embeddings = data["user_embeddings"]
         predictor.item_biases     = data["item_biases"]
         predictor.user_biases     = data["user_biases"]
+        predictor.item_embedding_gradients = np.zeros_like(predictor.item_embeddings)
+        predictor.item_embedding_momentum  = np.zeros_like(predictor.item_embeddings)
+        predictor.item_bias_gradients      = np.zeros_like(predictor.item_biases)
+        predictor.item_bias_momentum       = np.zeros_like(predictor.item_biases)
+        predictor.user_embedding_gradients = np.zeros_like(predictor.user_embeddings)
+        predictor.user_embedding_momentum  = np.zeros_like(predictor.user_embeddings)
+        predictor.user_bias_gradients      = np.zeros_like(predictor.user_biases)
+        predictor.user_bias_momentum       = np.zeros_like(predictor.user_biases)
+
         logger.debug("Model loaded successfully: users = %d items = %d",
                       predictor.user_embeddings.shape[0],
                       predictor.item_embeddings.shape[0])
@@ -100,7 +116,8 @@ class AryColBringInference:
     def _get_config(self) -> Dict[str, Any]:
         """Get model configuration."""
         try:
-            return json.loads(str(self._archive["config"]))
+            raw_config_bytes = self._archive["config"].tobytes()
+            return json.loads(raw_config_bytes.decode('utf-8'))
         except Exception as e:
             logger.warning("Could not load config: %s", e)
             return dict()
@@ -118,8 +135,12 @@ class AryColBringInference:
         start_time = time.perf_counter()
         if isinstance(user_ids, int):
             user_ids = np.array([user_ids], dtype = np.int32)
+        elif not isinstance(user_ids, np.ndarray):
+            user_ids = np.asarray(user_ids, dtype = np.int32)
         if isinstance(item_ids, int):
             item_ids = np.array([item_ids], dtype = np.int32)
+        elif not isinstance(item_ids, np.ndarray):
+            item_ids = np.asarray(item_ids, dtype = np.int32)
         if len(user_ids) != len(item_ids):
             logger.warning("user_ids and item_ids must have same length")
             #raise ValueError()
@@ -258,18 +279,24 @@ class AryColBringInference:
         return results
 
 
-    def clean_recommend(
-        self,
-        user_id         : int,
-        purchase_data   : pd.DataFrame,
-        n_items         : int = 10,
-        user_col        : Optional[str] = None,
-        item_col        : Optional[str] = None,
-        overscan_factor : int = 3,
-        output_format   : str = "duckdb",
-        db_path         : Optional[Union[str, Path]] = None,
-        table_name      : str = "clean_recommendations",
-        ) -> Union[pd.DataFrame, str]:
+    def _resolve_overscan(self, n_items: int, overscan_factor: int) -> int:
+        """Kandidat yang diminta ke model.recommend() sebelum dibersihkan
+        (Point 4 di clean_recommend: butuh 'cadangan' buat nambal)."""
+        n_total_items = self.predictor.item_embeddings.shape[0]
+        return min(max(n_items * max(overscan_factor, 1), n_items), n_total_items)
+
+
+    def clean_recommend(self,
+                        user_id         : int,
+                        purchase_data   : pd.DataFrame,
+                        n_items         : int = 10,
+                        user_col        : Optional[str] = None,
+                        item_col        : Optional[str] = None,
+                        overscan_factor : int = 3,
+                        output_format   : str = "dataframe",
+                        db_path         : Optional[Union[str, Path]] = None,
+                        table_name      : str = "clean_recommendations",
+                       ) -> Union[pd.DataFrame, str]:
         """
         Rekomendasi Top-N yang sudah dibersihkan dari item yang pernah
         dibeli user_id, dengan fallback berlapis lewat AryInfFallBack:
@@ -295,6 +322,10 @@ class AryColBringInference:
                           untuk membentuk kandidat cadangan (Point 4).
         output_format   : "dataframe" atau "duckdb".
         db_path/table_name : hanya dipakai kalau output_format = "duckdb".
+
+        Untuk banyak user sekaligus, pakai batch_clean_recommend() --
+        jauh lebih efisien karena AryInfFallBack (peta pembelian +
+        normalisasi embedding) dibangun sekali saja, bukan per user.
         """
         if output_format not in ("dataframe", "duckdb"):
             msg = f"output_format must be 'dataframe' or 'duckdb', got '{output_format}'."
@@ -307,8 +338,7 @@ class AryColBringInference:
                    user_col        = user_col,
                    item_col        = item_col)
 
-        n_total_items  = self.predictor.item_embeddings.shape[0]
-        overscan_n     = min(max(n_items * max(overscan_factor, 1), n_items), n_total_items)
+        overscan_n     = self._resolve_overscan(n_items, overscan_factor)
         candidate_pool = self.recommend(user_id = user_id, n_items = overscan_n)
 
         result_df = fallback.clean_recommendations(
@@ -329,6 +359,91 @@ class AryColBringInference:
                    db_path    = db_path,
                    table_name = table_name)
         return result_df
+
+
+    def batch_clean_recommend(self,
+                              user_ids        : List[int],
+                              purchase_data   : pd.DataFrame,
+                              n_items         : int = 10,
+                              user_col        : Optional[str] = None,
+                              item_col        : Optional[str] = None,
+                              overscan_factor : int = 3,
+                              output_format   : str = "dataframe",
+                              db_path         : Optional[Union[str, Path]] = None,
+                              table_name      : str = "clean_recommendations",
+                             ) -> Union[pd.DataFrame, str]:
+        """
+        Versi batch dari clean_recommend(): rekomendasi Top-N yang sudah
+        dibersihkan dari item yang pernah dibeli + fallback Item-to-Item,
+        untuk BANYAK user sekaligus.
+
+        Berbeda dengan memanggil clean_recommend() satu-satu di dalam loop,
+        di sini AryInfFallBack (peta pembelian & embedding item yang sudah
+        dinormalisasi) dibangun SEKALI di awal, lalu dipakai ulang untuk
+        semua user -- bukan dibangun ulang setiap user.
+
+        Returns
+        -------
+        pandas.DataFrame gabungan semua user (kolom: user_id, rank,
+        item_id, score, source, is_fallback), atau path DuckDB kalau
+        output_format = "duckdb".
+        """
+        if output_format not in ("dataframe", "duckdb"):
+            msg = f"output_format must be 'dataframe' or 'duckdb', got '{output_format}'."
+            logger.error(msg)
+            raise ValueError(msg)
+        if not user_ids:
+            msg = "user_ids must be a non-empty list."
+            logger.error(msg)
+            raise ValueError(msg)
+
+        fallback   = AryInfFallBack(
+                     purchase_data   = purchase_data,
+                     item_embeddings = self.predictor.item_embeddings,
+                     user_col        = user_col,
+                     item_col        = item_col)
+        overscan_n = self._resolve_overscan(n_items, overscan_factor)
+
+        logger.info("Batch clean recommendations: %d users, top-%d items "
+                     "(overscan = %d).", len(user_ids), n_items, overscan_n)
+
+        frames          = list()
+        short_users     = 0
+        for user_id in tqdm(
+                user_ids,
+                desc        = "Clean Recommendation",
+                colour      = _cfg.get('tqdm', 'colour'),
+                ncols       = _cfg.getint('tqdm', 'ncols'),
+                bar_format  = _cfg.get('tqdm', 'BarFormats'),
+                unit        = 'userID',
+                mininterval = 0.1):
+            candidate_pool = self.recommend(user_id = user_id, n_items = overscan_n)
+            result_df      = fallback.clean_recommendations(
+                             user_id        = user_id,
+                             candidate_pool = candidate_pool,
+                             n_items        = n_items)
+            if len(result_df) < n_items:
+                short_users += 1
+            frames.append(result_df)
+
+        if short_users:
+            logger.warning("%d/%d user(s) ended up with fewer than %d clean "
+                           "recommendation(s) even after Item-to-Item fallback.",
+                            short_users, len(user_ids), n_items)
+
+        combined_df = (pd.concat(frames, ignore_index = True) if frames
+                      else pd.DataFrame(columns = ["user_id", "rank", "item_id",
+                                                   "score", "source", "is_fallback"]))
+        logger.info("Batch clean recommendations complete: %d user(s), %d row(s).",
+                     combined_df["user_id"].nunique() if len(combined_df) else 0,
+                     len(combined_df))
+
+        if output_format == "duckdb":
+            return fallback.export_duckdb(
+                   result_df  = combined_df,
+                   db_path    = db_path,
+                   table_name = table_name)
+        return combined_df
 
 
     def get_metrics(self) -> Dict[str, float]:
@@ -356,18 +471,41 @@ class AryColBringInference:
             metrics            : Optional[Dict[str, float]]     = None,
             predictions_sample : Optional[List[Dict[str, Any]]] = None,
             charts             : Optional[List[Dict[str, Any]]] = None,
+            item_ids           : Optional[List[Any]]            = None,
+            include_embeddings : bool                           = True,
         ) -> Path:
-        """Generate an inference performance dashboard report."""
+        """Generate an inference performance dashboard report.
+
+        Parameters
+        ----------
+        item_ids: optional catalog ids for `self.predictor.item_embeddings`
+            rows (defaults to positional indices `0..n_items-1`, since
+            this predictor has no separate id-mapping table). Used to
+            label the embedding scatter, similarity heatmap, and the
+            "Similar Items" column of the recommendations table.
+        include_embeddings: set False to skip the embedding-derived
+            visualizations (e.g. for a very large catalog where even the
+            top-N similarity heatmap isn't wanted on every report).
+        """
         logger.info("Generating inference report.")
         default_metrics = self.get_metrics()
         if metrics:
             default_metrics.update(metrics)
+        # NOTE: no "coverage" here -- there used to be a hardcoded 0.75
+        # placeholder passed as if it were a measured catalog-coverage
+        # number. Nothing in this class computes real coverage, so it
+        # was removed rather than shipped as fake data. The report now
+        # only carries measured production metrics (latency/qps/
+        # throughput/predictions/users-served) plus, when embeddings are
+        # available, real visualizations (see build_visualizations() in
+        # narative/rearender.py) in place of that removed metric.
         context_data = {
             "metrics"             : default_metrics,
             "inference_statistics": {"n_predictions"  : default_metrics["n_predictions"],
                                      "n_users_served" : default_metrics["n_users_served"],
                                      "avg_latency_ms" : default_metrics["avg_latency_ms"],
-                                     "coverage"       : 0.75,},  #Placeholder
+                                     "throughput_preds_per_sec":
+                                         default_metrics["throughput_preds_per_sec"]},
             "experiment_name"     : experiment_name,
             "model_version"       : "0.0.1", #Placeholder
             "batch_size"          : 100,     #Placeholder
@@ -375,6 +513,14 @@ class AryColBringInference:
             "predictions"         : predictions_sample or list(),
             "charts"              : charts or list(),
             }
+
+        if include_embeddings and getattr(self.predictor, "item_embeddings", None) is not None:
+            embeddings = self.predictor.item_embeddings
+            ids = list(item_ids) if item_ids is not None else list(range(embeddings.shape[0]))
+            context_data["item_embeddings"] = embeddings
+            context_data["item_ids"]        = ids
+            context_data["embeddings"]      = {"vectors": embeddings, "ids": ids}
+
         # Generate report
         SimpanPath  = genReasoner(
                       context_data = context_data,

@@ -43,13 +43,10 @@ from pathlib import Path
 import tempfile
 import json
 
-# Add source directory to path
-SrcDir = Path(__file__).resolve().parents[1] / "src"
-sys.path.insert(0, str(SrcDir))
-
-from configs import logger, _cfg
-from models.arycolbring.trainer import AryColBringModelTrainer
-from models.arycolbring.assist import describe_interactions, validate_sparse_matrix
+from src.configs import logger, _cfg
+from src.models.arycolbring.trainer import AryColBringModelTrainer
+from src.models.arycolbring.assist  import describe_interactions, validate_sparse_matrix
+from src.models.arycolbring.inout   import TheReasoner, TheAdvisor
 
 
 # ============================================================================
@@ -133,16 +130,23 @@ class TestModelInitialization:
         logger.info("Custom initialization test passed")
 
     def test_invalid_loss_function(self):
-        """Test initialization with invalid loss function."""
-        # Should initialize without error - validation happens at fit time
-        model = AryColBringModelTrainer(loss="invalid_loss")
-        assert model.config["loss"] == "invalid_loss"
+        """An unrecognized loss must be rejected immediately at
+        construction time (AryColBringBase.__init__ validates `loss`
+        before any embeddings are allocated) -- NOT deferred to fit()
+        as the previous version of this test assumed. That earlier
+        assumption was wrong: AryColBringModelTrainer.__init__()
+        constructs the underlying TheAdvisor(loss=...) synchronously,
+        so an invalid loss raises right there.
+        """
+        with pytest.raises(ValueError):
+            AryColBringModelTrainer(loss="invalid_loss")
         logger.info("Invalid loss function test passed")
 
     def test_invalid_learning_schedule(self):
-        """Test initialization with invalid learning schedule."""
-        model = AryColBringModelTrainer(learning_schedule="invalid_schedule")
-        assert model.config["learning_schedule"] == "invalid_schedule"
+        """Same as above: `learning_schedule` is validated at
+        construction time, not at fit time."""
+        with pytest.raises(ValueError):
+            AryColBringModelTrainer(learning_schedule="invalid_schedule")
         logger.info("Invalid learning schedule test passed")
 
 
@@ -157,39 +161,44 @@ class TestDataHandling:
         """Test handling of sparse matrix formats."""
         # Test COO format
         coo_matrix = sample_sparse_matrix.tocoo()
-        stats = describe_interactions(coo_matrix)
+        stats = describe_interactions(coo_matrix).iloc[0]
         assert stats["n_users"] == 10
         assert stats["n_items"] == 15
-        assert stats["n_interactions"] > 0
+        assert stats["nnz"] > 0
         logger.info("COO format test passed")
 
         # Test CSR format
         csr_matrix = sample_sparse_matrix.tocsr()
-        stats = describe_interactions(csr_matrix)
+        stats = describe_interactions(csr_matrix).iloc[0]
         assert stats["n_users"] == 10
         assert stats["n_items"] == 15
         logger.info("CSR format test passed")
 
         # Test CSC format
         csc_matrix = sample_sparse_matrix.tocsc()
-        stats = describe_interactions(csc_matrix)
+        stats = describe_interactions(csc_matrix).iloc[0]
         assert stats["n_users"] == 10
         assert stats["n_items"] == 15
         logger.info("CSC format test passed")
 
     def test_matrix_sparsity_calculation(self, sample_sparse_matrix):
-        """Test sparsity calculation."""
-        stats = describe_interactions(sample_sparse_matrix)
-        expected_sparsity = 1 - (stats["n_interactions"] / (10 * 15))
-        assert abs(stats["sparsity"] - expected_sparsity) < 1e-5
-        logger.info("Sparsity calculation test passed")
+        """Test density/sparsity calculation.
+
+        describe_interactions() reports `density` (nnz / (n_users *
+        n_items)); sparsity is its complement (1 - density). There is
+        no separate "sparsity" column.
+        """
+        stats = describe_interactions(sample_sparse_matrix).iloc[0]
+        expected_density = stats["nnz"] / (10 * 15)
+        assert abs(stats["density"] - expected_density) < 1e-5
+        logger.info("Density calculation test passed")
 
     def test_empty_matrix(self):
         """Test handling of empty matrix."""
         empty_matrix = sp.csr_matrix((10, 15))
-        stats = describe_interactions(empty_matrix)
-        assert stats["n_interactions"] == 0
-        assert stats["sparsity"] == 1.0
+        stats = describe_interactions(empty_matrix).iloc[0]
+        assert stats["nnz"] == 0
+        assert stats["density"] == 0.0
         logger.info("Empty matrix test passed")
 
     def test_single_interaction(self):
@@ -198,8 +207,8 @@ class TestDataHandling:
             ([1.0], ([0], [0])),
             shape=(10, 15)
         )
-        stats = describe_interactions(single_matrix)
-        assert stats["n_interactions"] == 1
+        stats = describe_interactions(single_matrix).iloc[0]
+        assert stats["nnz"] == 1
         assert stats["n_users"] == 10
         assert stats["n_items"] == 15
         logger.info("Single interaction test passed")
@@ -411,6 +420,149 @@ class TestErrorHandling:
         with pytest.raises(FileNotFoundError):
             model.load_model(str(invalid_path))
         logger.info("Missing model file test passed")
+
+
+# ============================================================================
+# Test: TheReasoner / TheAdvisor hyperparameter validation (AryColBringBase)
+# ============================================================================
+# NOTE: `TheReasoner` (= AryColBringPredictor, inference) and `TheAdvisor`
+# (= AryColBringTrainer, training) both inherit their entire constructor
+# and validation logic from the shared AryColBringBase.__init__ in
+# scaffold.py. TheAdvisor is used below purely because it's cheaper to
+# construct (no pre-existing embeddings required) -- every assertion here
+# is exercising AryColBringBase's shared validation, which applies
+# identically to TheReasoner.
+
+class TestReasonerHyperparameterValidation:
+    """Test AryColBringBase.__init__ validation, shared by TheReasoner
+    (AryColBringPredictor) and TheAdvisor (AryColBringTrainer)."""
+
+    def test_valid_construction(self):
+        model = TheAdvisor(no_components=8, loss="warp", k=3, n=6,
+                           learning_schedule="adagrad", random_state=42)
+        assert model.no_components == 8
+        assert model.loss == "warp"
+        assert model.is_fitted is False
+        logger.info("Valid TheAdvisor construction test passed")
+
+    @pytest.mark.parametrize("kwargs", [
+        {"item_alpha": -0.1},
+        {"user_alpha": -0.1},
+        {"no_components": 0},
+        {"no_components": -5},
+        {"k": 0},
+        {"n": 0},
+        {"rho": 0.0},
+        {"rho": 1.0},
+        {"rho": 1.5},
+        {"epsilon": -1e-6},
+        {"max_sampled": 0},
+        {"learning_schedule": "not_a_schedule"},
+        {"loss": "not_a_loss"},
+    ])
+    def test_invalid_hyperparameters_raise(self, kwargs):
+        with pytest.raises(ValueError):
+            TheAdvisor(**kwargs)
+        logger.info("Invalid hyperparameter rejected: %s", kwargs)
+
+    def test_invalid_random_state_type_raises(self):
+        with pytest.raises(TypeError):
+            TheAdvisor(random_state="not-a-seed")
+
+    def test_is_fitted_false_before_training(self):
+        model = TheAdvisor(no_components=4)
+        assert model.is_fitted is False
+        assert model.item_embeddings is None
+        assert model.user_embeddings is None
+
+    def test_setter_validation_no_components(self):
+        model = TheAdvisor(no_components=4)
+        with pytest.raises(ValueError):
+            model.no_components = -1
+
+    def test_setter_validation_learning_rate(self):
+        model = TheAdvisor(no_components=4)
+        with pytest.raises(ValueError):
+            model.learning_rate = 0.0
+
+    def test_setter_validation_item_alpha(self):
+        model = TheAdvisor(no_components=4)
+        with pytest.raises(ValueError):
+            model.item_alpha = -0.5
+
+
+class TestReasonerParams:
+    """Test the sklearn-style get_params/set_params contract shared by
+    TheReasoner and TheAdvisor."""
+
+    def test_get_params_roundtrip(self):
+        model = TheAdvisor(no_components=12, loss="bpr", learning_rate=0.02)
+        params = model.get_params()
+        assert params["no_components"] == 12
+        assert params["loss"] == "bpr"
+        assert params["learning_rate"] == 0.02
+
+    def test_set_params_updates_state(self):
+        model = TheAdvisor(no_components=4)
+        model.set_params(no_components=16, loss="warp")
+        assert model.get_params()["no_components"] == 16
+        assert model.get_params()["loss"] == "warp"
+
+    def test_set_params_rejects_unknown_key(self):
+        model = TheAdvisor(no_components=4)
+        with pytest.raises(ValueError):
+            model.set_params(not_a_real_param=123)
+
+    def test_repr_contains_key_hyperparameters(self):
+        model = TheAdvisor(no_components=4, loss="warp")
+        text = repr(model)
+        assert "warp" in text
+        assert "no_components" in text
+
+
+# ============================================================================
+# Test: AryColBringPredictor (TheReasoner) pure-Python helpers
+# ============================================================================
+# build_pairs() and _is_string_type() are @staticmethod / pure-numpy --
+# no embeddings, no fitted model, and no call into the compiled
+# CLproximity extension are needed to exercise them directly.
+
+class TestReasonerPairUtilities:
+    """Test TheReasoner.build_pairs() -- the label-pairing utility behind
+    predict()'s pairwise/broadcast/cross_join modes."""
+
+    def test_build_pairs_strict_pairwise(self):
+        u, i = TheReasoner.build_pairs([1, 2, 3], [10, 20, 30], cross_join=False)
+        np.testing.assert_array_equal(u, [1, 2, 3])
+        np.testing.assert_array_equal(i, [10, 20, 30])
+
+    def test_build_pairs_cross_join(self):
+        u, i = TheReasoner.build_pairs([1, 2], [10, 20], cross_join=True)
+        # row-major: user 0 vs every item, then user 1 vs every item
+        np.testing.assert_array_equal(u, [1, 1, 2, 2])
+        np.testing.assert_array_equal(i, [10, 20, 10, 20])
+        assert len(u) == len(i) == 4
+
+    def test_build_pairs_scalar_item_broadcast(self):
+        u, i = TheReasoner.build_pairs([1, 2, 3], [99], cross_join=False)
+        np.testing.assert_array_equal(i, [99, 99, 99])
+        assert len(u) == len(i) == 3
+
+    def test_build_pairs_mismatched_lengths_raise(self):
+        with pytest.raises(ValueError):
+            TheReasoner.build_pairs([1, 2, 3], [10, 20], cross_join=False)
+
+    def test_is_string_type_numeric_array(self):
+        assert TheReasoner._is_string_type(np.array([1, 2, 3])) is False
+
+    def test_is_string_type_string_array(self):
+        assert TheReasoner._is_string_type(np.array(["a", "b", "c"])) is True
+
+    def test_is_string_type_plain_list_of_strings(self):
+        assert TheReasoner._is_string_type(["x", "y"]) is True
+
+    def test_is_string_type_plain_list_of_ints(self):
+        assert TheReasoner._is_string_type([1, 2, 3]) is False
 
 
 # ============================================================================

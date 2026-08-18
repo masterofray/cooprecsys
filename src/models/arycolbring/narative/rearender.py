@@ -33,201 +33,115 @@ Modular structure:
 Static assets are copied to the output directory so the HTML is self-contained.
 """
 
-import os
-import sys
 import json
-import math
-import shutil
+import numpy as np
+import pandas as pd
 from pathlib import Path
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional
-from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-import numpy as np
-import pandas as pd
+from .rensupport import Tplatedir, readir, OUTPUT_DIR, get_env, runcopy
 
 LocDir = Path(__file__).resolve()
-sys.path.append(str(LocDir.parents[3]))
+#sys.path.append(str(LocDir.parents[3]))
+from ....configs import logger, _cfg
+from ....assets  import (generate_scorecards as _gen_scorecards,
+                         generate_gauges, normalize_charts,
+                         overall_score_percent, score_distribution,
+                         embedding_projection_2d, similarity_heatmap,
+                         top_k_similar_items)
 
-TEMPLATE_DIR = LocDir.parent / "templates"
-STATIC_DIR   = LocDir.parent / "static"
+# NOTE: generate_scorecards/generate_gauges/normalize_charts/the overall
+# score computation used to be defined here AND (near-identically) in
+# advirender.py. Both copies now live once in
+# src/assets/dashboard_utils.py -- see that module + its unit tests.
+#
+# generate_gauges() only ever produces a gauge for a *ranking/quality*
+# metric (precision/recall/ndcg/auc/mrr/f1 -- see
+# dashboard_utils.detect_gauge_metric). An inference report's `metrics`
+# dict should only ever contain real production-performance numbers
+# (qps, latency, throughput, ...), so in the normal case `gauges` here
+# is correctly empty -- evaluation-quality metrics belong on the
+# *training* dashboard (advirender.py), not this one.
 
-try:
-    from configs import logger, _cfg
-except ImportError:
-    import logging
-    logging.basicConfig(
-        level=logging.DEBUG,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
-    logger = logging.getLogger(__name__)
-    _cfg = None
-
-
-# ================================================================
-# JINJA2 ENVIRONMENT
-# ================================================================
-
-def get_env() -> Environment:
-    """Initialize Jinja2 environment."""
-    logger.debug("Initializing Jinja environment.")
-    try:
-        env = Environment(
-            loader        = FileSystemLoader(str(TEMPLATE_DIR)),
-            autoescape    = select_autoescape(["html", "xml"]),
-            trim_blocks   = True,
-            lstrip_blocks = True,
-        )
-        logger.info("Jinja environment initialized successfully.")
-        return env
-    except Exception as exc:
-        logger.error("Failed initializing Jinja environment.", exc_info=True)
-        raise RuntimeError("Jinja environment initialization failed.") from exc
-
-
-# ================================================================
-# STATIC ASSET COPYING
-# ================================================================
-
-def copy_static_assets(output_dir: Path) -> Dict[str, str]:
-    """Copy all static assets (css/, js/, vendor/) into output directory."""
-    logger.debug("Copying static assets to output directory.")
-    dest_static = output_dir / "static"
-
-    if dest_static.exists():
-        shutil.rmtree(dest_static)
-
-    try:
-        shutil.copytree(STATIC_DIR, dest_static, dirs_exist_ok=False)
-        logger.info("Static assets copied to %s", dest_static)
-    except Exception as exc:
-        logger.error("Failed copying static assets.", exc_info=True)
-        raise RuntimeError("Static asset copy failed.") from exc
-
-    return {
-        "static_css":    "static/css",
-        "static_js":     "static/js",
-        "static_vendor": "static/vendor",
-        "static_img":    "static",
-    }
-
-
-# ================================================================
-# HELPERS
-# ================================================================
-
-def beautify_label(label: str) -> str:
-    try:
-        label = label.replace("_", " ")
-        replacements = {
-            "ndcg": "NDCG", "map": "MAP", "mrr": "MRR",
-            "auc": "AUC", "ctr": "CTR", "at": "@",
-            "precision": "Precision", "recall": "Recall",
-            "latency": "Latency", "throughput": "Throughput", "qps": "QPS",
-        }
-        for old, new in replacements.items():
-            label = label.replace(old, new)
-        return label.title()
-    except Exception:
-        return str(label)
-
-
-def safe_float(value: Any, precision: int = 4) -> str:
-    try:
-        if isinstance(value, (int, float)):
-            if math.isnan(value):
-                return "NaN"
-            return f"{value:.{precision}f}"
-        return str(value)
-    except Exception:
-        return str(value)
-
-
-def detect_gauge_metric(metric_name: str) -> bool:
-    metric_name = metric_name.lower()
-    keywords = ["ndcg", "map", "mrr", "precision", "recall", "accuracy", "auc", "f1", "coverage"]
-    return any(k in metric_name for k in keywords)
-
-
-# ================================================================
-# CONTEXT BUILDERS
-# ================================================================
 
 def generate_scorecards(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
-    if not metrics:
-        return []
-    cards = []
-    color_cycle = ["blue", "green", "purple", "orange", "cyan", "red"]
-    icon_map = {
-        "blue":   "fas fa-chart-line",
-        "green":  "fas fa-network-wired",
-        "purple": "fas fa-bullseye",
-        "orange": "fas fa-gauge-high",
-        "cyan":   "fas fa-desktop",
-        "red":    "fas fa-chart-column",
-    }
-    for idx, (metric_name, metric_value) in enumerate(metrics.items()):
-        color = color_cycle[idx % len(color_cycle)]
-        cards.append({
-            "label": beautify_label(metric_name),
-            "value": safe_float(metric_value),
-            "sub": "Inference metric",
-            "color": color,
-            "icon_class": icon_map[color],
-        })
-    logger.info("Generated %d scorecards.", len(cards))
-    return cards
-
-
-def generate_gauges(metrics: Dict[str, Any]) -> List[Dict[str, Any]]:
-    gauges = []
-    for metric_name, metric_value in metrics.items():
-        if not detect_gauge_metric(metric_name):
-            continue
-        try:
-            percent = float(metric_value) * 100
-        except (ValueError, TypeError):
-            continue
-        gauges.append({
-            "label": beautify_label(metric_name),
-            "value": metric_value,
-            "display": f"{percent:.2f}%",
-            "percent": round(percent, 2),
-        })
-    logger.info("Generated %d gauges.", len(gauges))
-    return gauges
+    """Inference-dashboard scorecards (thin wrapper: keeps this report's
+    original "Inference metric" sub-label)."""
+    return _gen_scorecards(metrics, sub_label="Inference metric")
 
 
 def generate_stat_minis(context: Dict[str, Any]) -> List[Dict[str, Any]]:
-    stats = []
+    """Mini stat cards for the overview page.
+
+    BUGFIX: this used to always include a "Coverage" card sourced from
+    `inference_statistics['coverage']` -- but nothing in inference.py
+    ever computed a real catalog-coverage number, so every report
+    rendered a hardcoded 0.75 (75%) placeholder as if it were measured.
+    Coverage is dropped until a real computation is wired up; showing a
+    fabricated number is worse than not showing one.
+    """
+    stats = list()
     inf = context.get("inference_statistics", {})
-    stats.append({"label": "Predictions",  "value": str(inf.get("n_predictions", 0)),                     "percent": 100})
-    stats.append({"label": "Users Served", "value": str(inf.get("n_users_served", 0)),                    "percent": 100})
-    stats.append({"label": "Avg Latency",  "value": f"{inf.get('avg_latency_ms', 0):.2f} ms",             "percent": 100})
-    stats.append({"label": "Coverage",     "value": f"{inf.get('coverage', 0):.2%}",                       "percent": 100})
+    stats.append({"label": "Predictions",  "value": str(inf.get("n_predictions", 0)),         "percent": 100})
+    stats.append({"label": "Users Served", "value": str(inf.get("n_users_served", 0)),         "percent": 100})
+    stats.append({"label": "Avg Latency",  "value": f"{inf.get('avg_latency_ms', 0):.2f} ms",  "percent": 100})
+    stats.append({"label": "Throughput",   "value": f"{inf.get('throughput_preds_per_sec', 0):.1f}/s", "percent": 100})
     logger.info("Generated %d mini stat cards.", len(stats))
     return stats
 
 
-def normalize_charts(charts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    if not charts:
-        return []
-    normalized = []
-    for chart in charts:
-        if not isinstance(chart, dict):
-            continue
-        normalized.append({
-            "title": chart.get("title", "Untitled Chart"),
-            "type":  chart.get("type"),
-            "data":  chart.get("data"),
-            "full":  "importance" in chart.get("title", "").lower(),
-        })
-    return normalized
+def build_visualizations(context: Dict[str, Any]) -> Dict[str, Any]:
+    """Build the payloads for the new Insights tab: a prediction-score
+    histogram (always, if predictions are present), and -- only when the
+    caller supplied embeddings -- a 2D embedding scatter and an
+    item-item similarity heatmap. Each is optional and independently
+    None-able so the template can render an empty-state per widget
+    instead of the whole tab failing.
+    """
+    viz: Dict[str, Any] = {"score_distribution": None,
+                           "embedding_plot": None,
+                           "similarity_heatmap": None}
+
+    predictions = context.get("predictions", [])
+    if predictions:
+        scores = [p.get("score") for p in predictions if p.get("score") is not None]
+        if scores:
+            viz["score_distribution"] = score_distribution(scores)
+
+    embeddings = context.get("embeddings")
+    if embeddings and embeddings.get("vectors") is not None:
+        vectors = np.asarray(embeddings["vectors"])
+        if vectors.size:
+            viz["embedding_plot"] = embedding_projection_2d(
+                vectors,
+                ids=embeddings.get("ids"),
+                highlight_id=embeddings.get("highlight_id"))
+
+    item_embeddings = context.get("item_embeddings")
+    item_ids = context.get("item_ids")
+    if item_embeddings is not None and item_ids:
+        vectors = np.asarray(item_embeddings)
+        if vectors.size:
+            viz["similarity_heatmap"] = similarity_heatmap(
+                vectors, ids=item_ids, top_n=20)
+            context["_similar_items_map"] = top_k_similar_items(
+                vectors, list(item_ids), k=3)
+
+    return viz
 
 
 def build_inference_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
-    """Build full inference dashboard rendering context."""
+    """Build full inference dashboard rendering context.
+
+    Only real production-inference data goes on this dashboard: latency,
+    throughput, QPS, prediction/embedding visualizations. Ranking-quality
+    metrics (Precision@K, Recall@K, NDCG, AUC, MRR, ...) belong on the
+    *training* dashboard (see advirender.py) -- if a caller passes them
+    in `metrics` here anyway, `generate_gauges` will still surface them
+    as gauges (the underlying data isn't wrong, just misplaced), but
+    nothing in this pipeline fabricates or renames them.
+    """
     logger.debug("Entering build_inference_context().")
     try:
         context = deepcopy(context_data)
@@ -237,17 +151,25 @@ def build_inference_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
         context["gauges"]     = generate_gauges(metrics)
         context["stat_minis"] = generate_stat_minis(context)
         context["charts"]     = normalize_charts(context.get("charts", []))
-        context["bar_labels"] = list(metrics.keys())  if metrics else []
-        context["bar_data"]   = list(metrics.values()) if metrics else []
+        context["bar_labels"] = list(metrics.keys())  if metrics else list()
+        context["bar_data"]   = list(metrics.values()) if metrics else list()
+
+        # New visualizations (replaces the removed "coverage" metric
+        # and any other display of eval-only numbers on this report).
+        context.update(build_visualizations(context))
+        similar_items_map = context.pop("_similar_items_map", {})
 
         # Predictions
         predictions = context.get("predictions", [])
         if predictions:
             pred_df = pd.DataFrame(predictions)
+            if similar_items_map and "item_id" in pred_df.columns:
+                pred_df["similar_items"] = pred_df["item_id"].map(
+                    lambda iid: similar_items_map.get(iid, []))
             context["rankings"]       = pred_df.to_dict(orient="records")
             context["total_rankings"] = int(pred_df.shape[0])
         else:
-            context["rankings"]       = []
+            context["rankings"]       = list()
             context["total_rankings"] = 0
 
         context.setdefault("generated_at",    datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -258,13 +180,10 @@ def build_inference_context(context_data: Dict[str, Any]) -> Dict[str, Any]:
         context.setdefault("batch_size",      context.get("batch_size", 100))
         context.setdefault("num_threads",     context.get("num_threads", 4))
 
-        # Overall score
-        try:
-            gauge_values = [float(v) for k, v in metrics.items() if detect_gauge_metric(k)]
-            osv = round(sum(gauge_values) / len(gauge_values) * 100, 2) if gauge_values else 0
-            context["overall_score_percent"] = osv
-        except (ValueError, TypeError):
-            context["overall_score_percent"] = 0
+        # Overall score: average of any ranking/quality gauge metrics
+        # present. Correctly 0 for a "clean" inference report (no
+        # eval-quality metrics), rather than a fabricated number.
+        context["overall_score_percent"] = overall_score_percent(metrics)
         context["overall_score"] = f'{context["overall_score_percent"]}%'
 
         context.setdefault("inference_params", {
@@ -291,7 +210,11 @@ def render_inference_report(context: Dict[str, Any], output_path: Path) -> str:
     logger.debug("Rendering inference report.")
     try:
         env = get_env()
-        template = env.get_template("base.html.j2")
+        # BUGFIX: "base.html.j2" doesn't exist in templates/ -- the actual
+        # inference template is "infrc_base.html.j2" (the training
+        # counterpart in advirender.py correctly uses "train_base.html.j2").
+        # This raised jinja2.exceptions.TemplateNotFound on every run.
+        template = env.get_template("infrc_base.html.j2")
         html = template.render(**context)
         logger.info("Rendered HTML size = %.2f KB", len(html.encode("utf-8")) / 1024)
         return html
@@ -333,11 +256,11 @@ def generate_inference_report(
         output_path = output_dir / report_name
 
         # 3. Copy static assets
-        static_paths = copy_static_assets(output_dir)
+        static_paths = runcopy(advisor = False, dest = output_dir)
 
         # 4. Build context
         context = build_inference_context(context_data)
-        context.update(static_paths)
+        context.update(static_paths or {})
 
         # 5. Save context JSON (debug mode)
         dlevel = True
@@ -385,27 +308,32 @@ if __name__ == "__main__":
         input_path = Path(args.input)
         if not input_path.exists():
             print(f"Error: Input file not found: {input_path}")
-            sys.exit(1)
+            raise FileNotFoundError(f'Not Found {input_path}!')
         with open(input_path, "r", encoding="utf-8") as f:
             context_data = json.load(f)
         print(f"Loaded context from: {input_path}")
     else:
+        # NOTE: `metrics` only carries real production-performance
+        # numbers (latency, QPS) -- NOT ranking-quality metrics like
+        # precision/recall/ndcg/auc/mrr, and NOT a fabricated
+        # "coverage" placeholder. Those belong on the training
+        # dashboard (see advirender.py's own sample data instead).
+        rng = np.random.default_rng(0)
+        n_items = 60
+        item_ids = list(range(100, 100 + n_items))
+        item_embeddings = rng.normal(size=(n_items, 16))
+
         context_data = {
             "metrics": {
-                "precision_at_10": 0.245,
-                "recall_at_10": 0.167,
-                "auc": 0.801,
-                "mrr": 0.356,
-                "ndcg_at_10": 0.438,
-                "coverage": 0.75,
                 "avg_latency_ms": 12.5,
                 "qps": 850,
+                "throughput_preds_per_sec": 640.0,
             },
             "inference_statistics": {
                 "n_predictions": 50000,
                 "n_users_served": 5000,
                 "avg_latency_ms": 12.5,
-                "coverage": 0.75,
+                "throughput_preds_per_sec": 640.0,
             },
             "model_version": "1.0.0",
             "batch_size": 100,
@@ -418,10 +346,10 @@ if __name__ == "__main__":
                 {"user_id": 3, "item_id": 300, "score": 0.45, "rank": 1},
                 {"user_id": 3, "item_id": 100, "score": 0.38, "rank": 2},
             ],
-            "charts": [
-                {"title": "Latency Distribution", "type": "histogram", "data": [5, 10, 15, 20, 25]},
-                {"title": "QPS Over Time", "type": "line", "data": [800, 820, 850, 870, 890]},
-            ],
+            "item_embeddings": item_embeddings,
+            "item_ids": item_ids,
+            "embeddings": {"vectors": item_embeddings, "ids": item_ids,
+                          "highlight_id": item_ids[0]},
         }
         print("No input file specified, using sample data.")
 

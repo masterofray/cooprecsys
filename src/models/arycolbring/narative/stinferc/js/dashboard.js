@@ -8,8 +8,8 @@
 
     function setChartDefaults() {
         if (typeof Chart === 'undefined') return;
-        Chart.defaults.color = '#3d6b3d';
-        Chart.defaults.borderColor = 'rgba(45, 90, 45, 0.12)';
+        Chart.defaults.color = '#495057';
+        Chart.defaults.borderColor = 'rgba(33, 37, 41, 0.12)';
         Chart.defaults.font.family = "'Inter','Segoe UI','Roboto',sans-serif";
         Chart.defaults.font.size = 12;
         Chart.defaults.plugins.legend.labels.boxWidth = 14;
@@ -25,6 +25,9 @@
 
         var rankings = document.getElementById('page-rankings');
         if (rankings && window.initRankings) window.initRankings(rankings);
+
+        var insights = document.getElementById('page-insights');
+        if (insights && window.initInsights) window.initInsights(insights);
 
         var diagnostics = document.getElementById('page-diagnostics');
         if (diagnostics && window.initDiagnostics) window.initDiagnostics(diagnostics);

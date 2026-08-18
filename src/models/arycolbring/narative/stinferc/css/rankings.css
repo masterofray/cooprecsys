@@ -24,7 +24,7 @@
     top: -80px; right: -80px;
     width: 200px; height: 200px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(46,125,50,0.10), transparent 70%);
+    background: radial-gradient(circle, rgba(255, 107, 53,0.10), transparent 70%);
     pointer-events: none;
 }
 
@@ -47,7 +47,7 @@
     letter-spacing: 0.5px;
     color: var(--accent);
     background: var(--accent-glow);
-    border: 1px solid rgba(46,125,50,0.2);
+    border: 1px solid rgba(255, 107, 53,0.2);
 }
 
 .table-actions { display: flex; gap: 8px; }
@@ -64,13 +64,13 @@
 }
 
 .btn-primary { background: var(--accent); color: var(--text-on-accent); }
-.btn-primary:hover { background: #1b5e20; box-shadow: 0 2px 8px rgba(46,125,50,0.35); transform: translateY(-1px); }
+.btn-primary:hover { background: var(--accent-light); box-shadow: 0 2px 8px rgba(255,107,53,0.35); transform: translateY(-1px); }
 
 /* ── Table Scroll ── */
 .table-scroll { width: 100%; overflow-x: auto; max-height: 600px; overflow-y: auto; }
 .table-scroll::-webkit-scrollbar { height: 8px; }
 .table-scroll::-webkit-scrollbar-track { background: var(--card-alt); }
-.table-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: linear-gradient(90deg, rgba(46,125,50,0.3), rgba(46,125,50,0.5)); }
+.table-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: linear-gradient(90deg, rgba(255, 107, 53,0.3), rgba(255, 107, 53,0.5)); }
 
 /* ── Data Table ── */
 .data-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: auto; min-width: 100%; font-size: 0.82rem; }
@@ -100,19 +100,19 @@
     transition: background 0.25s ease, transform 0.2s ease;
 }
 
-.data-table tbody tr:nth-child(even) { background: rgba(46,125,50,0.02); }
+.data-table tbody tr:nth-child(even) { background: rgba(255, 107, 53,0.02); }
 
 .data-table tbody tr {
     transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
 .data-table tbody tr:hover {
-    background: rgba(46,125,50,0.06);
+    background: rgba(255, 107, 53,0.06);
     transform: scale(1.002);
     box-shadow: inset 4px 0 0 var(--accent);
 }
 
-.data-table tbody tr.row-hover { background: rgba(46,125,50,0.08); }
+.data-table tbody tr.row-hover { background: rgba(255, 107, 53,0.08); }
 
 /* ── Filter Row ── */
 .filter-row th { padding: 10px 12px; background: var(--card-alt); border-bottom: 1px solid var(--border); }
@@ -132,7 +132,7 @@
     transition: border 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
-.table-filter:focus { border: 2px solid var(--accent); background: var(--accent-glow); box-shadow: 0 0 0 3px rgba(46,125,50,0.12); }
+.table-filter:focus { border: 2px solid var(--accent); background: var(--accent-glow); box-shadow: 0 0 0 3px rgba(255, 107, 53,0.12); }
 .table-filter::placeholder { color: var(--text-muted); }
 
 /* ── Rank Badge ── */
@@ -166,9 +166,9 @@
 }
 
 .badge-high {
-    background: rgba(46, 125, 50, 0.12);
+    background: rgba(255, 107, 53, 0.12);
     color: #2e7d32;
-    border: 1px solid rgba(46, 125, 50, 0.25);
+    border: 1px solid rgba(255, 107, 53, 0.25);
 }
 
 .badge-medium {
@@ -193,9 +193,9 @@
 #page-rankings.filters-cleared { animation: flashReset 0.3s ease; }
 
 @keyframes flashReset {
-    0%   { box-shadow: 0 0 0 rgba(46,125,50,0); }
-    50%  { box-shadow: 0 0 25px rgba(46,125,50,0.2); }
-    100% { box-shadow: 0 0 0 rgba(46,125,50,0); }
+    0%   { box-shadow: 0 0 0 rgba(255, 107, 53,0); }
+    50%  { box-shadow: 0 0 25px rgba(255, 107, 53,0.2); }
+    100% { box-shadow: 0 0 0 rgba(255, 107, 53,0); }
 }
 
 /* ── Responsive ── */
@@ -203,3 +203,21 @@
     .table-header { flex-direction: column; align-items: flex-start; gap: 12px; }
     .data-table th, .data-table td { padding: 14px 12px; text-align: center; }
 }
+
+/* ── Similar Items pills + sortable column header ── */
+.similar-items-cell { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill-item {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid rgba(255,107,53,0.25);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.text-muted-cell { color: var(--text-muted); }
+.sortable-col { cursor: pointer; user-select: none; }
+.sortable-col i { font-size: 0.72rem; opacity: 0.5; margin-left: 4px; }
+.sortable-col.sort-asc i::before  { content: "\f0de"; opacity: 1; }
+.sortable-col.sort-desc i::before { content: "\f0dd"; opacity: 1; }

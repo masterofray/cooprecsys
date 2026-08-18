@@ -8,7 +8,7 @@ __version__    = "0.0.1rc2"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-06-15"
+__modified__   = "2026-08-18"
 
 """
 Root setup.py wrapper for cooprecsys.

@@ -21,6 +21,7 @@ A production-grade machine learning and AI module for building intelligent recom
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Usage Examples](#usage-examples)
+- [Notebooks](#notebooks)
 - [Architecture](#architecture)
 - [Dashboard & Explainability](#dashboard--explainability)
 - [API Reference](#api-reference)
@@ -45,6 +46,12 @@ A production-grade machine learning and AI module for building intelligent recom
   - Group-aware train/test splitting
   - Ranking metrics: NDCG, MAP, AUC
   - MLflow experiment tracking
+
+- **ary2tower**: Two-tower neural recommender (Cython + OpenMP)
+  - `Embedding -> Dense -> ReLU -> Dense` per tower, dot-product/cosine similarity
+  - BPR-style pairwise training with SGD + momentum
+  - Automatic pure-NumPy fallback when the compiled extension isn't built
+    (see `src/models/ary2tower/README.md`)
 
 ### **Explainable AI Dashboard**
 
@@ -247,7 +254,32 @@ top_items = np.argsort(item_scores)[::-1][:10]
 
 ---
 
+## Notebooks
+
+Step-by-step walkthroughs live in `notebook/`:
+
+| Notebook | Covers |
+|---|---|
+| `01_Quick_Start.ipynb` | Train -> serve in 5 minutes |
+| `02_Data_Preparation.ipynb` | Raw transactions -> validated sparse matrix |
+| `03_Training_AryColBring.ipynb` | Hyperparameter sweep vs. a random baseline |
+| `04_Interactive_Dashboard.ipynb` | Generates the light/orange inference dashboard inline |
+| `05_LTR_LGBM_Comparison.ipynb` | AryColBring vs. LTR-LGBM evaluation methodology |
+| `06_Cold_Start_Handling.ipynb` | Purchase-aware filtering + item-to-item fallback (`AryInfFallBack`) |
+| `AryColBring_Training_Pipeline.ipynb` | Full annotated walkthrough of the training pipeline internals |
+
+---
+
 ## Architecture
+
+> Note: the tree below is the pre-existing high-level sketch and does not
+> reflect every actual filename in `src/models/arycolbring/` (e.g. the
+> real training entry point is `trainer.py`, inference is `inference.py`,
+> Cython kernels live in `CLproximity/`, and the dashboard renderers are
+> `narative/advirender.py` / `narative/rearender.py` under a light-theme,
+> orange-accent (`#FF6B35`) design system, not `dashboard/index.html`).
+> New since the last update: `src/models/ary2tower/` (two-tower neural
+> recommender) and `notebook/` (usage walkthroughs) -- both shown below.
 
 ```
 cooprecsys/
@@ -258,6 +290,10 @@ cooprecsys/
 │   │   │   ├── cy/               # Cython kernels
 │   │   │   ├── evaluation.py
 │   │   │   └── cross_validation.py
+│   │   ├── ary2tower/            # Two-tower neural recommender (NEW)
+│   │   │   ├── config.py / towers.py / trainer.py / inference.py
+│   │   │   ├── CLtowers/         # Cython + OpenMP kernels
+│   │   │   └── cysetup.py / .sh / .ps1
 │   │   ├── ltr_lgbm/             # Learning-to-Rank
 │   │   │   ├── model.py
 │   │   │   ├── pipeline.py
@@ -272,11 +308,13 @@ cooprecsys/
 │   └── utils/
 │       ├── data_utils.py
 │       └── metrics.py
+├── notebook/                     # Usage walkthroughs (NEW: 01-06)
 ├── test/
 │   ├── arycolbring_tests/        # CF unit tests
 │   │   ├── test_model.py
 │   │   ├── test_evaluation.py
 │   │   └── test_data_utils.py
+│   ├── ary2tower_tests/          # Two-tower unit tests (NEW)
 │   └── ltrlgbm_test/             # LTR integration tests
 │       ├── ltrlgbm_example.py    # ← Main test script
 │       └── ltrlgbm_inferencing.py
@@ -301,6 +339,14 @@ cooprecsys/
 - **Comparison View**: Side-by-side model performance comparison
 - **Interactive Filters**: Drill down by user, item, or category
 - **Export Reports**: Generate PDF/HTML reports with explanations
+
+> The AryColBring **inference** dashboard (`narative/rearender.py`) uses
+> a light theme with orange accents (`#FF6B35`), and now has an
+> **Insights** tab (prediction score histogram, 2D embedding PCA
+> projection, item-item similarity heatmap) in place of the ranking-
+> quality metrics that used to leak into it -- Precision/Recall/NDCG/
+> AUC/MRR belong on the **training** dashboard
+> (`narative/advirender.py`), not a production inference report.
 
 ### Running the Dashboard
 
@@ -489,19 +535,31 @@ experiment_name = cooprecsys_prod
 # Integration tests
 python -m test.ltrlgbm_test.ltrlgbm_example
 
-# Unit tests
-pytest test/arycolbring_tests/ -v --tb=short
+# Unit tests (arycolbring)
+pytest test/arycolbring_tests/t03_pytest.py test/arycolbring_tests/t05_dashboard_refactor.py -v --tb=short
 
-# With coverage
-pytest test/arycolbring_tests/ --cov=src --cov-report=html
+# Unit tests (ary2tower)
+pytest test/ary2tower_tests/t01_towers.py -v --tb=short
+
+# With coverage (fixed: was previously pointed at a non-importable
+# module name, "cooprecsys" -- now measures the real "src" package)
+pytest test/ --cov=src --cov-report=html
+
+# Lint
+black --check src test && flake8 src test && isort --check-only src test
 ```
 
 ### CI/CD Pipeline
 
 All tests run automatically on:
-- Push to `master` or `dev` branches
-- Pull requests
+- Push to `master`/`dev` branches
+- Pull requests (including into `main`)
 - Manual workflow dispatch
+
+`arycolbring_pipeline.yml` additionally runs a dedicated `lint` job
+(black/flake8/isort) and a `pytest-suite` job (coverage-reported,
+artifact-uploaded) alongside the existing multi-Python-version smoke
+test.
 
 **Status Badge**: [![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=master)](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
 

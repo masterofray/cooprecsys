@@ -12,6 +12,12 @@ __created__    = "2026-07-06"
 
 
 from .statsrender import Gen_MiniStats
+from .dashboard_utils import (bealabel, safe_float, detect_gauge_metric,
+                              generate_scorecards, generate_gauges,
+                              normalize_charts, overall_score_percent)
+from .vizdata import (score_distribution, embedding_projection_2d,
+                      similarity_heatmap, top_k_similar_items,
+                      scores_to_predictions_frame)
 
 from pathlib  import Path
 assDir = Path(__file__).parent.resolve()
