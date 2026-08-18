@@ -14,6 +14,7 @@ import gc
 import duckdb
 import configparser
 import pandas as pd
+from pathlib import Path
 from contextlib import contextmanager
 from typing import Optional, Tuple, List, Dict, Union
 from ..configs import logger
