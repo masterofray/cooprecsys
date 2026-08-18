@@ -102,3 +102,6 @@ exclude_lines   = ["pragma: no cover",
                    "if __name__ == .__main__.:",
                    "if TYPE_CHECKING:",
                   ]
+
+[tool.setuptools.package-data]
+"cooprecsys.configs" = ["*.ini"]

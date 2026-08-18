@@ -11,14 +11,11 @@ __status__     = "Development"
 __created__    = "2026-04-25"
 
 import ast
-import sys
 from pathlib import Path
 from configparser import ConfigParser
 
 LocDir = Path(__file__).resolve().parents[0]
-sys.path.append(str(LocDir))
-
-_cfg = ConfigParser()
+_cfg   = ConfigParser()
 _cfg.read(LocDir / "configuration.ini")
 
 from .fallback_config import FallbackConfig
