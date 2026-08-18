@@ -21,7 +21,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 pd.set_option('display.max_columns', None)
 
 from ..db import DuckDBManager, duckdb_connection
-from ..config import logger
+from ..configs import logger
 
 @dataclass
 class AutoFeatureEngineer(
