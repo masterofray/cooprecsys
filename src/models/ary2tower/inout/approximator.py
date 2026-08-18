@@ -23,16 +23,10 @@ towers.py, dispatching to the compiled Cython kernel or the NumPy
 fallback).
 """
 
-import logging
+import numpy as np
 from typing import Any, List, Optional, Tuple, Union
 
-import numpy as np
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from ....configs import logger
 from .scaffold import TwoTowerBase
 from ..config import TwoTowerConfig
 from ..towers import (TwoTowerWeights, UserTower, ItemTower,

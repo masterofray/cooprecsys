@@ -28,18 +28,11 @@ test/ary2tower_tests/t01_towers.py, unmodified, still passing against
 this file).
 """
 
-import logging
 from pathlib import Path
 from typing import List, Optional, Union
-
 import numpy as np
 import scipy.sparse as sp
-
-try:
-    from ...configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from ...configs import logger
 from .config import TwoTowerConfig
 from .towers import UserTower, ItemTower
 from .inout.model_architect import TwoTowerArchitect

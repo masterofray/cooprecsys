@@ -34,15 +34,9 @@ test/ary2tower_tests/, which numerically gradient-checks the backward
 pass against this implementation.
 """
 
-import logging
 from typing import Optional, Tuple
-
 import numpy as np
-
-try:
-    from ...configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
+from ...configs import logger
 
 try:
     from .CLtowers import TwoTowerModel as _CyTwoTowerModel

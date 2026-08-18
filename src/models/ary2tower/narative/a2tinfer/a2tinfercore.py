@@ -19,15 +19,9 @@ constructing a reusable dashboard object (e.g. one bound to a fixed
 output_dir) over calling the module-level function directly.
 """
 
-import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
-
-try:
-    from .....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from .....configs import logger
 from ..a2trearender import generate_inference_report
 
 

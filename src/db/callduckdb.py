@@ -14,7 +14,6 @@ import gc
 import os
 import sys
 import duckdb
-import logging
 import configparser
 import pandas as pd
 from pathlib import Path

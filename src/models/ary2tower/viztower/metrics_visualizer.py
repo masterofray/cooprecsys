@@ -31,12 +31,7 @@ matplotlib.use("Agg")  # headless-safe backend; caller can still display
                        # backend/inline renderer.
 import matplotlib.pyplot as plt
 import numpy as np
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    import logging
-    logger = logging.getLogger(__name__)
+from ....configs import logger
 
 ACCENT = "#FF6B35"     # matches the light+orange dashboard theme (Task 1)
 ACCENT_TEAL = "#4ECDC4"

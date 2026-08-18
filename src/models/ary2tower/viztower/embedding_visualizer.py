@@ -30,15 +30,11 @@ from typing import Any, Optional, Sequence
 
 import matplotlib
 matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import numpy as np
 
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    import logging
-    logger = logging.getLogger(__name__)
-
+from ....configs import logger
 from ....assets import embedding_projection_2d, similarity_heatmap
 
 ACCENT = "#FF6B35"

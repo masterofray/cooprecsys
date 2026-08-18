@@ -19,19 +19,12 @@ dashboard's Insights tab) and a precision/recall-at-K curve (new here;
 no equivalent existed elsewhere in the repo to reuse).
 """
 
-from typing import Optional, Sequence
-
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    import logging
-    logger = logging.getLogger(__name__)
-
+from typing import Optional, Sequence
+from ....configs import logger
 from ....assets import score_distribution
 
 ACCENT = "#FF6B35"

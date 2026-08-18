@@ -18,15 +18,9 @@ a2tadvirender.py's generate_training_report(), mirroring
 a2tinfer/a2tinfercore.py's structure.
 """
 
-import logging
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
-
-try:
-    from .....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from .....configs import logger
 from ..a2tadvirender import generate_training_report
 
 

@@ -27,24 +27,18 @@ Hogwild!-style) parallelism trade-off this shares with arycolbring's
 own fit_bpr()/fit_warp() kernels.
 """
 
-import logging
-from typing import List, Optional
 
 import numpy as np
 import scipy.sparse as sp
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from typing import List, Optional
+from ....configs import logger
 from .scaffold import TwoTowerBase
 from ..config import TwoTowerConfig
 from ..towers import TwoTowerWeights, sigmoid, _HAS_CYTHON
 
+
 if _HAS_CYTHON:
     from ..towers import _cy_fit_two_tower
-
 
 class TwoTowerArchitect(TwoTowerBase):
     """Owns the trainable weights and the epoch-by-epoch BPR training

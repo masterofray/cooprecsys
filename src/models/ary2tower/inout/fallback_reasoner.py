@@ -31,16 +31,10 @@ auto-detection there goes through `prepare.DetectReco_Identifier`
 just NumPy/pandas.
 """
 
-import logging
-from typing import Any, Dict, List, Optional, Set, Tuple
-
 import numpy as np
 import pandas as pd
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
+from ....configs import logger
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 class TwoTowerFallBack:

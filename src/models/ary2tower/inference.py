@@ -42,20 +42,14 @@ different question), and never re-suggests an item the user already
 bought -- see TwoTowerFallBack's own docstring.
 """
 
-import logging
 import time
-from collections import OrderedDict
-from datetime import datetime
+import numpy as np
 from pathlib import Path
+from datetime import datetime
+from collections import OrderedDict
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-import numpy as np
-
-try:
-    from ...configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from ...configs import logger
 from .config import TwoTowerConfig
 from .towers import TwoTowerWeights, UserTower, ItemTower, dot_product_similarity
 from .inout.approximator import TwoTowerPredictor

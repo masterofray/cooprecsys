@@ -20,17 +20,11 @@ auc/mrr) ARE expected and correctly displayed here as gauges, since
 this is the training/evaluation report.
 """
 
-import logging
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from ....configs import logger
 from .rensupport import get_env, copy_static, OUTPUT_DIR
 
 try:

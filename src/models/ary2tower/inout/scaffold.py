@@ -22,14 +22,8 @@ contract, both delegated to the already-validated TwoTowerConfig
 dataclass (see ../config.py) rather than re-implemented here.
 """
 
-import logging
 from typing import Any, Dict
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from ....configs import logger
 from ..config import TwoTowerConfig
 
 

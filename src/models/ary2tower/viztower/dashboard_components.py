@@ -29,16 +29,10 @@ Jinja2/CSS/JS dashboard stack would be overkill.
 import base64
 from io import BytesIO
 from typing import Dict, Optional
-
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    import logging
-    logger = logging.getLogger(__name__)
+from ....configs import logger
 
 
 def fig_to_base64_png(fig: plt.Figure, dpi: int = 120) -> str:

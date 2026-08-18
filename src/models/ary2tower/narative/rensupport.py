@@ -21,18 +21,12 @@ per-mode trees), and a single template per mode (not arycolbring's
 tabbed multi-template system) -- see narative/templates/.
 """
 
-import logging
+
 import shutil
 from pathlib import Path
 from typing import Dict, Optional
-
 from jinja2 import Environment, FileSystemLoader, select_autoescape
-
-try:
-    from ....configs import logger, _cfg
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-    _cfg = None
+from ....configs import logger, _cfg
 
 LocDir     = Path(__file__).parent.resolve()
 Tplatedir  = LocDir / "templates"

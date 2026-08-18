@@ -22,20 +22,13 @@ fabricated "coverage" number; see the Task 1 dashboard fix this
 mirrors for why those two categories must stay separate.
 """
 
-import logging
+import numpy as np
+import pandas as pd
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
-
-import numpy as np
-import pandas as pd
-
-try:
-    from ....configs import logger
-except ImportError:  # pragma: no cover - fallback for standalone/test use
-    logger = logging.getLogger(__name__)
-
+from ....configs import logger
 from .rensupport import get_env, copy_static, OUTPUT_DIR
 
 try:
