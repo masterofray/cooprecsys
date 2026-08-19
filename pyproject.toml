@@ -25,7 +25,7 @@ networks."""
 readme          = "README.md"
 requires-python = ">=3.10"
 authors         = [{name = "Aryanto", email = "aryanto.dandan@gmail.com"}]
-license         = { text = "GPL-3.0" }
+license         = "GPL-3.0-only"
 classifiers     = ["Development Status :: 3 - Beta",
                    "Intended Audience :: Developers",
                    "Programming Language :: Python :: 3",
@@ -103,5 +103,9 @@ exclude_lines   = ["pragma: no cover",
                    "if TYPE_CHECKING:",
                   ]
 
+[tool.setuptools.packages.find]
+where           = ["src"]
+
 [tool.setuptools.package-data]
 "cooprecsys.configs" = ["*.ini"]
+"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx"]

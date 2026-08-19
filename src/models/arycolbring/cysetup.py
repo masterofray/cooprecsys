@@ -3,13 +3,11 @@
 __author__     = "Aryanto"
 __copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
 __credits__    = ["aryanto"]
-__license__    = "GNU_Public"
-__version__    = "0.0.1"
+__license__    = "GPL-3.0-only"
+__version__    = "0.0.2"
 __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
-__created__    = "2026-05-29"
-__modified__   = "2026-08-19"
 
 from pathlib import Path
 import sys
@@ -20,8 +18,14 @@ from setuptools.command.build_ext import build_ext
 
 BASE_DIR = Path(__file__).resolve().parent
 CYTHON_DIR = BASE_DIR / "CLproximity"
-SRC_DIR = BASE_DIR.parents[1]  # .../src
-REPO_ROOT = BASE_DIR.parents[2]  # .../
+
+# Navigasi path ke src/ dan root repository
+try:
+    SRC_DIR = BASE_DIR.parents[1]     # .../src
+    REPO_ROOT = BASE_DIR.parents[2]   # .../
+except IndexError:
+    SRC_DIR = BASE_DIR
+    REPO_ROOT = BASE_DIR
 
 try:
     REL_SRC_DIR = str(SRC_DIR.relative_to(Path.cwd()))
@@ -29,9 +33,8 @@ except ValueError:
     REL_SRC_DIR = str(SRC_DIR)
 
 
-# Custom build_ext untuk memastikan folder inplace dibuat sebelum file .so disalin
 class CustomBuildExt(build_ext):
-
+    """Custom build_ext untuk memastikan folder tujuan dibuat sebelum file .so disalin."""
     def copy_extensions_to_source(self):
         for ext in self.extensions:
             inplace_file = self.get_ext_fullpath(ext.name)
@@ -39,7 +42,11 @@ class CustomBuildExt(build_ext):
         super().copy_extensions_to_source()
 
 
-if __name__ == "__main__":
+def get_cython_extensions():
+    """
+    Fungsi utama yang diimpor oleh root setup.py.
+    Mengembalikan tuple: (ext_modules_cythonized, inc_dirs)
+    """
     if sys.platform == "win32":
         extra_compile_args = ["/O2", "/openmp"]
         extra_link_args = []
@@ -54,16 +61,14 @@ if __name__ == "__main__":
         extra_link_args = ["-lomp"]
         omp_lib = []
     else:
-        # For Linux (WSL Ubuntu) / GCC
+        # Linux (WSL Ubuntu) / GCC / GitHub Actions Runner
         extra_compile_args = ["-O3", "-fopenmp", "-ffast-math"]
         extra_link_args = ["-fopenmp"]
         omp_lib = []
 
-    # FIX 1: Prefix modul disesuaikan dengan posisi cysetup.py terhadap subfolder CLproximity
-    # Ini memastikan file .so tergenerasi tepat di dalam folder CLproximity/
-    modprefix = "CLproximity"
+    # KUNCI 1: Fully qualified namespace agar .so masuk tepat ke folder CLproximity/
+    modprefix = "cooprecsys.models.arycolbring.CLproximity"
 
-    # FIX 2: Directori pencarian pxd & C headers
     inc_dirs = [
         np.get_include(),
         str(CYTHON_DIR),
@@ -93,8 +98,30 @@ if __name__ == "__main__":
             )
         )
 
+    # KUNCI 2: Cythonize langsung di sini dengan directive optimasi penuh
+    ext_modules = cythonize(
+        exts,
+        include_path=inc_dirs,
+        compiler_directives={
+            "language_level": 3,
+            "boundscheck": False,
+            "wraparound": False,
+            "initializedcheck": False,
+            "embedsignature": True,
+            "cdivision": True,
+        },
+        annotate=False,
+    )
+
+    return ext_modules, inc_dirs
+
+
+# Tetap bisa dijalankan langsung dari folder local (misal: python cysetup.py build_ext --inplace)
+if __name__ == "__main__":
+    ext_modules, inc_dirs = get_cython_extensions()
+
     setup(
-        name="arycolbring",
+        name="cooprecsys",
         version="0.0.2",
         description=(
             "Ultra-optimised user-to-item collaborative filtering "
@@ -105,18 +132,6 @@ if __name__ == "__main__":
         packages=find_packages(where=str(SRC_DIR)),
         package_dir={"": REL_SRC_DIR},
         cmdclass={"build_ext": CustomBuildExt},
-        ext_modules=cythonize(
-            exts,
-            include_path=inc_dirs,  # Memaksa Cython mencari .pxd di semua inc_dirs
-            compiler_directives={
-                "language_level": 3,
-                "boundscheck": False,
-                "wraparound": False,
-                "initializedcheck": False,
-                "embedsignature": True,
-                "cdivision": True,
-            },
-            annotate=False,
-        ),
+        ext_modules=ext_modules,
         zip_safe=False,
     )
