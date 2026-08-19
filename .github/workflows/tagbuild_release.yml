@@ -34,7 +34,7 @@ jobs:
   create-tag:
     name: "Create Tag (Release and Tag)"
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     if: github.event_name != 'pull_request'
     permissions:
       contents: write
@@ -101,7 +101,7 @@ jobs:
   build-sdist:
     name: Build sdist (tar.gz)
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     needs: [create-tag]
     if: always() && needs.create-tag.result == 'success'
     permissions:
@@ -144,7 +144,7 @@ jobs:
   build-wheels-ubuntu:
     name: Build wheel (ubuntu-latest / py${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     needs: [create-tag]
     if: always() && needs.create-tag.result == 'success'
     permissions:
@@ -214,8 +214,31 @@ jobs:
             python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
           fi
 
-      - name: Build wheel via uv
-        run: uv build --wheel --no-build-isolation --out-dir dist/
+      - name: Inspect Workspace Tree Before Wheel Build
+        run: |
+          sudo apt-get update -y && sudo apt-get install -y tree
+          echo "=== Workspace Tree (src level) ==="
+          tree -L 3 src/
+
+      - name: Build wheel via uv (with fallback)
+        shell: bash
+        run: |
+          echo "=== [1/3] Attempting wheel build via uv ==="
+          if uv build --wheel --no-build-isolation --out-dir dist/; then
+            echo "Successfully built wheel using uv!"
+          else
+            echo "::warning::'uv build' failed. Falling back to 'python -m build'..."
+            
+            echo "=== [2/3] Attempting wheel build via PyPA build ==="
+            if python -m build --wheel --no-isolation --outdir dist/; then
+              echo "Successfully built wheel using python -m build!"
+            else
+              echo "::warning::'python -m build' failed. Falling back to 'pip wheel'..."
+              
+              echo "=== [3/3] Attempting wheel build via pip wheel ==="
+              python -m pip wheel . --no-build-isolation --no-deps --wheel-dir dist/
+            fi
+          fi
 
       - name: List generated artifacts & inspect wheel
         run: |
@@ -242,7 +265,7 @@ jobs:
   build-wheels-windows:
     name: Build wheel (windows-latest / py${{ matrix.python-version }})
     runs-on: windows-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     needs: [create-tag]
     if: always() && needs.create-tag.result == 'success'
     permissions:
@@ -345,7 +368,7 @@ jobs:
   test-ubuntu:
     name: Test Installed Wheel (ubuntu-latest / py${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     needs: [create-tag, build-wheels-ubuntu]
     if: always() && needs.build-wheels-ubuntu.result == 'success'
     permissions:
@@ -429,7 +452,7 @@ jobs:
   test-windows:
     name: Test Installed Wheel (windows-latest / py${{ matrix.python-version }})
     runs-on: windows-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     needs: [create-tag, build-wheels-windows]
     if: always() && needs.build-wheels-windows.result == 'success'
     permissions:
@@ -499,7 +522,7 @@ jobs:
   publish:
     name: Publish to Release
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 8
     needs: [create-tag, build-sdist, test-ubuntu, test-windows]
     if: |
       always() &&

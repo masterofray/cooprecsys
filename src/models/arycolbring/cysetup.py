@@ -90,10 +90,11 @@ def get_cython_extensions():
     exts = []
     for pyx in pyx_files:
         module_name = f"{modprefix}.{pyx.stem}"
+        rel_pyx_path = pyx.relative_to(Path.cwd()).as_posix()
         exts.append(
             Extension(
                 name=module_name,
-                sources=[str(pyx)],
+                sources=[rel_pyx_path],
                 language="c",
                 extra_compile_args=extra_compile_args,
                 extra_link_args=extra_link_args,

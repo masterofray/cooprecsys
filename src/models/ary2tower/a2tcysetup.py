@@ -10,7 +10,6 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-07-30"
 
-import os
 import sys
 import numpy as np
 from pathlib import Path
@@ -27,6 +26,11 @@ try:
 except IndexError:
     SRC_DIR = BASE_DIR
     REPO_ROOT = BASE_DIR
+
+try:
+    REL_SRC_DIR = str(SRC_DIR.relative_to(Path.cwd()))
+except ValueError:
+    REL_SRC_DIR = str(SRC_DIR)
 
 compiler_directives = {
     "language_level"   : 3,
@@ -75,11 +79,11 @@ def get_cython_extensions():
     exts = []
     for pyx in CYTHON_DIR.glob("*.pyx"):
         module_name = f"{pkg_prefix}.{pyx.stem}"
-        
+        rel_pyx_path = pyx.relative_to(Path.cwd()).as_posix()
         exts.append(
             Extension(
                 name               = module_name,
-                sources            = [str(pyx)],
+                sources            = [rel_pyx_path],
                 language           = "c",
                 extra_compile_args = extra_compile_args,
                 extra_link_args    = extra_link_args,
@@ -109,6 +113,7 @@ if __name__ == '__main__':
         author          = "aryanto",
         python_requires = ">=3.8",
         packages        = find_packages(where=str(SRC_DIR)),
+        package_dir     = {"": REL_SRC_DIR},
         ext_modules     = ext_modules,
         zip_safe        = False,
     )
