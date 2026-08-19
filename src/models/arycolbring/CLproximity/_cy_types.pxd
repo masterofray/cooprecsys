@@ -1,14 +1,9 @@
 # _cy_types.pxd
-# Shared type declarations for arycolbring Cython modules.
+# cython: language_level=3
 
 ctypedef float flt
 
-
 cdef class CSRMatrix:
-    """
-    Lightweight wrapper around a scipy CSR matrix for nogil access.
-    Exposes indices/indptr/data as typed memory views.
-    """
     cdef public int[::1] indices
     cdef public int[::1] indptr
     cdef public flt[::1] data
@@ -17,16 +12,11 @@ cdef class CSRMatrix:
     cdef public int cols
     cdef public int nnz
 
-    cdef int get_row_start(self, int row) nogil noexcept
-    cdef int get_row_end(self, int row) nogil noexcept
+    cdef int get_row_start(self, int row) noexcept nogil
+    cdef int get_row_end(self, int row) noexcept nogil
 
 
 cdef class FastAryColBring:
-    """
-    Holds all model state (embeddings, gradients, momentum) for
-    the arycolbring collaborative filtering model.
-    All fields are typed memory views for direct C-level access.
-    """
     cdef public flt[:, ::1] item_features
     cdef public flt[:, ::1] item_feature_gradients
     cdef public flt[:, ::1] item_feature_momentum

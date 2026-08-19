@@ -1,13 +1,11 @@
 # cython: boundscheck=False, wraparound=False, cdivision=True, initializedcheck=False, language_level=3
-# _cy_types.pyx
-# Implementation of CSRMatrix and FastAryColBring cdef classes.
+# CLproximity/_cy_types.pyx
 
 from libc.stdio cimport fprintf, stderr
 import numpy as np
 cimport numpy as cnp
 
-# Deklarasi tipe 'flt' agar terbaca oleh signature fungsi __init__
-ctypedef float flt
+# HAPUS BARIS INI: ctypedef float flt (sudah ada di _cy_types.pxd)
 
 
 cdef class CSRMatrix:
@@ -23,11 +21,10 @@ cdef class CSRMatrix:
         if verbose:
             fprintf(stderr, b"[DEBUG] CSRMatrix.__init__: wrapping sparse matrix\n")
 
-        # Konversi array SciPy/NumPy ke C-contiguous memoryview secara eksplisit
         self.indices = np.ascontiguousarray(csr_matrix.indices, dtype=np.int32)
         self.indptr  = np.ascontiguousarray(csr_matrix.indptr, dtype=np.int32)
         self.data    = np.ascontiguousarray(csr_matrix.data, dtype=np.float32)
-        
+
         self.rows = <int>csr_matrix.shape[0]
         self.cols = <int>csr_matrix.shape[1]
         self.nnz  = <int>len(self.data)
@@ -35,21 +32,18 @@ cdef class CSRMatrix:
         if verbose:
             fprintf(stderr,
                     b"[DEBUG] CSRMatrix.__init__: rows=%d cols=%d nnz=%d\n",
-                    self.rows, self.cols, self.nnz)
+                    <int>self.rows, <int>self.cols, <int>self.nnz)
 
-    cdef int get_row_start(self, int row) nogil noexcept:
+    cdef int get_row_start(self, int row) noexcept nogil:
         return self.indptr[row]
 
-    cdef int get_row_end(self, int row) nogil noexcept:
+    cdef int get_row_end(self, int row) noexcept nogil:
         return self.indptr[row + 1]
 
 
 cdef class FastAryColBring:
     """
     Central model-state container.
-    All embedding matrices and their optimiser accumulators live here.
-    Passed by reference to every Cython kernel so they can mutate
-    the arrays in-place without any Python overhead.
     """
 
     def __init__(self,

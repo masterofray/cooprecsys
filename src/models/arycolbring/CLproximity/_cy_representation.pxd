@@ -11,7 +11,7 @@ cdef inline void compute_representation(CSRMatrix features,
                                         FastAryColBring model,
                                         int  row_id,
                                         double scale,
-                                        flt  *representation) nogil noexcept:
+                                        flt  *representation) noexcept nogil:
     """
     Accumulate the weighted embedding and bias for a given row (user or item).
 
@@ -42,7 +42,7 @@ cdef inline void compute_representation(CSRMatrix features,
 
 cdef inline flt compute_prediction_from_repr(flt *user_repr,
                                              flt *item_repr,
-                                             int  no_components) nogil noexcept:
+                                             int  no_components) noexcept nogil:
     """
     Compute the score for (user, item) as:
         user_bias + item_bias + dot(user_latent, item_latent)
