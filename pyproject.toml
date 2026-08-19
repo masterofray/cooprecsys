@@ -99,6 +99,9 @@ exclude_lines   = ["pragma: no cover",
                    "if TYPE_CHECKING:",
                   ]
 
+[tool.setuptools.package-dir]
+"cooprecsys" = "src"
+
 [tool.setuptools.packages.find]
 where           = ["src"]
 
