@@ -1,4 +1,4 @@
-name: Build & Release Wheel
+name: Build Wheel for sending to PyPi
 
 on:
   push:
@@ -29,8 +29,7 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------
-  # Decides IF this run should produce a release, and creates+pushes the
-  # git tag if so.
+  # Create Tag / Release Decision
   # ---------------------------------------------------------------------
   create-tag:
     name: "Create Tag (Release and Tag)"
@@ -192,12 +191,22 @@ jobs:
           gcc --version
           g++ --version
 
-      - name: Build AryColBring Cython Extensions
+      - name: Build Cython Extensions (AryColBring & Ary2Tower)
         run: |
-          uv run --no-project python ./src/models/arycolbring/cysetup.py build_ext --inplace
+          if [ -f "./src/models/arycolbring/cysetup.py" ]; then
+            python ./src/models/arycolbring/cysetup.py build_ext --inplace
+          elif [ -f "./src/cooprecsys/models/arycolbring/cysetup.py" ]; then
+            python ./src/cooprecsys/models/arycolbring/cysetup.py build_ext --inplace
+          fi
+
+          if [ -f "./src/models/ary2tower/a2tcysetup.py" ]; then
+            python ./src/models/ary2tower/a2tcysetup.py build_ext --inplace
+          elif [ -f "./src/cooprecsys/models/ary2tower/a2tcysetup.py" ]; then
+            python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
+          fi
 
       - name: Build wheel via uv
-        run: uv build --wheel --out-dir dist/
+        run: uv build --wheel --no-build-isolation --out-dir dist/
 
       - name: List generated artifacts & inspect wheel
         run: |
@@ -275,20 +284,30 @@ jobs:
           $cl = Get-Command cl.exe -ErrorAction SilentlyContinue
           if ($cl) { Write-Host "cl.exe resolved: $($cl.Source)" } else { Write-Error "cl.exe still not on PATH after msvc-dev-cmd setup." }
 
-      - name: Build AryColBring Cython Extensions
+      - name: Build Cython Extensions (AryColBring & Ary2Tower)
         shell: pwsh
         env:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
         run: |
-          uv run --no-project python ./src/models/arycolbring/cysetup.py build_ext --inplace
+          if (Test-Path "./src/models/arycolbring/cysetup.py") {
+            python ./src/models/arycolbring/cysetup.py build_ext --inplace
+          } elseIf (Test-Path "./src/cooprecsys/models/arycolbring/cysetup.py") {
+            python ./src/cooprecsys/models/arycolbring/cysetup.py build_ext --inplace
+          }
+
+          if (Test-Path "./src/models/ary2tower/a2tcysetup.py") {
+            python ./src/models/ary2tower/a2tcysetup.py build_ext --inplace
+          } elseIf (Test-Path "./src/cooprecsys/models/ary2tower/a2tcysetup.py") {
+            python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
+          }
 
       - name: Build wheel via uv
         shell: bash
         env:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
-        run: uv build --wheel --out-dir dist/
+        run: uv build --wheel --no-build-isolation --out-dir dist/
 
       - name: List generated artifacts & inspect wheel
         shell: bash
@@ -461,7 +480,7 @@ jobs:
           uv pip install pytest pytest-cov
 
   # ---------------------------------------------------------------------
-  # Publish wheels + sdist to a GitHub Release
+  # Publish wheels + sdist to GitHub Release
   # ---------------------------------------------------------------------
   publish:
     name: Publish to Release
