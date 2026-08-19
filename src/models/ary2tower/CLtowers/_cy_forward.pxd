@@ -15,4 +15,4 @@ cdef void c_tower_forward(
     flt[:, ::1] tower_out,
     int         num_threads,
     bint        verbose
-) nogil
+) noexcept nogil

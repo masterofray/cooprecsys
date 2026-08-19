@@ -27,7 +27,7 @@ cdef inline void tower_forward_single(
     int         output_dim,
     flt*        hidden_scratch,
     flt*        out_scratch
-) nogil:
+) noexcept nogil:
     """Forward pass for ONE entity ID: Embedding -> Dense1 -> ReLU -> Dense2."""
     cdef int j, k
     cdef flt acc
@@ -47,7 +47,7 @@ cdef inline void tower_forward_single(
         out_scratch[j] = acc
 
 
-cdef inline flt c_dot(flt* a, flt* b, int dim) nogil:
+cdef inline flt c_dot(flt* a, flt* b, int dim) noexcept nogil:
     """Vector dot product."""
     cdef int k
     cdef flt acc = 0.0
@@ -68,7 +68,7 @@ cdef void c_predict_pairs(
     int           num_threads,
     flt*          scratch_pool,
     bint          verbose
-) nogil:
+) noexcept nogil:
     """
     Computes predicted affinity scores for explicit (user_id[i], item_id[i]) pairs on the fly.
     """
@@ -133,7 +133,7 @@ cdef void c_predict_user_items(
     int           num_threads,
     flt*          scratch_pool,
     bint          verbose
-) nogil:
+) noexcept nogil:
     """
     Computes user score matrix for target batch of user_ids against pre-computed item tower representations.
     `scores_out` shape: [n_users, n_items]

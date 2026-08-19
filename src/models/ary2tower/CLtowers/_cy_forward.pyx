@@ -20,7 +20,7 @@ cdef void c_tower_forward(
     flt[:, ::1] tower_out,
     int         num_threads,
     bint        verbose
-) nogil:
+) noexcept nogil:
     """
     Pure C-level forward pass implementation.
     Dapat dipanggil langsung di dalam blok `nogil` / `prange` dari modul Cython lain (_cy_train.pyx).

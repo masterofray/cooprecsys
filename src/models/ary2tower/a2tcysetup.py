@@ -19,7 +19,14 @@ from setuptools import setup, Extension, find_packages
 
 BASE_DIR = Path(__file__).resolve().parent
 CYTHON_DIR = BASE_DIR / "CLtowers"
-SRC_DIR = BASE_DIR.parents[1] if BASE_DIR.name == "ary2tower" and BASE_DIR.parent.name == "models" else BASE_DIR.parent
+
+# Navigasi path ke src/ dan root repository
+try:
+    SRC_DIR = BASE_DIR.parents[1]     # .../src
+    REPO_ROOT = BASE_DIR.parents[2]   # .../
+except IndexError:
+    SRC_DIR = BASE_DIR
+    REPO_ROOT = BASE_DIR
 
 compiler_directives = {
     "language_level"   : 3,
@@ -57,6 +64,14 @@ def get_cython_extensions():
     except ValueError:
         pkg_prefix = "CLtowers"
 
+    inc_dirs = [
+        np.get_include(),
+        str(CYTHON_DIR),
+        str(BASE_DIR),
+        str(SRC_DIR),
+        str(REPO_ROOT),
+    ]
+
     exts = []
     for pyx in CYTHON_DIR.glob("*.pyx"):
         module_name = f"{pkg_prefix}.{pyx.stem}"
@@ -69,20 +84,19 @@ def get_cython_extensions():
                 extra_compile_args = extra_compile_args,
                 extra_link_args    = extra_link_args,
                 libraries          = omp_lib,
-                include_dirs       = [
-                    np.get_include(),
-                    str(CYTHON_DIR),
-                    str(BASE_DIR),
-                ],
+                include_dirs       = inc_dirs,
             )
         )
 
-    return cythonize(exts, compiler_directives=compiler_directives, annotate=False), compiler_directives
+    return cythonize(
+        exts,
+        include_path=inc_dirs,
+        compiler_directives=compiler_directives,
+        annotate=False
+    ), compiler_directives
 
 
 if __name__ == '__main__':
-    # Memaksa working directory ke BASE_DIR saat dijalankan standalone
-    os.chdir(BASE_DIR)
     ext_modules, directives = get_cython_extensions()
 
     setup(
@@ -94,7 +108,7 @@ if __name__ == '__main__':
         ),
         author          = "aryanto",
         python_requires = ">=3.8",
-        packages        = find_packages(),
+        packages        = find_packages(where=str(SRC_DIR)),
         ext_modules     = ext_modules,
         zip_safe        = False,
     )

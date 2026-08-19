@@ -1,4 +1,4 @@
-name: Build Wheel for sending to PyPi
+name: Build Wheel for PyPi
 
 on:
   push:
@@ -34,6 +34,7 @@ jobs:
   create-tag:
     name: "Create Tag (Release and Tag)"
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     if: github.event_name != 'pull_request'
     permissions:
       contents: write
@@ -100,6 +101,7 @@ jobs:
   build-sdist:
     name: Build sdist (tar.gz)
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     needs: [create-tag]
     if: always() && needs.create-tag.result == 'success'
     permissions:
@@ -142,6 +144,7 @@ jobs:
   build-wheels-ubuntu:
     name: Build wheel (ubuntu-latest / py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     needs: [create-tag]
     if: always() && needs.create-tag.result == 'success'
     permissions:
@@ -159,9 +162,15 @@ jobs:
           fetch-depth: 0
 
       - name: Install C Toolchain & OpenMP
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq build-essential libgomp1
+          sudo systemctl stop apt-daily.timer || true
+          sudo systemctl stop apt-daily-upgrade.timer || true
+          sudo systemctl stop unattended-upgrades || true
+          sudo apt-get clean
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential libgomp1
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -233,6 +242,7 @@ jobs:
   build-wheels-windows:
     name: Build wheel (windows-latest / py${{ matrix.python-version }})
     runs-on: windows-latest
+    timeout-minutes: 4
     needs: [create-tag]
     if: always() && needs.create-tag.result == 'success'
     permissions:
@@ -299,7 +309,7 @@ jobs:
           if (Test-Path "./src/models/ary2tower/a2tcysetup.py") {
             python ./src/models/ary2tower/a2tcysetup.py build_ext --inplace
           } elseIf (Test-Path "./src/cooprecsys/models/ary2tower/a2tcysetup.py") {
-            python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
+            python ./src/models/ary2tower/a2tcysetup.py build_ext --inplace
           }
 
       - name: Build wheel via uv
@@ -335,6 +345,7 @@ jobs:
   test-ubuntu:
     name: Test Installed Wheel (ubuntu-latest / py${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     needs: [create-tag, build-wheels-ubuntu]
     if: always() && needs.build-wheels-ubuntu.result == 'success'
     permissions:
@@ -380,8 +391,10 @@ jobs:
           echo "Resolved wheel: $WHEEL_FILE"
 
       - name: Inspect wheel structure and binary (.so) files
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq tree
+          sudo apt-get update -y && sudo apt-get install -y tree
 
           echo "=== 1. Summary File Binary (.so) & Config (.ini) ==="
           unzip -l "${{ steps.wheel_info.outputs.wheel_file }}" | grep -E '\.so|\.ini' || echo "WARNING: No .so or .ini files found!"
@@ -416,6 +429,7 @@ jobs:
   test-windows:
     name: Test Installed Wheel (windows-latest / py${{ matrix.python-version }})
     runs-on: windows-latest
+    timeout-minutes: 4
     needs: [create-tag, build-wheels-windows]
     if: always() && needs.build-wheels-windows.result == 'success'
     permissions:
@@ -485,6 +499,7 @@ jobs:
   publish:
     name: Publish to Release
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     needs: [create-tag, build-sdist, test-ubuntu, test-windows]
     if: |
       always() &&
@@ -500,7 +515,7 @@ jobs:
           name: dist-sdist
           path: dist/
 
-      - name: Download Ubuntu wheels
+      - name: Download Ubuntu wheels compilation
         uses: actions/download-artifact@v4
         with:
           pattern: dist-ubuntu-latest-py*
@@ -529,6 +544,7 @@ jobs:
           files: |
             dist/*.whl
             dist/*.tar.gz
+          pyproject: false
           draft: false
           prerelease: ${{ contains(needs.create-tag.outputs.tag_name, 'rc') || contains(needs.create-tag.outputs.tag_name, 'beta') || contains(needs.create-tag.outputs.tag_name, 'alpha') }}
           generate_release_notes: true

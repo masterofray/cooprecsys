@@ -5,8 +5,7 @@ from libc.stdio cimport fprintf, stderr
 import numpy as np
 cimport numpy as cnp
 
-# HAPUS BARIS INI: ctypedef float flt (sudah ada di _cy_types.pxd)
-
+# 'ctypedef float flt' sudah ada di _cy_types.pxd, jadi tidak perlu ditulis lagi di sini.
 
 cdef class CSRMatrix:
     """
