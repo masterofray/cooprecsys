@@ -8,10 +8,10 @@ from _cy_types cimport FastAryColBring, flt
 cdef extern from "omp.h" nogil:
     ctypedef struct omp_lock_t:
         pass
-    void omp_init_lock(omp_lock_t *) nogil
-    void omp_destroy_lock(omp_lock_t *) nogil
-    void omp_set_lock(omp_lock_t *) nogil
-    void omp_unset_lock(omp_lock_t *) nogil
+    void omp_init_lock(omp_lock_t *) nogil noexcept
+    void omp_destroy_lock(omp_lock_t *) nogil noexcept
+    void omp_set_lock(omp_lock_t *) nogil noexcept
+    void omp_unset_lock(omp_lock_t *) nogil noexcept
 
 
 cdef inline void regularize(FastAryColBring model,

@@ -14,9 +14,9 @@ cdef extern from "math.h" nogil:
 
 cdef extern from "stdlib.h" nogil:
     void qsort(void *base, int nmemb, int size,
-               int(*compar)(const void *, const void *)) nogil
+               int(*compar)(const void *, const void *)) nogil noexcept
     void* bsearch(const void *key, const void *base, int nmemb, int size,
-                  int(*compar)(const void *, const void *)) nogil
+                  int(*compar)(const void *, const void *)) nogil noexcept
 
 # ── Pair struct (used by WARP-kOS) ──────────────────────────────────────────
 

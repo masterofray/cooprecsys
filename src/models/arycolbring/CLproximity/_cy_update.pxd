@@ -21,7 +21,7 @@ cdef inline double update_biases(CSRMatrix feature_indices,
                                  double learning_rate,
                                  double alpha,
                                  flt    rho,
-                                 flt    eps) nogil:
+                                 flt    eps) nogil noexcept:
     """
     Apply one SGD step on bias terms using Adagrad or Adadelta.
     Returns sum of per-feature local learning rates.
@@ -73,7 +73,7 @@ cdef inline double update_features(CSRMatrix  feature_indices,
                                    double learning_rate,
                                    double alpha,
                                    flt    rho,
-                                   flt    eps) nogil:
+                                   flt    eps) nogil noexcept:
     """
     Apply one SGD step for a single latent component across all active features.
     Returns sum of per-feature local learning rates.
@@ -122,7 +122,7 @@ cdef inline void update(double loss,
                         flt *it_repr,
                         FastAryColBring model,
                         double item_alpha,
-                        double user_alpha) nogil:
+                        double user_alpha) nogil noexcept:
     """
     Apply the logistic gradient update for a single (user, item) pair.
     """
@@ -186,7 +186,7 @@ cdef inline void warp_update(double loss,
                              flt *neg_it_repr,
                              FastAryColBring model,
                              double item_alpha,
-                             double user_alpha) nogil:
+                             double user_alpha) nogil noexcept:
     """
     Apply the WARP pairwise gradient update.
     Positive item receives a push-up; negative item receives a push-down.
