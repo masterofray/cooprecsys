@@ -17,10 +17,20 @@ import numpy        as np
 from   pathlib      import Path
 from   Cython.Build import cythonize
 from   setuptools   import setup, Extension, find_packages
-
+from setuptools.command.build_ext import build_ext
 BASE_DIR   = Path(__file__).resolve().parent
 CYTHON_DIR = BASE_DIR / "CLproximity"
-SRC_ROOT_DIR = BASE_DIR.parents[2]  # menunjuk ke root repository / src
+SRC_ROOT_DIR = BASE_DIR.parents[2]
+REL_BASE_DIR = BASE_DIR.relative_to(Path.cwd())
+
+# Custom build_ext untuk memastikan folder inplace dibuat sebelum file .so disalin
+class CustomBuildExt(build_ext):
+    def copy_extensions_to_source(self):
+        for ext in self.extensions:
+            inplace_file = self.get_ext_fullpath(ext.name)
+            Path(inplace_file).parent.mkdir(parents=True, exist_ok=True)
+        super().copy_extensions_to_source()
+
 if __name__ == '__main__':
     exts = list()
     if sys.platform == "win32":
@@ -42,7 +52,7 @@ if __name__ == '__main__':
     modpreffix = "cooprecsys.models.arycolbring.CLproximity"
     for pyx in CYTHON_DIR.glob("*.pyx"):
         #module_name = (f"CLproximity.{pyx.stem}")
-        module_name = (f"{modpreffix}.{pyx.stem}")
+        module_name = f"{modpreffix}.{pyx.stem}"
         #relative    = pyx.relative_to(BASE_DIR)
         exts.append(Extension(
             name               = module_name,
@@ -61,8 +71,14 @@ if __name__ == '__main__':
         author          = "aryanto",
         python_requires = ">=3.10",
         packages        = find_packages(),
+        #PENTING: Petakan namespace ke lokasi folder fisik di disk!
+        package_dir     = {
+            "cooprecsys.models.arycolbring": str(REL_BASE_DIR)
+        },
+        cmdclass        = {"build_ext": CustomBuildExt},
         ext_modules     = cythonize(
                           exts,
+                          include_path = [str(SRC_ROOT_DIR), str(CYTHON_DIR)],
                           compiler_directives = {
                           "language_level"   : 3,
                           "boundscheck"      : False,

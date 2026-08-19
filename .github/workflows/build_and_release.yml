@@ -137,7 +137,7 @@ jobs:
           python-version: "3.12"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
@@ -184,7 +184,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
@@ -207,10 +207,8 @@ jobs:
           g++ --version
 
       - name: Build AryColBring Cython Extensions
-        working-directory: ./src/models/arycolbring
         run: |
-          chmod +x ./cysetup.sh
-          bash ./cysetup.sh
+          uv run python ./src/models/arycolbring/cysetup.py build_ext --inplace
 
       - name: Build wheel via uv
         run: uv build --wheel --out-dir dist/
@@ -263,7 +261,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
@@ -300,12 +298,12 @@ jobs:
           if ($cl) { Write-Host "cl.exe resolved: $($cl.Source)" } else { Write-Error "cl.exe still not on PATH after msvc-dev-cmd setup." }
 
       - name: Build AryColBring Cython Extensions
-        working-directory: ./src/models/arycolbring
         shell: pwsh
         env:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
-        run: ./cysetup.ps1
+        run: |
+          uv run python ./src/models/arycolbring/cysetup.py build_ext --inplace
 
       - name: Build wheel via uv
         shell: bash
@@ -361,7 +359,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
@@ -464,7 +462,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v2
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
