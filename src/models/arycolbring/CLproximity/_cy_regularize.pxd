@@ -16,7 +16,7 @@ cdef extern from "omp.h" nogil:
 
 cdef inline void regularize(FastAryColBring model,
                              double item_alpha,
-                             double user_alpha) nogil:
+                             double user_alpha) noexcept nogil:
     """
     Flush the accumulated lazy-regularisation scale factors so that
     item_scale and user_scale are reset to 1.0.
@@ -44,7 +44,7 @@ cdef inline void locked_regularize(FastAryColBring model,
                                    double item_alpha,
                                    double user_alpha,
                                    omp_lock_t *lock,
-                                   double MAX_REG_SCALE) nogil:
+                                   double MAX_REG_SCALE) noexcept nogil:
     """
     Thread-safe regularisation flush.
     Acquires *lock*, re-checks the threshold (another thread may have flushed

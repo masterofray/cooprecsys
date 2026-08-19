@@ -30,16 +30,7 @@ env:
 jobs:
   # ---------------------------------------------------------------------
   # Decides IF this run should produce a release, and creates+pushes the
-  # git tag if so. Triggered by either:
-  #   - workflow_dispatch with a "version" input, OR
-  #   - a push to master/dev whose commit message contains "Release and Tag",
-  #     optionally with an explicit version: "Release and Tag v1.4.0"
-  #   - a manually-pushed tag (refs/tags/v*) — handled as a passthrough
-  #
-  # NOTE: pushing a tag here using GITHUB_TOKEN will NOT trigger a second
-  # workflow run (GitHub blocks recursive runs from GITHUB_TOKEN pushes by
-  # design). So instead of relying on that second trigger, every downstream
-  # job in THIS run consumes `create-tag` outputs directly via `needs`.
+  # git tag if so.
   # ---------------------------------------------------------------------
   create-tag:
     name: "Create Tag (Release and Tag)"
@@ -64,12 +55,6 @@ jobs:
           echo "tag_name=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           echo "is_release=true" >> "$GITHUB_OUTPUT"
 
-      # This is the explicit trigger gate — same idiom as your "Run Smoke
-      # AryColbring" example: a job-level condition using contains() on the
-      # commit message, OR'd with the workflow_dispatch path. Supports:
-      #   - commit message: "Release and Tag v1.4.0"  → uses 1.4.0 from the message
-      #   - commit message: "Release and Tag"          → falls back to pyproject.toml version
-      #   - workflow_dispatch with a "version" input
       - name: Create & push annotated tag
         id: tag
         if: |
@@ -83,14 +68,11 @@ jobs:
           VERSION="${{ github.event.inputs.version }}"
 
           if [ -z "$VERSION" ]; then
-            # Extract version straight out of the commit message, e.g.
-            # "Release and Tag v1.4.0" -> 1.4.0. Case-insensitive, "v" optional.
             MSG=$(git log -1 --pretty=%B)
             VERSION=$(echo "$MSG" | grep -oiE "release and tag[[:space:]]+v?[0-9]+\.[0-9]+(\.[0-9]+)?" | grep -oE "[0-9]+\.[0-9]+(\.[0-9]+)?" | head -n1)
           fi
 
           if [ -z "$VERSION" ]; then
-            # No explicit version anywhere in the message -> fall back to pyproject.toml
             VERSION=$(grep -m1 '^version' pyproject.toml | sed -E 's/.*"(.*)".*/\1/')
           fi
 
@@ -114,8 +96,7 @@ jobs:
           echo "is_release=true" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------
-  # sdist only needs to be built once — it's pure source, not compiled,
-  # and identical regardless of OS/Python version.
+  # Build sdist
   # ---------------------------------------------------------------------
   build-sdist:
     name: Build sdist (tar.gz)
@@ -157,7 +138,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Wheels — Ubuntu (required baseline for every release)
+  # Wheels — Ubuntu
   # ---------------------------------------------------------------------
   build-wheels-ubuntu:
     name: Build wheel (ubuntu-latest / py${{ matrix.python-version }})
@@ -177,6 +158,11 @@ jobs:
         with:
           ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
           fetch-depth: 0
+
+      - name: Install C Toolchain & OpenMP
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libgomp1
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -208,7 +194,7 @@ jobs:
 
       - name: Build AryColBring Cython Extensions
         run: |
-          uv run python ./src/models/arycolbring/cysetup.py build_ext --inplace
+          uv run --no-project python ./src/models/arycolbring/cysetup.py build_ext --inplace
 
       - name: Build wheel via uv
         run: uv build --wheel --out-dir dist/
@@ -233,8 +219,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Wheels — Windows (best-effort bonus; a Windows failure never blocks
-  # the Ubuntu release)
+  # Wheels — Windows
   # ---------------------------------------------------------------------
   build-wheels-windows:
     name: Build wheel (windows-latest / py${{ matrix.python-version }})
@@ -282,13 +267,6 @@ jobs:
 
       - name: Set up MSVC Developer environment
         uses: ilammy/msvc-dev-cmd@v1
-        # Ensures cl.exe / link.exe and the correct INCLUDE/LIB paths are on
-        # PATH for THIS job's shell. setuptools' vswhere auto-detection covers
-        # plain `pip install`-style builds reasonably well, but direct
-        # `build_ext` invocations (especially with custom OpenMP flags) are
-        # where the auto-detection most often silently picks the wrong
-        # toolset or misses Windows SDK paths — this action removes that
-        # variable entirely.
 
       - name: Verify MSVC toolchain
         shell: pwsh
@@ -303,7 +281,7 @@ jobs:
           PYTHONUTF8: "1"
           PYTHONIOENCODING: "utf-8"
         run: |
-          uv run python ./src/models/arycolbring/cysetup.py build_ext --inplace
+          uv run --no-project python ./src/models/arycolbring/cysetup.py build_ext --inplace
 
       - name: Build wheel via uv
         shell: bash
@@ -333,7 +311,7 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Test — Ubuntu (required baseline)
+  # Test — Ubuntu
   # ---------------------------------------------------------------------
   test-ubuntu:
     name: Test Installed Wheel (ubuntu-latest / py${{ matrix.python-version }})
@@ -371,6 +349,7 @@ jobs:
 
       - name: Resolve wheel filename
         id: wheel_info
+        shell: bash
         run: |
           WHEEL_FILE=$(ls -1 dist/*.whl | head -n 1)
           if [ -z "$WHEEL_FILE" ]; then
@@ -383,7 +362,6 @@ jobs:
 
       - name: Inspect wheel structure and binary (.so) files
         run: |
-          # Install tree di runner Ubuntu
           sudo apt-get update -qq && sudo apt-get install -y -qq tree
 
           echo "=== 1. Summary File Binary (.so) & Config (.ini) ==="
@@ -398,6 +376,7 @@ jobs:
           rm -rf /tmp/whl_contents
 
       - name: Create isolated test environment via uv
+        shell: bash
         run: uv venv test_env --python ${{ matrix.python-version }}
 
       - name: Install wheel into isolated environment
@@ -406,37 +385,14 @@ jobs:
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           uv pip show cooprecsys
           python -c "import cooprecsys; print('SUCCESS:', cooprecsys.__file__)"
+
       - name: Install test dependencies
         run: |
           source test_env/bin/activate
           uv pip install pytest pytest-cov
 
-      # Uncomment once your test suite is validated against the built wheel:
-      # - name: Run integration tests against wheel
-      #   run: |
-      #     source test_env/bin/activate
-      #     pytest test/ \
-      #       -v \
-      #       --tb=short \
-      #       --import-mode=importlib \
-      #       --cov=cooprecsys \
-      #       --cov-report=xml:coverage.xml \
-      #       --cov-report=term-missing \
-      #       --junit-xml=test-results.xml
-      #
-      # - name: Upload coverage reports
-      #   uses: codecov/codecov-action@v4
-      #   if: always()
-      #   with:
-      #     files: ./coverage.xml
-      #     flags: unittests
-      #     name: coverage-ubuntu-latest-${{ matrix.python-version }}
-      #     fail_ci_if_error: false
-      #     token: ${{ secrets.CODECOV_TOKEN }}
-
   # ---------------------------------------------------------------------
-  # Test — Windows (best-effort bonus; failing here only drops Windows
-  # wheels from the release, it never blocks the Ubuntu release)
+  # Test — Windows
   # ---------------------------------------------------------------------
   test-windows:
     name: Test Installed Wheel (windows-latest / py${{ matrix.python-version }})
@@ -493,13 +449,6 @@ jobs:
         shell: bash
         run: |
           source test_env/Scripts/activate
-
-          # `scann` (a runtime dependency of cooprecsys) only ships
-          # manylinux wheels — there is no win_amd64 build, so full
-          # dependency resolution is unsatisfiable on Windows by design,
-          # not a CI misconfiguration. --no-deps installs just the
-          # cooprecsys wheel itself, which is enough to verify the
-          # compiled Cython/.pyd extensions inside it load correctly.
           echo "::notice::Windows: installing cooprecsys with --no-deps (scann has no win_amd64 wheel)."
           uv pip install --no-deps "${{ steps.wheel_info.outputs.wheel_file }}"
           uv pip show cooprecsys
@@ -512,13 +461,7 @@ jobs:
           uv pip install pytest pytest-cov
 
   # ---------------------------------------------------------------------
-  # Publish wheels + sdist to a GitHub Release.
-  #
-  # Ubuntu is the required baseline: if test-ubuntu succeeds, a release is
-  # created with (at least) the Ubuntu wheels + sdist — regardless of what
-  # happened on Windows. Windows wheels are added on top ONLY if
-  # test-windows also succeeded. If Windows fails, the release still goes
-  # out with Ubuntu-only wheels; it's never blocked by a Windows failure.
+  # Publish wheels + sdist to a GitHub Release
   # ---------------------------------------------------------------------
   publish:
     name: Publish to Release

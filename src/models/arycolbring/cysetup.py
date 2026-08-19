@@ -18,11 +18,14 @@ from   pathlib      import Path
 from   Cython.Build import cythonize
 from   setuptools   import setup, Extension, find_packages
 from setuptools.command.build_ext import build_ext
-BASE_DIR   = Path(__file__).resolve().parent
-CYTHON_DIR = BASE_DIR / "CLproximity"
-SRC_DIR = BASE_DIR.parents[1]  # .../src
-REPO_ROOT = BASE_DIR.parents[2]  # .../
-REL_BASE_DIR = BASE_DIR.relative_to(Path.cwd())
+BASE_DIR     = Path(__file__).resolve().parent
+CYTHON_DIR   = BASE_DIR / "CLproximity"
+SRC_DIR      = BASE_DIR.parents[1]  # .../src
+REPO_ROOT    = BASE_DIR.parents[2]  # .../
+try:
+    REL_SRC_DIR = str(SRC_DIR.relative_to(Path.cwd()))
+except ValueError:
+    REL_SRC_DIR = str(SRC_DIR)
 
 # Custom build_ext untuk memastikan folder inplace dibuat sebelum file .so disalin
 class CustomBuildExt(build_ext):
@@ -40,9 +43,9 @@ if __name__ == '__main__':
         omp_lib            = list()
     elif sys.platform == "darwin":
         # Homebrew LLVM clang supports -fopenmp
-        extra_compile_args = ["-O3", "-fopenmp", "-ffast-math"]
-        extra_link_args    = ["-fopenmp"]
-        omp_lib            = ["omp"]
+        extra_compile_args = ["-O3", "-Xpreprocessor", "-fopenmp", "-ffast-math"]
+        extra_link_args    = ["-lomp"]
+        omp_lib            = list()
     else: 
         # For Unix
         extra_compile_args = ["-O3", "-fopenmp", 
@@ -61,10 +64,15 @@ if __name__ == '__main__':
         str(SRC_DIR),
         str(REPO_ROOT),
     ]
-    for pyx in CYTHON_DIR.glob("*.pyx"):
-        #module_name = (f"CLproximity.{pyx.stem}")
+    pyx_files = list(CYTHON_DIR.glob("*.pyx"))
+    if not pyx_files:
+        raise FileNotFoundError(
+            f"[ERROR] Tidak ditemukan berkas *.pyx di direktori: {CYTHON_DIR}"
+        )
+
+    exts = list()
+    for pyx in pyx_files:
         module_name = f"{modpreffix}.{pyx.stem}"
-        #relative    = pyx.relative_to(BASE_DIR)
         exts.append(Extension(
             name               = module_name,
             sources            = [str(pyx)],
@@ -81,11 +89,8 @@ if __name__ == '__main__':
                            "with Cython + OpenMP kernels"),
         author          = "aryanto",
         python_requires = ">=3.10",
-        packages        = find_packages(),
-        #PENTING: Petakan namespace ke lokasi folder fisik di disk!
-        package_dir={"": str(SRC_DIR.relative_to(Path.cwd()))}
-        if SRC_DIR.exists() and SRC_DIR.is_relative_to(Path.cwd())
-        else {},
+        packages        = find_packages(where=str(SRC_DIR)),
+        package_dir     = {"": REL_SRC_DIR},
         cmdclass        = {"build_ext": CustomBuildExt},
         ext_modules     = cythonize(
                           exts,

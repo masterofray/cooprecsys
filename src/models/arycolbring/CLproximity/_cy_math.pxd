@@ -26,7 +26,7 @@ cdef struct Pair:
 
 # ── PRNG ────────────────────────────────────────────────────────────────────
 
-cdef inline unsigned int temper(unsigned int x) nogil:
+cdef inline unsigned int temper(unsigned int x) noexcept nogil:
     cdef unsigned int and_1 = 0x9D2C5680
     cdef unsigned int and_2 = 0xEFC60000
     x = x ^ (x >> 11)
@@ -36,24 +36,24 @@ cdef inline unsigned int temper(unsigned int x) nogil:
     return x
 
 
-cdef inline int rand_r(unsigned int *seed) nogil:
+cdef inline int rand_r(unsigned int *seed) noexcept nogil:
     seed[0] = seed[0] * 1103515245 + 12345
     return temper(seed[0]) / 2
 
 
-cdef inline int sample_range(int min_val, int max_val, unsigned int *seed) nogil:
+cdef inline int sample_range(int min_val, int max_val, unsigned int *seed) noexcept nogil:
     cdef int val_range = max_val - min_val
     return min_val + (rand_r(seed) % val_range)
 
 # ── Integer helpers ──────────────────────────────────────────────────────────
 
-cdef inline int int_min(int x, int y) nogil:
+cdef inline int int_min(int x, int y) noexcept nogil:
     if x < y:
         return x
     return y
 
 
-cdef inline int int_max(int x, int y) nogil:
+cdef inline int int_max(int x, int y) noexcept nogil:
     if x < y:
         return y
     return x
@@ -88,14 +88,14 @@ cdef inline int reverse_pair_compare(const void *a, const void *b) noexcept nogi
 
 # ── Sigmoid activation ───────────────────────────────────────────────────────
 
-cdef inline flt sigmoid(flt v) nogil:
+cdef inline flt sigmoid(flt v) noexcept nogil:
     return <flt>(1.0 / (1.0 + exp(-v)))
 
 # ── Positives lookup (binary search in sorted CSR row) ───────────────────────
 
 cdef inline int in_positives(int item_id,
                               int user_id,
-                              CSRMatrix interactions) nogil:
+                              CSRMatrix interactions) noexcept nogil:
     """
     Return 1 if item_id is in the sorted indices of user_id's CSR row.
     Uses bsearch for O(log k) lookup where k = nnz per row.
