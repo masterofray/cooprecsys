@@ -99,8 +99,29 @@ exclude_lines   = ["pragma: no cover",
                    "if TYPE_CHECKING:",
                   ]
 
+[tool.setuptools]
+packages = [
+    "cooprecsys",
+    "cooprecsys.assets",
+    "cooprecsys.configs",
+    "cooprecsys.db",
+    "cooprecsys.features",
+    "cooprecsys.models",
+    "cooprecsys.noisemaker",
+    "cooprecsys.prepare",
+    "cooprecsys.qrates",
+]
+
 [tool.setuptools.package-dir]
 "cooprecsys" = "src"
+"cooprecsys.assets" = "src/assets"
+"cooprecsys.configs" = "src/configs"
+"cooprecsys.db" = "src/db"
+"cooprecsys.features" = "src/features"
+"cooprecsys.models" = "src/models"
+"cooprecsys.noisemaker" = "src/noisemaker"
+"cooprecsys.prepare" = "src/prepare"
+"cooprecsys.qrates" = "src/qrates"
 
 [tool.setuptools.packages.find]
 where           = ["src"]

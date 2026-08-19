@@ -67,11 +67,12 @@ def get_cython_extensions():
         omp_lib = []
 
     # KUNCI 1: Fully qualified namespace agar .so masuk tepat ke folder CLproximity/
+    # Pada cysetup.py & a2tcysetup.py
     try:
         rel_path = BASE_DIR.relative_to(SRC_DIR)
-        modprefix = ".".join(rel_path.parts) + ".CLproximity"
+        modprefix = "cooprecsys." + ".".join(rel_path.parts) + ".CLproximity"
     except ValueError:
-        modprefix = "CLproximity"
+        modprefix = "cooprecsys.models.arycolbring.CLproximity"
 
     inc_dirs = [
         np.get_include(),

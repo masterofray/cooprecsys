@@ -64,9 +64,9 @@ def get_cython_extensions():
     # Penentuan nama module path secara dinamis berdasarkan posisi folder relatif terhadap src/
     try:
         rel_base = BASE_DIR.relative_to(SRC_DIR)
-        pkg_prefix = ".".join(rel_base.parts) + ".CLtowers"
+        pkg_prefix = "cooprecsys." + ".".join(rel_base.parts) + ".CLtowers"
     except ValueError:
-        pkg_prefix = "CLtowers"
+        pkg_prefix = "cooprecsys.models.ary2tower.CLtowers"
 
     inc_dirs = [
         np.get_include(),
