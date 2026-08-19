@@ -52,7 +52,7 @@ if __name__ == '__main__':
             extra_link_args    = extra_link_args,
             libraries          = omp_lib,
             include_dirs       = [np.get_include(), str(CYTHON_DIR), str(SRC_ROOT_DIR)]
-            )
+            ))
     setup(
         name            = "arycolbring",
         version         = "0.0.2",
