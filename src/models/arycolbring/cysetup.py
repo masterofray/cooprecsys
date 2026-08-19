@@ -20,7 +20,8 @@ from   setuptools   import setup, Extension, find_packages
 from setuptools.command.build_ext import build_ext
 BASE_DIR   = Path(__file__).resolve().parent
 CYTHON_DIR = BASE_DIR / "CLproximity"
-SRC_ROOT_DIR = BASE_DIR.parents[2]
+SRC_DIR = BASE_DIR.parents[1]  # .../src
+REPO_ROOT = BASE_DIR.parents[2]  # .../
 REL_BASE_DIR = BASE_DIR.relative_to(Path.cwd())
 
 # Custom build_ext untuk memastikan folder inplace dibuat sebelum file .so disalin
@@ -50,6 +51,16 @@ if __name__ == '__main__':
         omp_lib            = list()
 
     modpreffix = "cooprecsys.models.arycolbring.CLproximity"
+    exts = []
+
+    # Include dirs agar Cython & C-compiler bisa nemu .pxd & .h lokal
+    inc_dirs = [
+        np.get_include(),
+        str(CYTHON_DIR),
+        str(BASE_DIR),
+        str(SRC_DIR),
+        str(REPO_ROOT),
+    ]
     for pyx in CYTHON_DIR.glob("*.pyx"):
         #module_name = (f"CLproximity.{pyx.stem}")
         module_name = f"{modpreffix}.{pyx.stem}"
@@ -61,7 +72,7 @@ if __name__ == '__main__':
             extra_compile_args = extra_compile_args,
             extra_link_args    = extra_link_args,
             libraries          = omp_lib,
-            include_dirs       = [np.get_include(), str(CYTHON_DIR), str(SRC_ROOT_DIR)]
+            include_dirs=inc_dirs,
             ))
     setup(
         name            = "arycolbring",
@@ -72,13 +83,13 @@ if __name__ == '__main__':
         python_requires = ">=3.10",
         packages        = find_packages(),
         #PENTING: Petakan namespace ke lokasi folder fisik di disk!
-        package_dir     = {
-            "cooprecsys.models.arycolbring": str(REL_BASE_DIR)
-        },
+        package_dir={"": str(SRC_DIR.relative_to(Path.cwd()))}
+        if SRC_DIR.exists() and SRC_DIR.is_relative_to(Path.cwd())
+        else {},
         cmdclass        = {"build_ext": CustomBuildExt},
         ext_modules     = cythonize(
                           exts,
-                          include_path = [str(SRC_ROOT_DIR), str(CYTHON_DIR)],
+                          include_path=inc_dirs,
                           compiler_directives = {
                           "language_level"   : 3,
                           "boundscheck"      : False,

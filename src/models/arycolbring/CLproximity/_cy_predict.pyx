@@ -8,9 +8,9 @@ from libc.stdlib  cimport malloc, free
 from libc.stdio   cimport fprintf, stderr
 from cython.parallel cimport prange, parallel
 
-from ._cy_types          cimport CSRMatrix, FastAryColBring, flt
-from ._cy_math           cimport in_positives, int_max
-from ._cy_representation cimport compute_representation, compute_prediction_from_repr
+from _cy_types          cimport CSRMatrix, FastAryColBring, flt
+from _cy_math           cimport in_positives, int_max
+from _cy_representation cimport compute_representation, compute_prediction_from_repr
 
 
 def predict_arycolbring(CSRMatrix item_features,

@@ -2,7 +2,7 @@
 # Inline SGD update kernels for arycolbring.
 # Supports both Adagrad and Adadelta learning-rate schedules.
 
-from ._cy_types cimport CSRMatrix, FastAryColBring, flt
+from _cy_types cimport CSRMatrix, FastAryColBring, flt
 
 cdef extern from "math.h" nogil:
     double sqrt(double)
