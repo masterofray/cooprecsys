@@ -9,6 +9,7 @@ __maintainer__ = "Aryanto"
 __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-29"
+__modified__   = "2026-08-19"
 
 
 import sys
@@ -19,7 +20,7 @@ from   setuptools   import setup, Extension, find_packages
 
 BASE_DIR   = Path(__file__).resolve().parent
 CYTHON_DIR = BASE_DIR / "CLproximity"
-
+SRC_ROOT_DIR = BASE_DIR.parents[2]  # menunjuk ke root repository / src
 if __name__ == '__main__':
     exts = list()
     if sys.platform == "win32":
@@ -34,7 +35,6 @@ if __name__ == '__main__':
     else: 
         # For Unix
         extra_compile_args = ["-O3", "-fopenmp", 
-                              "-march=native",
                               "-ffast-math",]
         extra_link_args    = ["-fopenmp"]
         omp_lib            = list()
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     for pyx in CYTHON_DIR.glob("*.pyx"):
         #module_name = (f"CLproximity.{pyx.stem}")
         module_name = (f"{modpreffix}.{pyx.stem}")
-        relative    = pyx.relative_to(BASE_DIR)
+        #relative    = pyx.relative_to(BASE_DIR)
         exts.append(Extension(
             name               = module_name,
             sources            = [str(pyx)],
@@ -51,7 +51,7 @@ if __name__ == '__main__':
             extra_compile_args = extra_compile_args,
             extra_link_args    = extra_link_args,
             libraries          = omp_lib,
-            include_dirs       = [np.get_include(), str(CYTHON_DIR)])
+            include_dirs       = [np.get_include(), str(CYTHON_DIR), str(SRC_ROOT_DIR)]
             )
     setup(
         name            = "arycolbring",
