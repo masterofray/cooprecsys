@@ -19,13 +19,9 @@ from setuptools.command.build_ext import build_ext
 BASE_DIR = Path(__file__).resolve().parent
 CYTHON_DIR = BASE_DIR / "CLproximity"
 
-# Navigasi path ke src/ dan root repository
-try:
-    SRC_DIR = BASE_DIR.parents[1]     # .../src
-    REPO_ROOT = BASE_DIR.parents[2]   # .../
-except IndexError:
-    SRC_DIR = BASE_DIR
-    REPO_ROOT = BASE_DIR
+# FIXED: Pencarian direktori 'src' secara dinamis
+SRC_DIR = next((p for p in BASE_DIR.parents if p.name == "src"), BASE_DIR.parents[2])
+REPO_ROOT = SRC_DIR.parent
 
 try:
     REL_SRC_DIR = str(SRC_DIR.relative_to(Path.cwd()))
@@ -34,7 +30,7 @@ except ValueError:
 
 
 class CustomBuildExt(build_ext):
-    """Custom build_ext untuk memastikan folder tujuan dibuat sebelum file .so disalin."""
+    """Custom build_ext untuk memastikan folder tujuan dibuat sebelum file .so/.pyd disalin."""
     def copy_extensions_to_source(self):
         for ext in self.extensions:
             inplace_file = self.get_ext_fullpath(ext.name)
@@ -43,10 +39,6 @@ class CustomBuildExt(build_ext):
 
 
 def get_cython_extensions():
-    """
-    Fungsi utama yang diimpor oleh root setup.py.
-    Mengembalikan tuple: (ext_modules_cythonized, inc_dirs)
-    """
     if sys.platform == "win32":
         extra_compile_args = ["/O2", "/openmp"]
         extra_link_args = []
@@ -61,17 +53,16 @@ def get_cython_extensions():
         extra_link_args = ["-lomp"]
         omp_lib = []
     else:
-        # Linux (WSL Ubuntu) / GCC / GitHub Actions Runner
         extra_compile_args = ["-O3", "-fopenmp", "-ffast-math"]
         extra_link_args = ["-fopenmp"]
         omp_lib = []
 
-    # KUNCI 1: Fully qualified namespace agar .so masuk tepat ke folder CLproximity/
+    # FIXED: Menghasilkan prefix 'cooprecsys.models.arycolbring.CLproximity'
     try:
         rel_path = BASE_DIR.relative_to(SRC_DIR)
         modprefix = ".".join(rel_path.parts) + ".CLproximity"
     except ValueError:
-        modprefix = "CLproximity"
+        modprefix = "cooprecsys.models.arycolbring.CLproximity"
 
     inc_dirs = [
         np.get_include(),
@@ -103,7 +94,6 @@ def get_cython_extensions():
             )
         )
 
-    # KUNCI 2: Cythonize langsung di sini dengan directive optimasi penuh
     ext_modules = cythonize(
         exts,
         include_path=inc_dirs,
@@ -121,17 +111,13 @@ def get_cython_extensions():
     return ext_modules, inc_dirs
 
 
-# Tetap bisa dijalankan langsung dari folder local (misal: python cysetup.py build_ext --inplace)
 if __name__ == "__main__":
     ext_modules, inc_dirs = get_cython_extensions()
 
     setup(
         name="cooprecsys",
         version="0.0.2",
-        description=(
-            "Ultra-optimised user-to-item collaborative filtering "
-            "with Cython + OpenMP kernels"
-        ),
+        description="Ultra-optimised user-to-item collaborative filtering",
         author="aryanto",
         python_requires=">=3.10",
         packages=find_packages(where=str(SRC_DIR)),
