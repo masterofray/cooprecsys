@@ -19,8 +19,15 @@ from copy import deepcopy
 from tqdm.auto import tqdm
 from jinja2 import Template
 from typing import Dict, List, Tuple, Any
-from scann import scann_ops_pybind as sopy
-from sklearn.preprocessing import StandardScaler
+try:
+    from scann import scann_ops_pybind as sopy
+    SCANN_AVAILABLE = True
+except ImportError:
+    sopy = None
+    SCANN_AVAILABLE = False
+
+from sklearn.preprocessing import StandardScaler, normalize
+from sklearn.mixture import GaussianMixture
 from ..configs import _cfg, logger, _cfglist
 from ..db      import duckdb_connection
 
@@ -111,8 +118,11 @@ def DFMerger(DataArray: List[pd.DataFrame]) -> pd.DataFrame:
 
 class QuasiRate_ScaNN:
     """
-    A scalable nearest neighbor search system utilizing ScaNN for parallel 
-    Quasi-Rating extraction based on heterogeneous feature groupings.
+    A multi-backend Quasi-Rating engine for heterogeneous feature groups.
+
+    Uses ScaNN when installed, otherwise falls back to an sklearn
+    Gaussian Mixture Model (GMM) backend. The fallback is probabilistic
+    and unsupervised; it does not depend on KNN.
     """
     def __init__(self, 
                  feature_groups: Dict[str, List[str]], 
@@ -128,12 +138,26 @@ class QuasiRate_ScaNN:
         """
         self.feature_groups = feature_groups
         self.group_names    = list(feature_groups.keys())
-        self.scann_config = scann_config or {
-            "num_leaves_ratio"     : 0.15,
-            "num_leaves_to_search" : 10,
-            "anisotropic_quantization_threshold": 0.2}
+        default_config = {
+            "num_leaves_ratio": 0.15,
+            "num_leaves_to_search": 10,
+            "anisotropic_quantization_threshold": 0.2,
+            # sklearn fallback configuration
+            "gmm_components": 8,
+            "gmm_covariance_type": "diag",
+            "gmm_reg_covar": 1e-5,
+            "gmm_max_iter": 200,
+            "gmm_n_init": 1,
+            "gmm_random_state": 42,
+            "gmm_query_chunk_size": 128,
+        }
+        self.scann_config = {**default_config, **(scann_config or {})}
         self.scalers   : Dict[str, StandardScaler] = dict()
         self.searchers : Dict[str, Any]            = dict()
+        # sklearn fallback: one unsupervised probabilistic model per feature group.
+        self.models    : Dict[str, GaussianMixture] = dict()
+        self._item_embeddings: Dict[str, np.ndarray] = dict()
+        self._backend  = "scann" if SCANN_AVAILABLE else "gmm"
         self.unidata       = pd.DataFrame([])
         self._original     = pd.DataFrame([])
         self._is_fitted    = False
@@ -151,79 +175,168 @@ class QuasiRate_ScaNN:
         return vectors / norms
 
 
-    def fit(self, Data: pd.DataFrame) -> 'MultiGroupScaNN':
-        """Constructs isolated ScaNN indices for each feature group."""
-        logger.debug(f"Starting index construction for "
-                     f"{len(self.group_names)} feature groups.")
-        require = [feat for group in self.feature_groups.values() for feat in group]
-        miss    = [col for col in require if col not in Data.columns]
-        if miss:
-            logger.error(f"The following columns are missing from the dataset: {miss}")
-            raise ValueError()
-        self._original     = deepcopy(Data)
-        self._reference_df = deepcopy(Data.reset_index(drop = True))
-        num_rows           = len(self._reference_df)
-        if num_rows == 0:
-            logger.error("The input DataFrame is empty."
-                         "Cannot build an index with zero records.")
-            raise ValueError()
+    def fit(self, Data: pd.DataFrame) -> 'QuasiRate_ScaNN':
+        """
+        Builds one model per feature group.
 
-        # Dynamically adjust num_leaves if the dataset 
-        # is too small to prevent ScaNN crashes
-        num_leaves = max(10, int(num_rows * 
-                         self.scann_config["num_leaves_ratio"]))
+        Backend selection:
+        - ScaNN, when the optional ``scann`` package is installed.
+        - sklearn Gaussian Mixture Model (GMM), otherwise.
+
+        The GMM fallback is intentionally *not* a KNN implementation.
+        It learns a probability-density representation for each feature
+        group and compares query/item posterior representations using
+        cosine distance.
+        """
+        logger.debug(
+            f"Starting model construction for {len(self.group_names)} "
+            f"feature groups using backend='{self._backend}'."
+        )
+
+        require = [
+            feat for group in self.feature_groups.values() for feat in group
+        ]
+        miss = [col for col in require if col not in Data.columns]
+        if miss:
+            logger.error(
+                f"The following columns are missing from the dataset: {miss}"
+            )
+            raise ValueError(f"Missing required columns: {miss}")
+
+        self._original = deepcopy(Data)
+        self._reference_df = deepcopy(Data.reset_index(drop=True))
+
+        num_rows = len(self._reference_df)
+        if num_rows == 0:
+            logger.error(
+                "The input DataFrame is empty. Cannot build a model with zero records."
+            )
+            raise ValueError("Input DataFrame is empty.")
+
+        # Existing ScaNN configuration is preserved for compatibility.
+        num_leaves = max(
+            10,
+            int(num_rows * self.scann_config["num_leaves_ratio"])
+        )
         if num_rows < num_leaves:
-            num_leaves = max(1, num_rows//2)
+            num_leaves = max(1, num_rows // 2)
             logger.warning(
-            f"Dataset size ({num_rows}) is smaller than configured "
-            f"num_leaves. Adjusted num_leaves to {num_leaves}.")
+                f"Dataset size ({num_rows}) is smaller than configured "
+                f"num_leaves. Adjusted num_leaves to {num_leaves}."
+            )
 
         for group_name, features in tqdm(
-                self.feature_groups.items(), 
-                desc        = "Building ScaNN Indices",
-                colour      = _cfg.get('tqdm', 'colour'),
-                ncols       = _cfg.getint('tqdm', 'ncols'),
-                bar_format  = _cfg.get('tqdm', 'BarFormats'),
-                unit        = 'Group',
-                mininterval = 0.1):
-            #logger.debug(f"Processing group: '{group_name}' | Features: {features}")
+            self.feature_groups.items(),
+            desc="Building ScaNN/GMM Models",
+            colour=_cfg.get('tqdm', 'colour'),
+            ncols=_cfg.getint('tqdm', 'ncols'),
+            bar_format=_cfg.get('tqdm', 'BarFormats'),
+            unit='Group',
+            mininterval=0.1
+        ):
             total_dims = len(features)
             if total_dims == 0:
                 logger.error(f"Feature group '{group_name}' has no features.")
-                raise ValueError()
-                
-            # Feature extraction and standardization with robust NaN handling
-            RAWdata     = self._reference_df[features].copy()
+                raise ValueError(f"Feature group '{group_name}' has no features.")
+
+            RAWdata = self._reference_df[features].copy()
             if RAWdata.isnull().values.any():
-                logger.warning(f"NaN values detected in group '{group_name}'."
-                "Filling with column medians.")
+                logger.warning(
+                    f"NaN values detected in group '{group_name}'. "
+                    "Filling with column medians."
+                )
                 RAWdata = RAWdata.fillna(RAWdata.median())
-            RAW_data    = RAWdata.values.astype(np.float32)
-            scaler      = StandardScaler()
+
+            RAW_data = RAWdata.values.astype(np.float32)
+            scaler = StandardScaler()
             scaled_data = scaler.fit_transform(RAW_data)
-            normdata    = self._l2_normalize(scaled_data)
             self.scalers[group_name] = scaler
 
-            # dimensions_per_block must evenly divide the 
-            # total number of dimensions
-            dim_block   = 2 if (total_dims >= 2 and total_dims % 2 == 0) else 1
-            nleaf       = self.scann_config["num_leaves_to_search"]
-            threshold   = self.scann_config["anisotropic_quantization_threshold"]
-            searcher    = sopy.builder(normdata, 
-                                       num_neighbors    = 10, 
-                                       distance_measure = "squared_l2",
-                          ).tree(num_leaves             = num_leaves,
-                                 num_leaves_to_search   = nleaf,
-                                 training_sample_size   = min(num_rows, 100_000)
-                          ).score_ah(
-                          dimensions_per_block               = dim_block, 
-                          anisotropic_quantization_threshold = threshold,
-                          ).reorder(100).build()
-            self.searchers[group_name] = searcher
-        self._is_fitted = True
-        logger.debug("Index construction completed successfully.")
-        gc.collect()
+            if SCANN_AVAILABLE:
+                # Keep the original ScaNN path intact when the optional
+                # dependency is actually available.
+                normdata = self._l2_normalize(scaled_data)
+                dim_block = (
+                    2 if (total_dims >= 2 and total_dims % 2 == 0) else 1
+                )
+                nleaf = self.scann_config["num_leaves_to_search"]
+                threshold = self.scann_config[
+                    "anisotropic_quantization_threshold"
+                ]
 
+                searcher = (
+                    sopy.builder(
+                        normdata,
+                        num_neighbors=10,
+                        distance_measure="squared_l2",
+                    )
+                    .tree(
+                        num_leaves=num_leaves,
+                        num_leaves_to_search=nleaf,
+                        training_sample_size=min(num_rows, 100_000),
+                    )
+                    .score_ah(
+                        dimensions_per_block=dim_block,
+                        anisotropic_quantization_threshold=threshold,
+                    )
+                    .reorder(100)
+                    .build()
+                )
+                self.searchers[group_name] = searcher
+
+            else:
+                # ---------- sklearn fallback: Gaussian Mixture Model ----------
+                # Unlike KNN, GMM learns a latent probabilistic description of
+                # the feature distribution.  The item embedding is the vector
+                # of posterior component probabilities P(component | x).
+                requested_components = int(
+                    self.scann_config.get("gmm_components", 8)
+                )
+                n_components = max(
+                    1, min(requested_components, num_rows)
+                )
+
+                gmm = GaussianMixture(
+                    n_components=n_components,
+                    covariance_type=self.scann_config.get(
+                        "gmm_covariance_type", "diag"
+                    ),
+                    reg_covar=float(
+                        self.scann_config.get("gmm_reg_covar", 1e-5)
+                    ),
+                    max_iter=int(
+                        self.scann_config.get("gmm_max_iter", 200)
+                    ),
+                    n_init=int(
+                        self.scann_config.get("gmm_n_init", 1)
+                    ),
+                    random_state=int(
+                        self.scann_config.get("gmm_random_state", 42)
+                    ),
+                )
+                gmm.fit(scaled_data)
+
+                item_posteriors = gmm.predict_proba(scaled_data).astype(
+                    np.float32, copy=False
+                )
+                self.models[group_name] = gmm
+                self._item_embeddings[group_name] = normalize(
+                    item_posteriors, norm="l2", axis=1
+                ).astype(np.float32, copy=False)
+
+                logger.debug(
+                    f"GMM '{group_name}' fitted with "
+                    f"{n_components} components, covariance_type="
+                    f"'{gmm.covariance_type}'."
+                )
+
+        self._is_fitted = True
+        logger.debug(
+            f"Model construction completed successfully using "
+            f"backend='{self._backend}'."
+        )
+        gc.collect()
+        return self
 
     def RateUnified(self, 
                     aggweighted  : bool = False, 
@@ -273,166 +386,317 @@ class QuasiRate_ScaNN:
                                            -alpha * self.unidata['final_rquasi'])
 
 
-    def search(self, 
-               query_dict   : Dict[str, float], 
-               k            : int              = 5,
-               use_norm     : bool             = False,
-               aggweighted  : bool             = False, 
-               weights      : Dict[str, float] = None,
-               invert_score : bool             = False,
-               rating_range : Tuple[float, float] = (1.0, 5.0),
-              ) -> Tuple[Dict[str, pd.DataFrame], pd.DataFrame]:
+    def search(
+        self,
+        query_dict: Dict[str, float],
+        k: int = 5,
+        use_norm: bool = False,
+        aggweighted: bool = False,
+        weights: Dict[str, float] = None,
+        invert_score: bool = False,
+        rating_range: Tuple[float, float] = (1.0, 5.0),
+    ) -> Tuple[Dict[str, pd.DataFrame], pd.DataFrame]:
         """
-        Executes queries against all existing group indices and returns Quasi-Ratings.
-        Returns is A tuple containing:
-        - A dictionary mapping group names to DataFrames with individual group results.
-        - A unified DataFrame containing all retrieved items with a 'final_rquasi' column.
+        Executes queries against all feature-group models.
+
+        ScaNN returns squared-L2 distances.  The sklearn GMM backend instead
+        computes cosine distance between the query's posterior-probability
+        embedding and each item's posterior embedding:
+
+            distance = 1 - cosine_similarity
+
+        Therefore both backends preserve the original contract where a lower
+        ``Quasi_Rating_<group>`` value means a better match.
         """
-        results   = dict()
+        results = dict()
         DataMerge = list()
+
         if not self._is_fitted:
-            logger.error("The model has not been fitted yet. Please "
-                         "invoke the .fit(Data) method first.")
+            logger.error(
+                "The model has not been fitted yet. Please invoke .fit(Data) first."
+            )
             raise RuntimeError("Model is not fitted.")
+
+        k = max(1, min(int(k), len(self._reference_df)))
+
         for group_name, features in tqdm(
-                self.feature_groups.items(), 
-                desc        = 'Executing Search Queries',
-                colour      = _cfg.get('tqdm', 'colour'),
-                ncols       = _cfg.getint('tqdm', 'ncols'),
-                bar_format  = _cfg.get('tqdm', 'BarFormats'),
-                unit        = 'Group',
-                mininterval = 0.1):
+            self.feature_groups.items(),
+            desc='Executing Search Queries',
+            colour=_cfg.get('tqdm', 'colour'),
+            ncols=_cfg.getint('tqdm', 'ncols'),
+            bar_format=_cfg.get('tqdm', 'BarFormats'),
+            unit='Group',
+            mininterval=0.1
+        ):
             misskey = [f for f in features if f not in query_dict]
             if misskey:
-                logger.warning(f"Query for group '{group_name}' is "
-                               f"skipped. Missing keys: {misskey}")
+                logger.warning(
+                    f"Query for group '{group_name}' is skipped. "
+                    f"Missing keys: {misskey}"
+                )
                 continue
-            q_vector = np.array([[query_dict[f] for f in features]], dtype=np.float32)
+
+            q_vector = np.array(
+                [[query_dict[f] for f in features]], dtype=np.float32
+            )
             q_scaled = self.scalers[group_name].transform(q_vector)
             q_scaled = np.nan_to_num(q_scaled, nan=0.0)
-            quasi    = self._l2_normalize(q_scaled) if use_norm else q_scaled[0].copy()
-            neighbors, distances = self.searchers[group_name].search(
-                                   quasi, final_num_neighbors = k)
-            res_df   = self._reference_df.iloc[neighbors].copy()
-            res_df['original_index']             = neighbors
+
+            if SCANN_AVAILABLE:
+                quasi = (
+                    self._l2_normalize(q_scaled)[0]
+                    if use_norm
+                    else q_scaled[0].copy()
+                )
+                neighbors, distances = self.searchers[group_name].search(
+                    quasi,
+                    final_num_neighbors=k
+                )
+                distances = np.asarray(distances, dtype=np.float32)
+
+            else:
+                if use_norm:
+                    logger.debug(
+                        "GMM fallback uses standardized features internally; "
+                        "use_norm is ignored to keep query/model space consistent."
+                    )
+
+                model = self.models[group_name]
+                q_posterior = model.predict_proba(q_scaled).astype(
+                    np.float32, copy=False
+                )
+                q_embedding = normalize(
+                    q_posterior, norm="l2", axis=1
+                )[0]
+
+                item_embedding = self._item_embeddings[group_name]
+
+                # Cosine similarity in posterior-probability space.
+                similarities = item_embedding @ q_embedding
+                top_idx = np.argpartition(
+                    -similarities, k - 1
+                )[:k]
+                top_idx = top_idx[np.argsort(-similarities[top_idx])]
+
+                neighbors = top_idx.astype(np.int64, copy=False)
+                distances = (1.0 - similarities[neighbors]).astype(
+                    np.float32, copy=False
+                )
+
+            res_df = self._reference_df.iloc[neighbors].copy()
+            res_df['original_index'] = neighbors
             res_df[f'Quasi_Rating_{group_name}'] = distances
-            results[group_name]                  = res_df
+            results[group_name] = res_df
             DataMerge.append(res_df)
-        logger.debug(f'Search results generated for {len(results)} groups.')
+
+        logger.debug(
+            f'Search results generated for {len(results)} groups.'
+        )
+
         if not DataMerge:
             return results, pd.DataFrame()
 
         if aggweighted and not weights:
-            logger.error("Weights dictionary must be provided "
-                         "when aggregation_method is 'weighted'.")
-            raise ValueError()
+            logger.error(
+                "Weights dictionary must be provided "
+                "when aggregation_method is 'weighted'."
+            )
+            raise ValueError(
+                "weights must be provided when aggweighted=True"
+            )
+
         self.unidata = DFMerger(DataMerge)
-        self.RateUnified(aggweighted  = aggweighted, 
-                         weights      = weights,
-                         invert_score = invert_score,
-                         rating_range = rating_range)
+        self.RateUnified(
+            aggweighted=aggweighted,
+            weights=weights,
+            invert_score=invert_score,
+            rating_range=rating_range
+        )
         ASC = not invert_score
         self.unidata = self.unidata.sort_values(
-                       by        = ['final_rquasi'], 
-                       ascending = [ASC]).reset_index(drop = True)
+            by=['final_rquasi'],
+            ascending=[ASC]
+        ).reset_index(drop=True)
         return results, self.unidata
 
+    def search_batch(
+        self,
+        data: pd.DataFrame,
+        k: int = 5,
+        use_norm: bool = False,
+        aggweighted: bool = False,
+        weights: Dict[str, float] = None,
+        invert_score: bool = False,
+        rating_range: Tuple[float, float] = (1.0, 5.0),
+    ) -> Tuple[Dict[str, pd.DataFrame], pd.DataFrame]:
+        """
+        Executes batched queries against all feature-group models.
 
-    def search_batch(self, 
-                     data         : pd.DataFrame, 
-                     k            : int              = 5,
-                     use_norm     : bool             = False,
-                     aggweighted  : bool             = False, 
-                     weights      : Dict[str, float] = None,
-                     invert_score : bool             = False,
-                     rating_range : Tuple[float, float] = (1.0, 5.0),
-                    ) -> Tuple[Dict[str, pd.DataFrame], pd.DataFrame]:
+        In GMM fallback mode, posterior-probability embeddings are computed
+        in batch and ranked by cosine distance to the learned item
+        representations. This remains an ML-model-based approach and does
+        not instantiate sklearn KNeighbors classes.
         """
-        Executes batched queries against all existing group 
-        indices for optimal throughput. Highly recommended 
-        for Quasi-Rating generation involving large user/item populations.
-        The parameter:
-        - data         : A DataFrame where each row represents a 
-                         query containing feature values.
-        - k            : The number of nearest neighbors to retrieve.
-        - use_norm     : If True, applies L2 normalization to the 
-                         query vectors before searching.
-        - aggweighted  : If True, uses a weighted average for aggregation,
-                         otherwise, uses a simple mean.
-        - weights      : A dictionary mapping group names to their 
-                         respective weights. Required if 
-                         aggweighted is True.
-        - invert_score : If True, converts the distance-based score 
-                         to a similarity score where higher values 
-                         indicate a better match.
-        - rating_range : A tuple (min_score, max_score) for the final 
-                         unified rating output.
-        """
-        BATCH     = dict()
+        BATCH = dict()
         DataMerge = list()
+
         if not self._is_fitted:
-            logger.error("The model has not been fitted yet. Please "
-                         "invoke the .fit(Data) method first.")
+            logger.error(
+                "The model has not been fitted yet. Please invoke .fit(Data) first."
+            )
             raise RuntimeError("Model is not fitted.")
+
+        k = max(1, min(int(k), len(self._reference_df)))
+
         for group_name, features in tqdm(
-                self.feature_groups.items(), 
-                desc        = 'Executing Batched Search',
-                colour      = _cfg.get('tqdm', 'colour'),
-                ncols       = _cfg.getint('tqdm', 'ncols'),
-                bar_format  = _cfg.get('tqdm', 'BarFormats'),
-                unit        = 'Group',
-                mininterval = 0.1):
+            self.feature_groups.items(),
+            desc='Executing Batched Search',
+            colour=_cfg.get('tqdm', 'colour'),
+            ncols=_cfg.getint('tqdm', 'ncols'),
+            bar_format=_cfg.get('tqdm', 'BarFormats'),
+            unit='Group',
+            mininterval=0.1
+        ):
             misskey = [f for f in features if f not in data.columns]
             if misskey:
-                logger.warning(f"Query for group '{group_name}' is "
-                               f"skipped. Missing keys: {misskey}")
+                logger.warning(
+                    f"Query for group '{group_name}' is skipped. "
+                    f"Missing keys: {misskey}"
+                )
+                BATCH[group_name] = pd.DataFrame()
                 continue
+
             q_vectors = data[features].values.astype(np.float32)
-            q_scaled  = self.scalers[group_name].transform(q_vectors)
-            q_scaled  = np.nan_to_num(q_scaled, nan = 0.0)
-            quasi = self._l2_normalize(q_scaled) if use_norm else q_scaled.copy()
-            neighbors, distances = self.searchers[group_name].search_batched(
-                                   quasi, final_num_neighbors = k)
-            Items = list()
+            q_scaled = self.scalers[group_name].transform(q_vectors)
+            q_scaled = np.nan_to_num(q_scaled, nan=0.0)
+
+            if SCANN_AVAILABLE:
+                quasi = (
+                    self._l2_normalize(q_scaled)
+                    if use_norm
+                    else q_scaled.copy()
+                )
+                neighbors, distances = self.searchers[group_name].search_batched(
+                    quasi,
+                    final_num_neighbors=k
+                )
+
+            else:
+                if use_norm:
+                    logger.debug(
+                        "GMM fallback uses standardized features internally; "
+                        "use_norm is ignored to keep query/model space consistent."
+                    )
+
+                model = self.models[group_name]
+                q_posteriors = model.predict_proba(q_scaled).astype(
+                    np.float32, copy=False
+                )
+                q_embeddings = normalize(
+                    q_posteriors, norm="l2", axis=1
+                ).astype(np.float32, copy=False)
+
+                item_embeddings = self._item_embeddings[group_name]
+
+                n_queries = len(data)
+                all_items = len(item_embeddings)
+                Items = []
+
+                # Chunk over queries so Q x N similarity matrices do not
+                # consume excessive memory on CI or large input batches.
+                query_chunk = int(
+                    self.scann_config.get("gmm_query_chunk_size", 128)
+                )
+
+                for q_start in range(0, n_queries, query_chunk):
+                    q_end = min(q_start + query_chunk, n_queries)
+                    sims = q_embeddings[q_start:q_end] @ item_embeddings.T
+
+                    for local_i in range(q_end - q_start):
+                        row_sim = sims[local_i]
+                        top_idx = np.argpartition(
+                            -row_sim, k - 1
+                        )[:k]
+                        top_idx = top_idx[np.argsort(-row_sim[top_idx])]
+
+                        row_dist = (
+                            1.0 - row_sim[top_idx]
+                        ).astype(np.float32, copy=False)
+
+                        res_df = self._reference_df.iloc[top_idx].copy()
+                        res_df['query_index'] = q_start + local_i
+                        res_df['original_index'] = top_idx
+                        res_df[
+                            f'Quasi_Rating_{group_name}'
+                        ] = row_dist
+                        Items.append(res_df)
+
+                if Items:
+                    Tempdata = pd.concat(Items, ignore_index=True)
+                    BATCH[group_name] = Tempdata
+                    DataMerge.append(Tempdata)
+                else:
+                    BATCH[group_name] = pd.DataFrame()
+
+                continue
+
+            # ScaNN batch path
+            Items = []
             for i in range(len(data)):
                 row_neighbors = neighbors[i]
                 row_distances = distances[i]
                 res_df = self._reference_df.iloc[row_neighbors].copy()
-                res_df['original_index']             = row_neighbors
-                res_df[f'Quasi_Rating_{group_name}'] = row_distances
+                res_df['query_index'] = i
+                res_df['original_index'] = row_neighbors
+                res_df[
+                    f'Quasi_Rating_{group_name}'
+                ] = row_distances
                 Items.append(res_df)
+
             if Items:
-                Tempdata          = pd.concat(Items, ignore_index = True)
+                Tempdata = pd.concat(Items, ignore_index=True)
                 BATCH[group_name] = Tempdata
                 DataMerge.append(Tempdata)
             else:
                 BATCH[group_name] = pd.DataFrame()
-        logger.debug(f'Batch search results generated for {len(BATCH)} groups.')
+
+        logger.debug(
+            f'Batch search results generated for {len(BATCH)} groups.'
+        )
+
         if not DataMerge:
-            logger.warning("No groups were successfully processed. "
-                           "Returning empty unified DataFrame.")
+            logger.warning(
+                "No groups were successfully processed. "
+                "Returning empty unified DataFrame."
+            )
             return BATCH, pd.DataFrame()
 
         if aggweighted and not weights:
-            logger.error("Weights dictionary must be provided "
-                         "when aggregation_method is 'weighted'.")
-            raise ValueError()
+            logger.error(
+                "Weights dictionary must be provided "
+                "when aggregation_method is 'weighted'."
+            )
+            raise ValueError(
+                "weights must be provided when aggweighted=True"
+            )
 
         self.unidata = DFMerger(DataMerge)
-        self.RateUnified(aggweighted  = aggweighted, 
-                         weights      = weights,
-                         invert_score = invert_score,
-                         rating_range = rating_range)
+        self.RateUnified(
+            aggweighted=aggweighted,
+            weights=weights,
+            invert_score=invert_score,
+            rating_range=rating_range
+        )
         ASC = not invert_score
         self.unidata = self.unidata.sort_values(
-                       by        = ['final_rquasi'], 
-                       ascending = [ASC]).reset_index(drop = True)
+            by=['final_rquasi'],
+            ascending=[ASC]
+        ).reset_index(drop=True)
         return BATCH, self.unidata
-
 
     def __call__(self, Data : pd.DataFrame = None) -> pd.DataFrame:
         if not self._is_fitted:
-            if not Data:
+            if Data is None:
                 logger.error('The parameter Data is None.')
                 raise ValueError()
             else:
