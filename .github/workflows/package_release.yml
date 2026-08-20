@@ -69,12 +69,12 @@ jobs:
           python-version: "3.12"
 
       # ------------------------------------------------------------
-      # 4. Install Twine
+      # 4. Install Twine and Auditwheel
       # ------------------------------------------------------------
-      - name: Install Twine
+      - name: Install Twine and Auditwheel
         run: |
           python -m pip install --upgrade pip
-          python -m pip install --upgrade twine
+          python -m pip install --upgrade twine auditwheel
 
       # ------------------------------------------------------------
       # 5. Download artifacts from GitHub Release
@@ -98,7 +98,23 @@ jobs:
             --dir dist
 
       # ------------------------------------------------------------
-      # 6. Inspect artifacts
+      # 6. Repair Linux wheels for PyPI compliance (manylinux)
+      # ------------------------------------------------------------
+      - name: Repair Linux wheels with Auditwheel
+        run: |
+          set -euo pipefail
+
+          echo "Checking and repairing Linux wheels..."
+          for whl in dist/*linux_x86_64.whl; do
+            if [ -f "$whl" ]; then
+              echo "Repairing $whl to manylinux format..."
+              auditwheel repair "$whl" --plat manylinux2014_x86_64 -w dist/
+              rm "$whl"
+            fi
+          done
+
+      # ------------------------------------------------------------
+      # 7. Inspect artifacts
       # ------------------------------------------------------------
       - name: Inspect release artifacts
         run: |
@@ -126,7 +142,7 @@ jobs:
           fi
 
       # ------------------------------------------------------------
-      # 7. Validate package metadata
+      # 8. Validate package metadata
       # ------------------------------------------------------------
       - name: Validate package with Twine
         run: |
@@ -135,7 +151,7 @@ jobs:
           python -m twine check dist/*
 
       # ------------------------------------------------------------
-      # 8. Publish to PyPI
+      # 9. Publish to PyPI
       # ------------------------------------------------------------
       - name: Publish to PyPI
         env:
@@ -149,7 +165,7 @@ jobs:
             dist/*
 
       # ------------------------------------------------------------
-      # 9. Release summary
+      # 10. Release summary
       # ------------------------------------------------------------
       - name: Release Summary
         env:
@@ -160,6 +176,6 @@ jobs:
           echo "=================================================="
           echo "GitHub Release : $TAG"
           echo "Package        : cooprecsys"
-          echo "Python          : 3.10 - 3.13"
-          echo "Repository      : $GITHUB_REPOSITORY"
+          echo "Python         : 3.10 - 3.13"
+          echo "Repository     : $GITHUB_REPOSITORY"
           echo "=================================================="
