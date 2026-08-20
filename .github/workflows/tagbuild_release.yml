@@ -103,7 +103,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     needs: [create-tag]
-    if: !cancelled() && !failure()
+    if: ${{ !cancelled() && !failure() }}
     permissions:
       contents: read
     steps:
@@ -146,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     needs: [create-tag]
-    if: !cancelled() && !failure()
+    if: ${{ !cancelled() && !failure() }}
     permissions:
       contents: read
       checks: write
@@ -267,7 +267,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 8
     needs: [create-tag]
-    if: !cancelled() && !failure()
+    if: ${{ !cancelled() && !failure() }}
     permissions:
       contents: read
       checks: write
