@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "GitHub Release tag to publish to PyPI, e.g. v0.0.3"
+        description: "GitHub Release tag to publish to PyPI, e.g. v0.0.2"
         required: true
         type: string
 
@@ -25,17 +25,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ------------------------------------------------------------
-      # 1. Checkout repository
-      # ------------------------------------------------------------
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ------------------------------------------------------------
-      # 2. Resolve release tag
-      # ------------------------------------------------------------
       - name: Resolve Release Tag
         id: release
         shell: bash
@@ -53,32 +47,22 @@ jobs:
 
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
             echo "::error::Invalid release tag: $TAG"
-            echo "::error::Expected format: vX.Y.Z"
             exit 1
           fi
 
           echo "Publishing release: $TAG"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
-      # ------------------------------------------------------------
-      # 3. Set up Python
-      # ------------------------------------------------------------
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # ------------------------------------------------------------
-      # 4. Install Twine
-      # ------------------------------------------------------------
       - name: Install Twine
         run: |
           python -m pip install --upgrade pip
           python -m pip install --upgrade twine
 
-      # ------------------------------------------------------------
-      # 5. Download artifacts from GitHub Release
-      # ------------------------------------------------------------
       - name: Download GitHub Release artifacts
         env:
           GH_TOKEN: ${{ github.token }}
@@ -89,105 +73,69 @@ jobs:
           rm -rf dist
           mkdir -p dist
 
-          echo "Downloading artifacts for release: $TAG"
-
           gh release download "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --pattern "*.whl" \
             --pattern "*.tar.gz" \
             --dir dist
 
-      # ------------------------------------------------------------
-      # 6. Inspect artifacts
-      # ------------------------------------------------------------
       - name: Inspect release artifacts
         run: |
           set -euo pipefail
-
-          echo "=========================================="
-          echo "PYPI RELEASE ARTIFACTS"
-          echo "=========================================="
-
           ls -lah dist/
 
           WHEEL_COUNT=$(find dist -maxdepth 1 -type f -name "*.whl" | wc -l)
           SDIST_COUNT=$(find dist -maxdepth 1 -type f -name "*.tar.gz" | wc -l)
 
-          echo "Wheel count : $WHEEL_COUNT"
-          echo "Sdist count : $SDIST_COUNT"
-
           if [ "$WHEEL_COUNT" -eq 0 ]; then
-            echo "::error::No wheel artifacts found in GitHub Release."
+            echo "::error::No wheel artifacts found."
             exit 1
           fi
 
           if [ "$SDIST_COUNT" -eq 0 ]; then
-            echo "::error::No source distribution (.tar.gz) found."
+            echo "::error::No source distribution found."
             exit 1
           fi
 
-          echo
-          echo "Wheel filenames:"
-          find dist -maxdepth 1 -type f -name "*.whl" -printf '%f\n' | sort
-
-      # ------------------------------------------------------------
-      # 7. Check that Linux wheels already carry manylinux tag
-      # ------------------------------------------------------------
       - name: Verify Linux wheel tags
         shell: bash
         run: |
           set -euo pipefail
-
-          found_linux=0
+          found=0
 
           for whl in dist/*manylinux*.whl; do
-            if [ -f "$whl" ]; then
-              found_linux=1
-              name="$(basename "$whl")"
-              echo "Checking: $name"
+            [ -f "$whl" ] || continue
+            found=1
 
-              case "$name" in
-                *manylinux_2_28_x86_64.whl)
-                  echo "  OK: manylinux_2_28_x86_64"
-                  ;;
-                *)
-                  echo "::error::Unexpected manylinux tag in $name"
-                  exit 1
-                  ;;
-              esac
-            fi
+            case "$(basename "$whl")" in
+              *manylinux_2_28_x86_64.whl)
+                echo "OK: $(basename "$whl")"
+                ;;
+              *)
+                echo "::error::Unexpected Linux wheel tag: $(basename "$whl")"
+                exit 1
+                ;;
+            esac
           done
 
-          if [ "$found_linux" -eq 0 ]; then
-            echo "::error::No manylinux Linux wheel found."
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No manylinux_2_28 Linux wheel found."
             exit 1
           fi
 
-      # ------------------------------------------------------------
-      # 8. Validate package metadata
-      # ------------------------------------------------------------
       - name: Validate package with Twine
         run: |
-          set -euo pipefail
           python -m twine check dist/*
 
-      # ------------------------------------------------------------
-      # 9. Publish to PyPI
-      # ------------------------------------------------------------
       - name: Publish to PyPI
         env:
-          TWINE_USERNAME: "__token__"
+          TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
-          set -euo pipefail
-
           python -m twine upload \
             --skip-existing \
             dist/*
 
-      # ------------------------------------------------------------
-      # 10. Release summary
-      # ------------------------------------------------------------
       - name: Release Summary
         env:
           TAG: ${{ steps.release.outputs.tag }}

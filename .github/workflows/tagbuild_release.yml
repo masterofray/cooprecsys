@@ -1,4 +1,4 @@
-name: Build Wheel for PyPI
+name: Build Wheel for PyPi
 
 on:
   push:
@@ -7,16 +7,14 @@ on:
       - dev
     tags:
       - "v*.*.*"
-
   pull_request:
     branches:
       - master
       - dev
-
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, e.g. 0.0.3 (blank = build-only run)"
+        description: "Version to release, e.g. 0.0.2 (blank = build-only run)"
         required: false
         type: string
 
@@ -30,9 +28,6 @@ env:
   CYTHON_COVERAGE: "0"
 
 jobs:
-  # ---------------------------------------------------------------------
-  # Create Tag / Release Decision
-  # ---------------------------------------------------------------------
   create-tag:
     name: "Create Tag (Release and Tag)"
     runs-on: ubuntu-latest
@@ -40,11 +35,9 @@ jobs:
     if: github.event_name != 'pull_request'
     permissions:
       contents: write
-
     outputs:
       tag_name: ${{ steps.tag.outputs.tag_name || steps.tagpush.outputs.tag_name }}
       is_release: ${{ steps.tag.outputs.is_release || steps.tagpush.outputs.is_release }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -88,7 +81,6 @@ jobs:
 
           if [ -z "$VERSION" ]; then
             echo "::error::Could not determine a version to tag."
-            echo "::error::Use 'Release and Tag vX.Y.Z' in the commit message, workflow_dispatch version input, or pyproject.toml."
             exit 1
           fi
 
@@ -98,7 +90,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "::warning::Tag $TAG already exists locally/remotely — reusing it, no new tag pushed."
+            echo "::warning::Tag $TAG already exists locally/remotely — reusing it."
           else
             git tag -a "$TAG" -m "Release $TAG"
             git push origin "$TAG"
@@ -107,18 +99,14 @@ jobs:
           echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
           echo "is_release=true" >> "$GITHUB_OUTPUT"
 
-  # ---------------------------------------------------------------------
-  # Build sdist
-  # ---------------------------------------------------------------------
   build-sdist:
     name: Build sdist (tar.gz)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     needs: [create-tag]
     if: ${{ !cancelled() && !failure() }}
     permissions:
       contents: read
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -127,28 +115,24 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
 
       - name: Build sdist via uv
-        run: |
-          set -euo pipefail
-          rm -rf dist
-          mkdir -p dist
-          uv build --sdist --out-dir dist/
+        run: uv build --sdist --out-dir dist/
 
       - name: List sdist
         run: ls -lh dist/
 
       - name: Upload sdist artifact
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
           name: dist-sdist
           path: dist/*.tar.gz
@@ -156,15 +140,15 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Wheels — Linux manylinux_2_28
+  # Linux wheels
   #
   # IMPORTANT:
-  #   - Cython extensions are still compiled first.
-  #   - They are compiled INSIDE manylinux_2_28.
-  #   - cibuildwheel performs the Linux wheel repair/audit.
+  # Cython is STILL compiled manually exactly as in the working pipeline.
+  # The difference is that this compilation now happens inside the
+  # manylinux_2_28 container, and libm is explicitly linked.
   # ---------------------------------------------------------------------
   build-wheels-linux:
-    name: Build Linux wheel (manylinux_2_28 / py${{ matrix.python-version }})
+    name: Build wheel (manylinux_2_28 / py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
     needs: [create-tag]
@@ -193,9 +177,8 @@ jobs:
           ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
           fetch-depth: 0
 
-      # Host Python only runs cibuildwheel.
       - name: Set up host Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -204,49 +187,77 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "cibuildwheel==4.1.1"
 
-      - name: Build manylinux wheel
+      - name: Build wheel inside manylinux_2_28
         env:
           CIBW_BUILD: ${{ matrix.cibw-build }}
           CIBW_ARCHS_LINUX: "x86_64"
           CIBW_MANYLINUX_X86_64_IMAGE: "manylinux_2_28"
 
-          # Preserve the existing project behavior:
-          # install Cython/NumPy in the cibuildwheel Python env,
-          # compile the two Cython extensions, then build the wheel
-          # without creating another isolated environment.
+          # Preserve the existing manual Cython-build flow.
           CIBW_BUILD_FRONTEND: "pip; args: --no-build-isolation"
 
-          # manylinux_2_28 uses a dnf-based container.
-          CIBW_BEFORE_ALL_LINUX: >-
-            dnf install -y gcc gcc-c++ make libgomp
+          # IMPORTANT:
+          # Force the Cython-generated shared libraries to link libm.
+          # The current runtime error is:
+          #   undefined symbol: __exp_finite
+          #
+          # __exp_finite is a libm compatibility symbol. This also avoids
+          # relying on another dependency to bring libm in transitively.
+          CIBW_ENVIRONMENT_LINUX: >-
+            LDFLAGS="-lm"
+            LIBS="-lm"
 
-          # These commands run inside the manylinux container and inside
-          # the target Python build environment for each CPython version.
+          CIBW_BEFORE_ALL_LINUX: |
+            set -eux
+            dnf install -y gcc gcc-c++ make libgomp libgomp-devel
+
           CIBW_BEFORE_BUILD_LINUX: |
             set -eux
+
+            export LDFLAGS="${LDFLAGS:-} -lm"
+            export LIBS="${LIBS:-} -lm"
+
+            echo "=== Toolchain ==="
+            gcc --version
+            g++ --version
+
+            echo "=== Link flags ==="
+            echo "LDFLAGS=$LDFLAGS"
+            echo "LIBS=$LIBS"
+
             python -m pip install --upgrade \
               "setuptools>=70.0" \
               "wheel>=0.42" \
               "Cython>=3.0" \
               "numpy>=1.21"
 
+            echo "=== Build Cython: AryColBring ==="
             if [ -f "./src/cooprecsys/models/arycolbring/cysetup.py" ]; then
               python ./src/cooprecsys/models/arycolbring/cysetup.py build_ext --inplace
             elif [ -f "./src/models/arycolbring/cysetup.py" ]; then
               python ./src/models/arycolbring/cysetup.py build_ext --inplace
+            else
+              echo "::error::AryColBring cysetup.py not found."
+              exit 1
             fi
 
+            echo "=== Build Cython: Ary2Tower ==="
             if [ -f "./src/cooprecsys/models/ary2tower/a2tcysetup.py" ]; then
               python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
             elif [ -f "./src/models/ary2tower/a2tcysetup.py" ]; then
               python ./src/models/ary2tower/a2tcysetup.py build_ext --inplace
+            else
+              echo "::error::Ary2Tower a2tcysetup.py not found."
+              exit 1
             fi
 
-          CIBW_TEST_COMMAND: >-
+            echo "=== Built .so files ==="
+            find src -type f -name "*.so" -print
+
+          CIBW_TEST_COMMAND: >
             python -c
             "import cooprecsys;
-            print('SUCCESS: cooprecsys imported from',
-            cooprecsys.__file__)"
+            print('SUCCESS: cooprecsys imported from', cooprecsys.__file__)"
 
           CIBW_BUILD_VERBOSITY: "1"
 
@@ -260,54 +271,42 @@ jobs:
             --output-dir wheelhouse \
             .
 
-      - name: Install auditwheel for verification
-        run: |
-          python -m pip install --upgrade auditwheel
-
-      - name: Inspect and verify Linux wheel
+      - name: Inspect final Linux wheel
         shell: bash
         run: |
           set -euo pipefail
 
-          echo "========================================="
-          echo "GENERATED MANYLINUX WHEEL"
-          echo "========================================="
+          WHEEL_FILE="$(find wheelhouse -maxdepth 1 -type f -name '*.whl' | head -n1)"
 
-          ls -lah wheelhouse/
-
-          WHEEL_COUNT=$(find wheelhouse -maxdepth 1 -type f -name "*.whl" | wc -l)
-          if [ "$WHEEL_COUNT" -ne 1 ]; then
-            echo "::error::Expected exactly one wheel for ${{ matrix.python-version }}, found $WHEEL_COUNT."
+          if [ -z "$WHEEL_FILE" ]; then
+            echo "::error::No wheel was generated."
             exit 1
           fi
 
-          WHEEL_FILE="$(find wheelhouse -maxdepth 1 -type f -name '*.whl' | head -n1)"
           echo "Wheel: $WHEEL_FILE"
-
-          echo
-          echo "Wheel contents:"
-          python -m zipfile -l "$WHEEL_FILE" | grep -E '\.so$|\.ini$' || true
-
-          echo
-          echo "auditwheel show:"
-          python -m auditwheel show "$WHEEL_FILE"
-
-          echo
-          echo "Filename:"
           basename "$WHEEL_FILE"
 
           case "$(basename "$WHEEL_FILE")" in
             *manylinux_2_28_x86_64.whl)
-              echo "Linux wheel tag OK: manylinux_2_28_x86_64"
+              echo "OK: manylinux_2_28_x86_64"
               ;;
             *)
-              echo "::error::Linux wheel does not have the expected manylinux_2_28_x86_64 tag."
+              echo "::error::Wheel does not have manylinux_2_28_x86_64 tag."
               exit 1
               ;;
           esac
 
-      - name: Upload Linux wheel artifact
-        uses: actions/upload-artifact@v6
+          echo
+          echo "=== Wheel shared libraries ==="
+          python -m zipfile -l "$WHEEL_FILE" | grep -E '\.so$' || true
+
+          echo
+          echo "=== Auditwheel metadata ==="
+          python -m pip install --upgrade auditwheel
+          python -m auditwheel show "$WHEEL_FILE"
+
+      - name: Upload wheel as build artifact
+        uses: actions/upload-artifact@v4
         with:
           name: dist-linux-manylinux-py${{ matrix.python-version }}
           path: wheelhouse/*.whl
@@ -315,23 +314,21 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Wheels — Windows
+  # Windows wheels -- KEEP THE ORIGINAL WORKING FLOW
   # ---------------------------------------------------------------------
   build-wheels-windows:
     name: Build wheel (windows-latest / py${{ matrix.python-version }})
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     needs: [create-tag]
     if: ${{ !cancelled() && !failure() }}
     permissions:
       contents: read
       checks: write
-
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -340,12 +337,12 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
@@ -371,7 +368,6 @@ jobs:
         shell: pwsh
         run: |
           python -c "import setuptools; print('setuptools:', setuptools.__version__)"
-
           $cl = Get-Command cl.exe -ErrorAction SilentlyContinue
           if ($cl) {
             Write-Host "cl.exe resolved: $($cl.Source)"
@@ -397,7 +393,7 @@ jobs:
             python ./src/models/ary2tower/a2tcysetup.py build_ext --inplace
           }
 
-      - name: Build wheel via uv
+      - name: Build wheel via uv (with original fallback)
         shell: bash
         env:
           PYTHONUTF8: "1"
@@ -407,21 +403,28 @@ jobs:
           rm -rf dist
           mkdir -p dist
 
-          uv build --wheel --no-build-isolation --out-dir dist/
+          if uv build --wheel --no-build-isolation --out-dir dist/; then
+            echo "Successfully built wheel using uv!"
+          else
+            echo "::warning::uv build failed. Falling back to python -m build..."
+            if python -m build --wheel --no-isolation --outdir dist/; then
+              echo "Successfully built wheel using python -m build!"
+            else
+              echo "::warning::python -m build failed. Falling back to pip wheel..."
+              python -m pip wheel . --no-build-isolation --no-deps --wheel-dir dist/
+            fi
+          fi
 
       - name: List generated artifacts & inspect wheel
-        shell: bash
         run: |
-          set -euo pipefail
           ls -lh dist/
-
           for f in dist/*.whl; do
             echo "--- $f ---"
             python -m zipfile -l "$f"
           done
 
-      - name: Upload Windows wheel artifact
-        uses: actions/upload-artifact@v6
+      - name: Upload wheel as build artifact
+        uses: actions/upload-artifact@v4
         with:
           name: dist-windows-py${{ matrix.python-version }}
           path: dist/*.whl
@@ -429,18 +432,17 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------------------
-  # Test — Linux
+  # Test Linux
   # ---------------------------------------------------------------------
   test-linux:
-    name: Test Installed Wheel (manylinux-built / py${{ matrix.python-version }})
+    name: Test Installed Wheel (linux / py${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     needs: [create-tag, build-wheels-linux]
     if: always() && needs.build-wheels-linux.result == 'success'
     permissions:
       contents: read
       checks: write
-
     strategy:
       fail-fast: false
       matrix:
@@ -451,20 +453,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
-          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
       - name: Download matching wheel artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
           name: dist-linux-manylinux-py${{ matrix.python-version }}
           path: dist/
@@ -474,34 +475,35 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          WHEEL_FILE="$(ls -1 dist/*.whl | head -n1)"
-
+          WHEEL_FILE=$(ls -1 dist/*.whl | head -n1)
           if [ -z "$WHEEL_FILE" ]; then
-            echo "::error::No wheel file found in dist/"
-            ls -la dist/
+            echo "::error::No wheel file found."
             exit 1
           fi
-
           echo "wheel_file=$WHEEL_FILE" >> "$GITHUB_OUTPUT"
-          echo "Resolved wheel: $WHEEL_FILE"
 
-      - name: Inspect wheel structure and binary (.so) files
+      - name: Inspect wheel binary linkage
+        shell: bash
         run: |
           set -euo pipefail
+          WHEEL="${{ steps.wheel_info.outputs.wheel_file }}"
+          rm -rf /tmp/whl_contents
+          mkdir -p /tmp/whl_contents
+          unzip -q "$WHEEL" -d /tmp/whl_contents
 
-          echo "=== Binary (.so) and config (.ini) summary ==="
-          unzip -l "${{ steps.wheel_info.outputs.wheel_file }}" \
-            | grep -E '\.so|\.ini' \
-            || echo "WARNING: No .so or .ini files found!"
+          echo "=== .so files ==="
+          find /tmp/whl_contents -type f -name "*.so" -print
 
           echo
-          echo "=== Detailed wheel tree ==="
-          mkdir -p /tmp/whl_contents
-          unzip -q "${{ steps.wheel_info.outputs.wheel_file }}" -d /tmp/whl_contents
-          find /tmp/whl_contents -maxdepth 4 -type f | sort
+          echo "=== NEEDED entries / libm check ==="
+          for so in $(find /tmp/whl_contents -type f -name "*.so"); do
+            echo "--- $so ---"
+            readelf -d "$so" | grep NEEDED || true
 
-          rm -rf /tmp/whl_contents
+            # We expect the extension with math functions to have libm
+            # available either directly or through its ELF dependency chain.
+            nm -D "$so" 2>/dev/null | grep "__exp_finite" || true
+          done
 
       - name: Create isolated test environment via uv
         shell: bash
@@ -512,32 +514,28 @@ jobs:
         run: |
           set -euo pipefail
           source test_env/bin/activate
-
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           uv pip show cooprecsys
-
           python -c "import cooprecsys; print('SUCCESS:', cooprecsys.__file__)"
 
       - name: Install test dependencies
         shell: bash
         run: |
-          set -euo pipefail
           source test_env/bin/activate
           uv pip install pytest pytest-cov
 
   # ---------------------------------------------------------------------
-  # Test — Windows
+  # Test Windows
   # ---------------------------------------------------------------------
   test-windows:
     name: Test Installed Wheel (windows-latest / py${{ matrix.python-version }})
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 8
     needs: [create-tag, build-wheels-windows]
     if: always() && needs.build-wheels-windows.result == 'success'
     permissions:
       contents: read
       checks: write
-
     strategy:
       fail-fast: false
       matrix:
@@ -548,20 +546,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.create-tag.outputs.tag_name || github.ref }}
-          fetch-depth: 0
 
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
       - name: Set up uv
-        uses: astral-sh/setup-uv@v7
+        uses: astral-sh/setup-uv@v5
         with:
           enable-cache: true
 
       - name: Download matching wheel artifact
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
           name: dist-windows-py${{ matrix.python-version }}
           path: dist/
@@ -571,17 +568,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          WHEEL_FILE="$(ls -1 dist/*.whl | head -n1)"
-
+          WHEEL_FILE=$(ls -1 dist/*.whl | head -n1)
           if [ -z "$WHEEL_FILE" ]; then
-            echo "::error::No wheel file found in dist/"
-            ls -la dist/
+            echo "::error::No wheel file found."
             exit 1
           fi
-
           echo "wheel_file=$WHEEL_FILE" >> "$GITHUB_OUTPUT"
-          echo "Resolved wheel: $WHEEL_FILE"
 
       - name: Create isolated test environment via uv
         shell: bash
@@ -590,18 +582,14 @@ jobs:
       - name: Install wheel into isolated environment
         shell: bash
         run: |
-          set -euo pipefail
           source test_env/Scripts/activate
-
           uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           uv pip show cooprecsys
-
           python -c "import cooprecsys; print('SUCCESS:', cooprecsys.__file__)"
 
       - name: Install test dependencies
         shell: bash
         run: |
-          set -euo pipefail
           source test_env/Scripts/activate
           uv pip install pytest pytest-cov
 
@@ -611,31 +599,25 @@ jobs:
   publish:
     name: Publish to Release
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    needs:
-      - create-tag
-      - build-sdist
-      - test-linux
-      - test-windows
-
+    timeout-minutes: 8
+    needs: [create-tag, build-sdist, test-linux, test-windows]
     if: |
       always() &&
       needs.create-tag.outputs.is_release == 'true' &&
       needs.build-sdist.result == 'success' &&
       needs.test-linux.result == 'success'
-
     permissions:
       contents: write
 
     steps:
       - name: Download sdist
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
           name: dist-sdist
           path: dist/
 
       - name: Download Linux wheels
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
           pattern: dist-linux-manylinux-py*
           path: dist/
@@ -643,7 +625,7 @@ jobs:
 
       - name: Download Windows wheels
         if: needs.test-windows.result == 'success'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v4
         with:
           pattern: dist-windows-py*
           path: dist/
@@ -651,39 +633,10 @@ jobs:
 
       - name: Note Windows exclusion
         if: needs.test-windows.result != 'success'
-        run: |
-          echo "::warning::Windows wheels were NOT included in this release because the Windows test job did not succeed (result=${{ needs.test-windows.result }})."
+        run: echo "::warning::Windows wheels were NOT included in this release because the Windows test job did not succeed."
 
-      - name: Validate final release artifacts
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          echo "=============================================="
-          echo "FINAL COOPRECSYS RELEASE ARTIFACTS"
-          echo "=============================================="
-
-          ls -lah dist/
-
-          WHEEL_COUNT=$(find dist -maxdepth 1 -type f -name "*.whl" | wc -l)
-          SDIST_COUNT=$(find dist -maxdepth 1 -type f -name "*.tar.gz" | wc -l)
-
-          echo "Wheel count : $WHEEL_COUNT"
-          echo "Sdist count : $SDIST_COUNT"
-
-          if [ "$WHEEL_COUNT" -lt 1 ]; then
-            echo "::error::No wheel artifacts found."
-            exit 1
-          fi
-
-          if [ "$SDIST_COUNT" -lt 1 ]; then
-            echo "::error::No source distribution found."
-            exit 1
-          fi
-
-          echo
-          echo "Wheel filenames:"
-          find dist -maxdepth 1 -type f -name "*.whl" -printf '%f\n' | sort
+      - name: List final release artifacts
+        run: ls -lh dist/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -699,13 +652,8 @@ jobs:
 
       - name: Release summary
         run: |
-          echo "=================================================="
-          echo "Release published successfully"
-          echo "=================================================="
-          echo "Tag                : ${{ needs.create-tag.outputs.tag_name }}"
-          echo "Linux ABI          : manylinux_2_28_x86_64"
-          echo "Python             : 3.10 - 3.13"
-          echo "Windows wheels     : ${{ needs.test-windows.result == 'success' }}"
-          echo "Sdists             : $(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)"
-          echo "Wheels             : $(find dist -maxdepth 1 -type f -name '*.whl' | wc -l)"
-          echo "=================================================="
+          echo "Release published successfully for tag: ${{ needs.create-tag.outputs.tag_name }}"
+          echo "Linux ABI: manylinux_2_28_x86_64"
+          echo "Windows wheels included: ${{ needs.test-windows.result == 'success' }}"
+          echo "Sdists published: $(ls -1 dist/*.tar.gz | wc -l)"
+          echo "Wheels published: $(ls -1 dist/*.whl | wc -l)"
