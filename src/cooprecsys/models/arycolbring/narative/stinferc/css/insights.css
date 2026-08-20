@@ -1,0 +1,56 @@
+/* ============================================
+   insights.css — Insights tab (embedding scatter,
+   similarity heatmap, prediction score histogram)
+   ============================================ */
+
+.insights-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.chart-panel-full { grid-column: 1 / -1; }
+
+.insights-grid .chart-panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow);
+    padding: 20px;
+}
+
+.insights-grid .chart-panel h3 {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 14px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.insights-grid .chart-panel h3 i { color: var(--accent); }
+
+.insight-caption {
+    margin: 10px 0 0 0;
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.insight-empty {
+    text-align: center;
+    padding: 48px 12px;
+    color: var(--text-muted);
+}
+
+.insight-empty i {
+    font-size: 2rem;
+    display: block;
+    margin-bottom: 12px;
+    opacity: 0.6;
+}
+
+@media (max-width: 1000px) {
+    .insights-grid { grid-template-columns: 1fr; }
+}

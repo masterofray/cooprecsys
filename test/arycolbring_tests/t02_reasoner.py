@@ -22,6 +22,7 @@ model with integrated logging, performance monitoring, and reporting.
 import sys
 import time
 import numpy  as np
+import pandas as pd
 from pathlib  import Path
 from datetime import datetime
 from typing   import Optional, Tuple, Union, List, Dict
@@ -126,22 +127,89 @@ class AryColBring_Inference_Test:
         return predictions
 
     def recommend_batch(self,
-                        user_ids     : List[int],
-                        n_items      : int = 10,
-                        exclude_dict : Optional[Dict[int, List[int]]] = None,
-                       ) -> Dict[int, List[Tuple[int, float]]]:
+                        user_ids      : List[int],
+                        purchase_data : pd.DataFrame,
+                        n_items       : int = 10,
+                        user_col      : Optional[str] = None,
+                        item_col      : Optional[str] = None,
+                       ) -> pd.DataFrame:
         """
-        Generate top-N recommendations for multiple users.
-        The return is dict mapping user_id to list of (item_id, score) tuples.
+        Generate PURCHASE-AWARE top-N recommendations for multiple users
+        via AryColBringInference.batch_clean_recommend(): item yang sudah
+        pernah dibeli user dibuang, ditambal dari kandidat cadangan model,
+        lalu fallback Item-to-Item kalau masih kurang -- jadi hasilnya
+        benar-benar rekomendasi yang "bagus"/usable, bukan rekomendasi
+        mentah yang bisa saja berisi barang yang sudah dibeli user.
+
+        Returns
+        -------
+        pandas.DataFrame gabungan semua user: user_id, rank, item_id,
+        score, source ('model_topn' | 'model_patch' | 'item2item_fallback'),
+        is_fallback.
         """
-        logger.info("Batch recommendations: %d users, top-%d items",
+        logger.info("Clean batch recommendations: %d users, top-%d items",
                      len(user_ids), n_items)
-        recommendations = self.inference_service.batch_recommend(
-                          user_ids     = user_ids,
-                          n_items      = n_items,
-                          exclude_dict = exclude_dict)
-        logger.info("Recommendations generated for %d users", len(recommendations))
+        recommendations = self.inference_service.batch_clean_recommend(
+                          user_ids      = user_ids,
+                          purchase_data = purchase_data,
+                          n_items       = n_items,
+                          user_col      = user_col,
+                          item_col      = item_col,
+                          output_format = "dataframe")
+        logger.info("Clean recommendations generated for %d user(s)",
+                     recommendations["user_id"].nunique() if len(recommendations) else 0)
         return recommendations
+
+    def clean_single_recommend(self,
+                               user_id       : int,
+                               purchase_data : pd.DataFrame,
+                               n_items       : int = 10,
+                               user_col      : Optional[str] = None,
+                               item_col      : Optional[str] = None,
+                              ) -> pd.DataFrame:
+        """Versi single-user dari recommend_batch(), lewat clean_recommend()."""
+        logger.debug("Clean single recommendation: user = %s, n = %d", user_id, n_items)
+        return self.inference_service.clean_recommend(
+               user_id       = user_id,
+               purchase_data = purchase_data,
+               n_items       = n_items,
+               user_col      = user_col,
+               item_col      = item_col,
+               output_format = "dataframe")
+
+    def synthesize_purchase_data(self,
+                                 user_ids      : List[int],
+                                 min_purchases : int = 3,
+                                 max_purchases : int = 15,
+                                 random_state  : Optional[int] = None,
+                                ) -> pd.DataFrame:
+        """
+        Bikin riwayat pembelian SINTETIS untuk keperluan demo/benchmark,
+        dipakai kalau tidak ada file transaksi nyata (--purchase-data
+        tidak diisi). Tiap test user diberi sejumlah acak item yang
+        ditandai "sudah dibeli", supaya jalur pembersihan
+        clean_recommend() (buang item terbeli -> patch -> fallback
+        Item-to-Item) benar-benar teruji dan terlihat efeknya di metric,
+        bukan cuma lewat kosongan (yang bikin hasilnya identik dengan
+        rekomendasi mentah).
+        """
+        n_total_items = self.inference_service.predictor.item_embeddings.shape[0]
+        seed          = random_state if random_state is not None else _cfg.getint(
+                        'model', 'random_state', fallback = 42)
+        rng           = np.random.default_rng(seed)
+
+        rows = list()
+        for user_id in user_ids:
+            n_purchase = int(rng.integers(min_purchases, max_purchases + 1))
+            n_purchase = min(n_purchase, n_total_items)
+            for item_id in rng.choice(n_total_items, size = n_purchase, replace = False):
+                rows.append({"user_id": int(user_id), "item_id": int(item_id)})
+
+        purchase_df = pd.DataFrame(rows)
+        logger.info("Synthesized %d purchase record(s) for %d test user(s) "
+                    "(%d-%d items/user) to exercise clean_recommend().",
+                     len(purchase_df), len(user_ids), min_purchases, max_purchases)
+        return purchase_df
 
     def single_recommend(self,
                          user_id       : int,
@@ -223,6 +291,7 @@ class AryColBring_Inference_Test:
                           n_recommendations      : int  = 10,
                           run_benchmark          : bool = True,
                           benchmark_predictions  : int  = 1000,
+                          purchase_data          : Optional[pd.DataFrame] = None,
                          ) -> Dict:
         """Run the complete inference pipeline and return a results summary."""
         logger.debug("Starting full inference pipeline!")
@@ -236,22 +305,58 @@ class AryColBring_Inference_Test:
                      n_total_users, n_total_items)
 
         test_users = np.random.choice(n_total_users,
-                     min(n_test_users, n_total_users), replace = False)
-        recommendations = self.recommend_batch(
-                          user_ids = test_users.tolist(),
-                          n_items  = n_recommendations)
-        results["batch_recommendations_completed"] = len(recommendations)
+                     min(n_test_users, n_total_users), replace = False).tolist()
 
+        used_synthetic_data = purchase_data is None or purchase_data.empty
+        if used_synthetic_data:
+            purchase_data = self.synthesize_purchase_data(user_ids = test_users)
+
+        # synthesize_purchase_data() always emits columns literally named
+        # "user_id"/"item_id" -- pass them explicitly instead of relying on
+        # DetectReco_Identifier's heuristics, which are tuned for real-world
+        # transaction exports and aren't guaranteed to fire reliably on a
+        # small synthetic frame. Real files loaded via --purchase-data still
+        # go through auto-detection (user_col/item_col left as None) so
+        # arbitrary column naming keeps working as designed.
+        synth_user_col = "user_id" if used_synthetic_data else None
+        synth_item_col = "item_id" if used_synthetic_data else None
+
+        # Purchase-aware batch recommendation (clean_recommend machinery).
+        recommendations = self.recommend_batch(
+                          user_ids      = test_users,
+                          purchase_data = purchase_data,
+                          n_items       = n_recommendations,
+                          user_col      = synth_user_col,
+                          item_col      = synth_item_col)
+        results["batch_recommendations_completed"] = (
+        int(recommendations["user_id"].nunique()) if len(recommendations) else 0)
+
+        # Ringkasan kualitas rekomendasi: berapa banyak slot Top-N yang
+        # murni dari model, berapa yang ditambal dari kandidat cadangan,
+        # dan berapa yang jatuh ke fallback Item-to-Item -- ini yang
+        # bikin "bagusnya" hasil clean_recommend kelihatan di metric.
+        if len(recommendations):
+            source_breakdown = recommendations["source"].value_counts().to_dict()
+            fallback_ratio    = float(recommendations["is_fallback"].mean())
+        else:
+            source_breakdown = dict()
+            fallback_ratio    = 0.0
+        results["clean_recommend_summary"] = {
+            "total_slots_filled" : int(len(recommendations)),
+            "source_breakdown"   : source_breakdown,
+            "fallback_ratio"     : fallback_ratio,
+        }
+
+        # Sample untuk laporan (5 user pertama).
         sample_predictions = list()
-        for user_id in list(test_users)[:5]:
-            recs = recommendations.get(user_id, [])
-            sample_predictions.append({
-                "user_id"        : int(user_id),
-                "recommendations": [(int(item_id), float(score))
-                                     for item_id, score in recs]})
+        for user_id in test_users[:5]:
+            user_rows = recommendations[recommendations["user_id"] == user_id]
+            recs      = list(zip(user_rows["item_id"].astype(int),
+                                 user_rows["score"].astype(float)))
+            sample_predictions.append({"user_id": int(user_id), "recommendations": recs})
 
         report_path = self.generate_report(
-                      experiment_name     = "Full Inference Pipeline",
+                      experiment_name     = "Full Inference Pipeline (Clean Recommend)",
                       predictions_sample  = sample_predictions)
         results["report_path"] = str(report_path)
 
@@ -260,6 +365,7 @@ class AryColBring_Inference_Test:
                                    n_predictions = benchmark_predictions)
 
         results["metrics"] = self.get_performance_metrics()
+        results["metrics"]["fallback_ratio"] = fallback_ratio
         logger.info("Pipeline completed successfully")
         return results
 
@@ -296,6 +402,14 @@ def main() -> None:
                         type     = int,
                         default  = 1000,
                         help     = "Number of predictions to run during benchmark")
+    parser.add_argument("-p", "--purchase-data",
+                        type     = str,
+                        default  = None,
+                        help     = "Path to a real transaction history file (.csv/.parquet) "
+                                    "with a user-id and item-id column (any names -- "
+                                    "auto-detected). If omitted, synthetic purchase "
+                                    "history is generated so clean_recommend()'s "
+                                    "remove/patch/fallback path still gets exercised.")
     args = parser.parse_args()
 
     pipeline = AryColBring_Inference_Test(
@@ -304,45 +418,64 @@ def main() -> None:
                num_threads   = args.threads,
                cache_enabled = not args.no_cache)
 
+    purchase_data = None
+    if args.purchase_data:
+        pd_path = Path(args.purchase_data)
+        if not pd_path.exists():
+            logger.error("Purchase-data file not found: %s", pd_path)
+            raise FileNotFoundError(f"Purchase-data file not found: {pd_path}")
+        purchase_data = (pd.read_parquet(pd_path) if pd_path.suffix.lower() == ".parquet"
+                         else pd.read_csv(pd_path))
+        logger.info("Loaded purchase data from %s: %d row(s)", pd_path, len(purchase_data))
+
     results = pipeline.run_full_pipeline(
               n_test_users          = args.n_users,
               n_recommendations     = args.n_recs,
               run_benchmark         = args.benchmark,
-              benchmark_predictions = args.benchmark_size)
+              benchmark_predictions = args.benchmark_size,
+              purchase_data         = purchase_data)
 
-    logger.debug("\n" + "=" * 80)
-    logger.debug("INFERENCE SUMMARY")
-    logger.debug("=" * 80)
-    logger.debug(f"Status: {results['status']}")
-    logger.debug(f"Model: {results['model_path']}")
-    logger.debug(f"Batch recommendations: {results.get('batch_recommendations_completed', 0)}")
-    logger.debug(f"Report: {results.get('report_path', 'N/A')}")
+    print("\n" + "=" * 80)
+    print("INFERENCE SUMMARY")
+    print("=" * 80)
+    print(f"Status: {results['status']}")
+    print(f"Model: {results['model_path']}")
+    print(f"Batch recommendations: {results.get('batch_recommendations_completed', 0)}")
+    print(f"Report: {results.get('report_path', 'N/A')}")
+
+    if "clean_recommend_summary" in results:
+        print("\nClean Recommendation Quality:")
+        summary = results["clean_recommend_summary"]
+        print(f"  Total slots filled: {summary.get('total_slots_filled', 0)}")
+        for source, count in summary.get("source_breakdown", {}).items():
+            print(f"    - {source:<20}: {count}")
+        print(f"  Fallback ratio: {summary.get('fallback_ratio', 0):.2%}")
 
     if "metrics" in results:
-        logger.debug("\nPerformance Metrics:")
+        print("\nPerformance Metrics:")
         metrics = results["metrics"]
-        logger.debug(f"  QPS: {metrics.get('qps', 0):.2f}")
-        logger.debug(f"  Avg Latency: {metrics.get('avg_latency_ms', 0):.2f} ms")
-        logger.debug(f"  Predictions: {metrics.get('n_predictions', 0)}")
-        logger.debug(f"  Users Served: {metrics.get('n_users_served', 0)}")
-        logger.debug(f"  Throughput: {metrics.get('throughput_preds_per_sec', 0):.2f} pred/sec")
+        print(f"  QPS: {metrics.get('qps', 0):.2f}")
+        print(f"  Avg Latency: {metrics.get('avg_latency_ms', 0):.2f} ms")
+        print(f"  Predictions: {metrics.get('n_predictions', 0)}")
+        print(f"  Users Served: {metrics.get('n_users_served', 0)}")
+        print(f"  Throughput: {metrics.get('throughput_preds_per_sec', 0):.2f} pred/sec")
 
     if "benchmark" in results:
-        logger.debug("\nBenchmark Results:")
+        print("\nBenchmark Results:")
         bench = results["benchmark"]
-        logger.debug(f"  Predictions: {bench['n_predictions']}")
-        logger.debug(f"  Time: {bench['total_time_ms']:.2f} ms")
-        logger.debug(f"  Throughput: {bench['predictions_per_sec']:.2f} pred/sec")
-        logger.debug(f"  Avg Latency: {bench['avg_latency_ms']:.2f} ms")
-        logger.debug(f"  QPS: {bench['qps']:.2f}")
+        print(f"  Predictions: {bench['n_predictions']}")
+        print(f"  Time: {bench['total_time_ms']:.2f} ms")
+        print(f"  Throughput: {bench['predictions_per_sec']:.2f} pred/sec")
+        print(f"  Avg Latency: {bench['avg_latency_ms']:.2f} ms")
+        print(f"  QPS: {bench['qps']:.2f}")
 
-    logger.debug("=" * 80 + "\n")
+    print("=" * 80 + "\n")
 
 
 if __name__ == "__main__":
     #Sample Command:
-    #python -m test.arycolbring_tests.t02_reasoner -m ./artifacts/ACBmodel/20260718_models.npz -u 100 -r 10 -b -s 1000
-    logger.info("Running the AryColBring_Reasoner_Test")
+    #python -m test.arycolbring_tests.t02_reasoner -m ./artifacts/ACBmodel/20260604_models.npz -u 100 -r 10 -b -s 1000
+    print("Running the AryColBring_Reasoner_Test")
     try:
         main()
     except Exception as arc:

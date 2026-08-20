@@ -1,0 +1,76 @@
+{# infrc_insights.html.j2 — Embedding scatter, similarity heatmap, score histogram #}
+{# Replaces the removed eval-metric ("coverage" / precision-recall) cards on
+   this inference report -- these are the actual predictions/embeddings a
+   production run has available, instead of training-only metrics. #}
+
+<div id="page-insights" class="page-content">
+
+    <div class="section">
+        <div class="section-title">
+            <span class="section-icon"><i class="fas fa-diagram-project"></i></span>
+            Inference Insights
+        </div>
+
+        <div class="insights-grid">
+
+            <div class="chart-panel">
+                <h3><i class="fas fa-chart-column"></i> Prediction Score Distribution</h3>
+                {% if score_distribution and score_distribution.n and score_distribution.n > 0 %}
+                <div class="js-histogram-render"
+                     data-counts='{{ score_distribution.counts | tojson }}'
+                     data-bin-edges='{{ score_distribution.bin_edges | tojson }}'
+                     data-mean="{{ score_distribution.mean }}"
+                     data-median="{{ score_distribution.median }}"
+                     style="height:340px;"></div>
+                <p class="insight-caption">
+                    n = {{ score_distribution.n }} predictions &middot;
+                    mean = {{ "%.4f" | format(score_distribution.mean) }} &middot;
+                    median = {{ "%.4f" | format(score_distribution.median) }}
+                </p>
+                {% else %}
+                <div class="insight-empty">
+                    <i class="fas fa-inbox"></i>
+                    <p>No prediction scores available for this report.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="chart-panel">
+                <h3><i class="fas fa-braille"></i> Item Embedding Projection (2D PCA)</h3>
+                {% if embedding_plot and embedding_plot.x %}
+                <div class="js-scatter-render"
+                     data-x='{{ embedding_plot.x | tojson }}'
+                     data-y='{{ embedding_plot.y | tojson }}'
+                     data-ids='{{ embedding_plot.ids | tojson }}'
+                     data-highlight-index="{{ embedding_plot.highlight_index if embedding_plot.highlight_index is not none else '' }}"
+                     style="height:380px;"></div>
+                <p class="insight-caption">Each point is one item's embedding, projected to 2D via PCA.</p>
+                {% else %}
+                <div class="insight-empty">
+                    <i class="fas fa-inbox"></i>
+                    <p>No item embeddings were supplied for this report.</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="chart-panel chart-panel-full">
+                <h3><i class="fas fa-table-cells"></i> Item-Item Similarity Heatmap</h3>
+                {% if similarity_heatmap and similarity_heatmap.z %}
+                <div class="js-heatmap-render"
+                     data-z='{{ similarity_heatmap.z | tojson }}'
+                     data-x='{{ similarity_heatmap.x | tojson }}'
+                     data-y='{{ similarity_heatmap.y | tojson }}'
+                     style="height:420px;"></div>
+                <p class="insight-caption">Cosine similarity among the top {{ similarity_heatmap.x | length }} items shown on the Rankings tab.</p>
+                {% else %}
+                <div class="insight-empty">
+                    <i class="fas fa-inbox"></i>
+                    <p>No item embeddings were supplied for this report.</p>
+                </div>
+                {% endif %}
+            </div>
+
+        </div>
+    </div>
+
+</div>

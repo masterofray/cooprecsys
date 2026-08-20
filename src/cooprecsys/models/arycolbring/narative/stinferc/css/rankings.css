@@ -1,0 +1,223 @@
+/* ============================================
+   rankings.css — Predictions Table
+   Confidence badges, filterable table
+   ============================================ */
+
+#page-rankings { width: 100%; min-width: 0; }
+
+/* ── Table Card ── */
+.table-card {
+    position: relative;
+    width: 100%;
+    border-radius: 18px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    overflow: visible;
+    animation: fadeInUp 0.5s ease-out forwards;
+    opacity: 0;
+}
+
+.table-card::before {
+    content: "";
+    position: absolute;
+    top: -80px; right: -80px;
+    width: 200px; height: 200px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255, 107, 53,0.10), transparent 70%);
+    pointer-events: none;
+}
+
+/* ── Table Header ── */
+.table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 24px;
+    border-bottom: 1px solid var(--border);
+}
+
+.table-header h3 { margin: 0; font-size: 1rem; font-weight: 700; color: var(--text); display: flex; align-items: center; gap: 10px; }
+
+.table-badge {
+    padding: 6px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--accent);
+    background: var(--accent-glow);
+    border: 1px solid rgba(255, 107, 53,0.2);
+}
+
+.table-actions { display: flex; gap: 8px; }
+
+.btn {
+    padding: 8px 18px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary { background: var(--accent); color: var(--text-on-accent); }
+.btn-primary:hover { background: var(--accent-light); box-shadow: 0 2px 8px rgba(255,107,53,0.35); transform: translateY(-1px); }
+
+/* ── Table Scroll ── */
+.table-scroll { width: 100%; overflow-x: auto; max-height: 600px; overflow-y: auto; }
+.table-scroll::-webkit-scrollbar { height: 8px; }
+.table-scroll::-webkit-scrollbar-track { background: var(--card-alt); }
+.table-scroll::-webkit-scrollbar-thumb { border-radius: 999px; background: linear-gradient(90deg, rgba(255, 107, 53,0.3), rgba(255, 107, 53,0.5)); }
+
+/* ── Data Table ── */
+.data-table { width: 100%; border-collapse: separate; border-spacing: 0; table-layout: auto; min-width: 100%; font-size: 0.82rem; }
+
+.data-table th {
+    padding: clamp(10px, 1vw, 16px) clamp(8px, 1vw, 14px);
+    text-align: left;
+    font-size: clamp(0.65rem, 0.78vw, 0.82rem);
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    color: var(--accent);
+    background: var(--card-highlight);
+    border-bottom: 2px solid var(--border-light);
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.data-table td {
+    position: relative;
+    padding: clamp(10px, 1vw, 16px) clamp(8px, 1vw, 14px);
+    font-size: clamp(0.72rem, 0.85vw, 0.92rem);
+    font-weight: 500;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+    white-space: nowrap;
+    transition: background 0.25s ease, transform 0.2s ease;
+}
+
+.data-table tbody tr:nth-child(even) { background: rgba(255, 107, 53,0.02); }
+
+.data-table tbody tr {
+    transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.data-table tbody tr:hover {
+    background: rgba(255, 107, 53,0.06);
+    transform: scale(1.002);
+    box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.data-table tbody tr.row-hover { background: rgba(255, 107, 53,0.08); }
+
+/* ── Filter Row ── */
+.filter-row th { padding: 10px 12px; background: var(--card-alt); border-bottom: 1px solid var(--border); }
+
+.table-filter {
+    position: relative;
+    width: 100%;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-deep);
+    color: var(--text);
+    font-size: 0.72rem;
+    font-family: inherit;
+    outline: none;
+    text-align: center;
+    transition: border 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.table-filter:focus { border: 2px solid var(--accent); background: var(--accent-glow); box-shadow: 0 0 0 3px rgba(255, 107, 53,0.12); }
+.table-filter::placeholder { color: var(--text-muted); }
+
+/* ── Rank Badge ── */
+.rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 32px; height: 32px;
+    padding: 0 10px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    font-weight: 800;
+    color: #fff;
+}
+
+.rank-1 { background: linear-gradient(135deg, #ffd54f, #ffb300); box-shadow: 0 0 14px rgba(255,213,79,0.4); color: #1a1a1a; }
+.rank-2 { background: linear-gradient(135deg, #e0e0e0, #bdbdbd); box-shadow: 0 0 12px rgba(200,200,200,0.3); color: #1a1a1a; }
+.rank-3 { background: linear-gradient(135deg, #ffb47d, #ff7f50); box-shadow: 0 0 12px rgba(255,140,80,0.3); }
+.rank-default { background: var(--card-alt); border: 1px solid var(--border); color: var(--text-secondary); }
+
+/* ── Confidence Badges ── */
+.badge-confidence {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+}
+
+.badge-high {
+    background: rgba(255, 107, 53, 0.12);
+    color: #2e7d32;
+    border: 1px solid rgba(255, 107, 53, 0.25);
+}
+
+.badge-medium {
+    background: rgba(230, 81, 0, 0.10);
+    color: #e65100;
+    border: 1px solid rgba(230, 81, 0, 0.20);
+}
+
+.badge-low {
+    background: rgba(198, 40, 40, 0.10);
+    color: #c62828;
+    border: 1px solid rgba(198, 40, 40, 0.20);
+}
+
+/* ── Score Cell ── */
+.score-cell {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+/* ── Reset flash ── */
+#page-rankings.filters-cleared { animation: flashReset 0.3s ease; }
+
+@keyframes flashReset {
+    0%   { box-shadow: 0 0 0 rgba(255, 107, 53,0); }
+    50%  { box-shadow: 0 0 25px rgba(255, 107, 53,0.2); }
+    100% { box-shadow: 0 0 0 rgba(255, 107, 53,0); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 900px) {
+    .table-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .data-table th, .data-table td { padding: 14px 12px; text-align: center; }
+}
+
+/* ── Similar Items pills + sortable column header ── */
+.similar-items-cell { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill-item {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 999px;
+    background: var(--accent-glow);
+    color: var(--accent);
+    border: 1px solid rgba(255,107,53,0.25);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+.text-muted-cell { color: var(--text-muted); }
+.sortable-col { cursor: pointer; user-select: none; }
+.sortable-col i { font-size: 0.72rem; opacity: 0.5; margin-left: 4px; }
+.sortable-col.sort-asc i::before  { content: "\f0de"; opacity: 1; }
+.sortable-col.sort-desc i::before { content: "\f0dd"; opacity: 1; }
