@@ -35,7 +35,7 @@ import scipy.sparse as sp
 from typing import Optional, Union, Tuple
 from sklearn.preprocessing import LabelEncoder
 from .scaffold import AryColBringBase, cydtype
-from ..CLproximity import (CSRMatrix,
+from cooprecsys.models.arycolbring.CLproximity import (CSRMatrix,
                          predict_ranks,
                          predict_arycolbring)
 from ....configs import _cfg, logger, verbose

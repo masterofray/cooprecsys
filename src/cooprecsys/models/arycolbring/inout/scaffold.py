@@ -29,7 +29,7 @@ from   abc       import ABC, abstractmethod
 from   typing    import Any, Dict, Optional, Union
 
 from ..assist      import validate_sparse_matrix
-from ..CLproximity import CSRMatrix, FastAryColBring
+from cooprecsys.models.arycolbring.CLproximity import CSRMatrix, FastAryColBring
 from ....configs import _cfg, logger
 cydtype = np.float32
 

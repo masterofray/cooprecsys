@@ -86,7 +86,8 @@ def get_cython_extensions():
         exts.append(
             Extension(
                 name=module_name,
-                sources=[rel_pyx_path],
+                #sources=[rel_pyx_path],
+                sources=[str(pyx)],
                 language="c",
                 extra_compile_args=extra_compile_args,
                 extra_link_args=extra_link_args,

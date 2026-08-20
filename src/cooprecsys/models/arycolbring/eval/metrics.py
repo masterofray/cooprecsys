@@ -16,7 +16,7 @@ import scipy.sparse as sp
 from   tqdm.auto  import tqdm
 from   typing     import Optional
 from   .take_rank import _get_ranks
-from ..CLproximity import CSRMatrix, calculate_auc_from_rank
+from cooprecsys.models.arycolbring.CLproximity import CSRMatrix, calculate_auc_from_rank
 from ....configs import _cfg, logger
 
 

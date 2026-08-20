@@ -30,7 +30,7 @@ from   pathlib   import Path
 from   typing    import Optional
 from   .scaffold import AryColBringBase, cydtype
 from ..assist      import validate_sparse_matrix
-from ..CLproximity import (CSRMatrix, fit_logistic,
+from cooprecsys.models.arycolbring.CLproximity import (CSRMatrix, fit_logistic,
                          fit_warp, fit_bpr, fit_warp_kos)
 from ....configs import _cfg, logger, verbose
 

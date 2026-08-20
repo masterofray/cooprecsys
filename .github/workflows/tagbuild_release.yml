@@ -521,8 +521,7 @@ jobs:
         shell: bash
         run: |
           source test_env/Scripts/activate
-          echo "::notice::Windows: installing cooprecsys with --no-deps (scann has no win_amd64 wheel)."
-          uv pip install --no-deps "${{ steps.wheel_info.outputs.wheel_file }}"
+          uv pip install "${{ steps.wheel_info.outputs.wheel_file }}"
           uv pip show cooprecsys
           python -c "import cooprecsys; print('SUCCESS:', cooprecsys.__file__)"
 
