@@ -172,22 +172,24 @@ jobs:
 
           TAG_VERSION="${TAG#v}"
 
-          ARTIFACT_VERSION="$(
-            python - <<'PY'
-            from pathlib import Path
-            from packaging.utils import parse_wheel_filename, parse_sdist_filename
+          ARTIFACT_VERSION="$(python -c '
+          from pathlib import Path
+          from packaging.utils import parse_wheel_filename, parse_sdist_filename
 
-            for path in sorted(Path("dist").iterdir()):
-                if path.suffix == ".whl":
-                    _, version, _, _ = parse_wheel_filename(path.name)
-                    print(version)
-                    break
-                if path.name.endswith(".tar.gz"):
-                    _, version = parse_sdist_filename(path.name)
-                    print(version)
-                    break
-            PY
-          )"
+          version = None
+          for path in sorted(Path("dist").iterdir()):
+              if path.suffix == ".whl":
+                  _, version, _, _ = parse_wheel_filename(path.name)
+                  break
+              if path.name.endswith(".tar.gz"):
+                  _, version = parse_sdist_filename(path.name)
+                  break
+
+          if version is None:
+              raise SystemExit("Could not determine artifact version")
+
+          print(version)
+          ')"
 
           if [[ "$TAG_VERSION" != "$ARTIFACT_VERSION" ]]; then
             echo "::error::Release tag version ($TAG_VERSION) does not match artifact version ($ARTIFACT_VERSION)."
