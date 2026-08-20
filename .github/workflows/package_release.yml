@@ -23,6 +23,7 @@ jobs:
   publish:
     name: Publish GitHub Release artifacts to PyPI
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout Repository
@@ -37,6 +38,7 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -euo pipefail
+
           TAG="${RELEASE_TAG}"
 
           if [[ -z "$TAG" ]]; then
@@ -46,6 +48,7 @@ jobs:
 
           if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([.-].*)?$ ]]; then
             echo "::error::Invalid release tag: $TAG"
+            echo "::error::Expected format: vX.Y.Z"
             exit 1
           fi
 
@@ -53,14 +56,16 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
-      - name: Install Twine
+      - name: Install PyPI tools
         run: |
+          set -euo pipefail
+
           python -m pip install --upgrade pip
-          python -m pip install --upgrade twine
+          python -m pip install --upgrade twine packaging
 
       - name: Download GitHub Release artifacts
         env:
@@ -68,8 +73,11 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
+
           rm -rf dist
           mkdir -p dist
+
+          echo "Downloading artifacts for release: $TAG"
 
           gh release download "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
@@ -78,59 +86,202 @@ jobs:
             --dir dist
 
       - name: Inspect release artifacts
+        shell: bash
         run: |
           set -euo pipefail
+
+          echo "=========================================="
+          echo "RELEASE ARTIFACTS"
+          echo "=========================================="
+
           ls -lah dist/
 
           WHEEL_COUNT=$(find dist -maxdepth 1 -type f -name "*.whl" | wc -l)
           SDIST_COUNT=$(find dist -maxdepth 1 -type f -name "*.tar.gz" | wc -l)
 
+          echo
+          echo "Wheel count : $WHEEL_COUNT"
+          echo "Sdist count : $SDIST_COUNT"
+
           if [ "$WHEEL_COUNT" -eq 0 ]; then
-            echo "::error::No wheel artifacts found."
+            echo "::error::No wheel artifacts found in GitHub Release."
             exit 1
           fi
 
           if [ "$SDIST_COUNT" -eq 0 ]; then
-            echo "::error::No source distribution found."
+            echo "::error::No source distribution (.tar.gz) found in GitHub Release."
             exit 1
           fi
+
+      - name: Inspect package versions
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          python - <<'PY'
+          from pathlib import Path
+          from packaging.utils import parse_wheel_filename, parse_sdist_filename
+
+          packages = set()
+          versions = set()
+
+          print("=" * 70)
+          print("DISTRIBUTION METADATA")
+          print("=" * 70)
+
+          for path in sorted(Path("dist").iterdir()):
+              if path.suffix == ".whl":
+                  name, version, build, tags = parse_wheel_filename(path.name)
+                  print(path.name)
+                  print(f"  package : {name}")
+                  print(f"  version : {version}")
+                  print(f"  tags    : {len(tags)}")
+                  packages.add(str(name))
+                  versions.add(str(version))
+
+              elif path.name.endswith(".tar.gz"):
+                  name, version = parse_sdist_filename(path.name)
+                  print(path.name)
+                  print(f"  package : {name}")
+                  print(f"  version : {version}")
+                  packages.add(str(name))
+                  versions.add(str(version))
+
+          if packages != {"cooprecsys"}:
+              raise SystemExit(
+                  f"Unexpected package set: {sorted(packages)}; expected ['cooprecsys']"
+              )
+
+          if len(versions) != 1:
+              raise SystemExit(
+                  f"Multiple distribution versions found: {sorted(versions)}"
+              )
+
+          print("=" * 70)
+          print("Package : cooprecsys")
+          print(f"Version : {next(iter(versions))}")
+          print("=" * 70)
+          PY
+
+      - name: Verify release tag and artifact version
+        shell: bash
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          TAG_VERSION="${TAG#v}"
+
+          ARTIFACT_VERSION="$(
+            python - <<'PY'
+            from pathlib import Path
+            from packaging.utils import parse_wheel_filename, parse_sdist_filename
+
+            for path in sorted(Path("dist").iterdir()):
+                if path.suffix == ".whl":
+                    _, version, _, _ = parse_wheel_filename(path.name)
+                    print(version)
+                    break
+                if path.name.endswith(".tar.gz"):
+                    _, version = parse_sdist_filename(path.name)
+                    print(version)
+                    break
+            PY
+          )"
+
+          if [[ "$TAG_VERSION" != "$ARTIFACT_VERSION" ]]; then
+            echo "::error::Release tag version ($TAG_VERSION) does not match artifact version ($ARTIFACT_VERSION)."
+            exit 1
+          fi
+
+          echo "Version consistency check PASSED: $TAG_VERSION"
 
       - name: Verify Linux wheel tags
         shell: bash
         run: |
           set -euo pipefail
-          found=0
+
+          found_linux=0
 
           for whl in dist/*manylinux*.whl; do
             [ -f "$whl" ] || continue
-            found=1
 
-            case "$(basename "$whl")" in
+            found_linux=1
+            name="$(basename "$whl")"
+
+            echo "Checking Linux wheel: $name"
+
+            case "$name" in
               *manylinux_2_28_x86_64.whl)
-                echo "OK: $(basename "$whl")"
+                echo "  OK: contains manylinux_2_28_x86_64"
                 ;;
               *)
-                echo "::error::Unexpected Linux wheel tag: $(basename "$whl")"
+                echo "::error::Linux wheel does not contain manylinux_2_28_x86_64:"
+                echo "::error::$name"
                 exit 1
                 ;;
             esac
           done
 
-          if [ "$found" -eq 0 ]; then
-            echo "::error::No manylinux_2_28 Linux wheel found."
+          if [ "$found_linux" -eq 0 ]; then
+            echo "::error::No manylinux Linux wheel found."
             exit 1
           fi
 
       - name: Validate package with Twine
-        run: python -m twine check dist/*
+        run: |
+          set -euo pipefail
+          python -m twine check dist/*
 
-      - name: Publish to PyPI
+      - name: Generate artifact hashes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          echo "=========================================="
+          echo "SHA256"
+          echo "=========================================="
+
+          sha256sum dist/*
+
+      - name: Publish distributions to PyPI
         env:
           TWINE_USERNAME: "__token__"
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        shell: bash
         run: |
           set -euo pipefail
-          python -m twine upload --skip-existing dist/*
+
+          echo "=========================================="
+          echo "PYPI UPLOAD"
+          echo "=========================================="
+
+          mapfile -t ARTIFACTS < <(
+            find dist -maxdepth 1 -type f \
+              \( -name "*.tar.gz" -o -name "*.whl" \) \
+              -print | sort
+          )
+
+          if [ "${#ARTIFACTS[@]}" -eq 0 ]; then
+            echo "::error::No distributions found."
+            exit 1
+          fi
+
+          for artifact in "${ARTIFACTS[@]}"; do
+            echo
+            echo "--------------------------------------------------"
+            echo "Uploading: $(basename "$artifact")"
+            echo "--------------------------------------------------"
+
+            python -m twine upload \
+              --verbose \
+              --disable-progress-bar \
+              --non-interactive \
+              --skip-existing \
+              "$artifact"
+
+            echo "Upload command completed for: $(basename "$artifact")"
+          done
 
       - name: Release Summary
         env:
@@ -143,5 +294,6 @@ jobs:
           echo "Package        : cooprecsys"
           echo "Python         : 3.10 - 3.13"
           echo "Linux ABI      : manylinux_2_28_x86_64"
+          echo "Artifacts      : $(find dist -maxdepth 1 -type f | wc -l)"
           echo "Repository     : $GITHUB_REPOSITORY"
           echo "=================================================="
