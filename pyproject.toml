@@ -108,4 +108,4 @@ exclude_lines   = [
 where           = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", "*.ini"]
+"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", "*.ini", "*.sql"]
