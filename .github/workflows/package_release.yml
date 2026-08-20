@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "GitHub Release tag to publish to PyPI, e.g. v0.0.2"
+        description: "GitHub Release tag to publish to PyPI, e.g. v0.0.3"
         required: true
         type: string
 
@@ -37,7 +37,6 @@ jobs:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
           set -euo pipefail
-
           TAG="${RELEASE_TAG}"
 
           if [[ -z "$TAG" ]]; then
@@ -69,7 +68,6 @@ jobs:
           TAG: ${{ steps.release.outputs.tag }}
         run: |
           set -euo pipefail
-
           rm -rf dist
           mkdir -p dist
 
@@ -124,17 +122,15 @@ jobs:
           fi
 
       - name: Validate package with Twine
-        run: |
-          python -m twine check dist/*
+        run: python -m twine check dist/*
 
       - name: Publish to PyPI
         env:
-          TWINE_USERNAME: __token__
+          TWINE_USERNAME: "__token__"
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
-          python -m twine upload \
-            --skip-existing \
-            dist/*
+          set -euo pipefail
+          python -m twine upload --skip-existing dist/*
 
       - name: Release Summary
         env:
