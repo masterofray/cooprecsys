@@ -7,7 +7,7 @@ from libc.stdio  cimport fprintf, stderr
 from libc.math   cimport sqrt
 from cython.parallel cimport prange
 
-from ._cy_types cimport flt
+from cooprecsys.models.ary2tower.CLtowers._cy_types cimport flt
 
 
 # ------------------------------------------------------------------

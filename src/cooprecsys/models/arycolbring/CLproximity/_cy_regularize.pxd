@@ -3,7 +3,7 @@
 # regularize()        – flush accumulated lazy scale factor across all weights.
 # locked_regularize() – thread-safe version using an OMP lock pointer.
 
-from ._cy_types cimport FastAryColBring, flt
+from cooprecsys.models.arycolbring.CLproximity._cy_types cimport FastAryColBring, flt
 
 cdef extern from "omp.h" nogil:
     ctypedef struct omp_lock_t:

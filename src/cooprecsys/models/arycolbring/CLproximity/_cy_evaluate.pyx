@@ -7,8 +7,8 @@
 from libc.stdio cimport fprintf, stderr
 from cython.parallel cimport prange, parallel
 
-from _cy_types cimport CSRMatrix, flt
-from _cy_math cimport flt_compare, qsort
+from cooprecsys.models.arycolbring.CLproximity._cy_types cimport CSRMatrix, flt
+from cooprecsys.models.arycolbring.CLproximity._cy_math cimport flt_compare, qsort
 
 
 def calculate_auc_from_rank(CSRMatrix ranks,

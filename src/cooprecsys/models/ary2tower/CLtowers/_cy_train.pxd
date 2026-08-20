@@ -2,7 +2,7 @@
 # _cy_train.pxd
 # C-level declarations for BPR pairwise two-tower training step.
 
-from ._cy_types cimport TwoTowerModel, flt
+from cooprecsys.models.ary2tower.CLtowers._cy_types cimport TwoTowerModel, flt
 
 cdef flt c_sigmoid(flt x) nogil
 cdef unsigned int c_rand_r(unsigned int *seed) nogil

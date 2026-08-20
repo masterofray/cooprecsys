@@ -8,11 +8,11 @@ from libc.stdlib  cimport malloc, free
 from libc.stdio   cimport fprintf, stderr
 from cython.parallel cimport prange, parallel, threadid
 
-from ._cy_types          cimport CSRMatrix, FastAryColBring, flt
-from ._cy_math           cimport rand_r, in_positives, sigmoid
-from ._cy_representation cimport compute_representation, compute_prediction_from_repr
-from ._cy_update         cimport warp_update
-from ._cy_regularize     cimport regularize, locked_regularize, omp_lock_t, \
+from cooprecsys.models.arycolbring.CLproximity._cy_types          cimport CSRMatrix, FastAryColBring, flt
+from cooprecsys.models.arycolbring.CLproximity._cy_math           cimport rand_r, in_positives, sigmoid
+from cooprecsys.models.arycolbring.CLproximity._cy_representation cimport compute_representation, compute_prediction_from_repr
+from cooprecsys.models.arycolbring.CLproximity._cy_update         cimport warp_update
+from cooprecsys.models.arycolbring.CLproximity._cy_regularize     cimport regularize, locked_regularize, omp_lock_t, \
                                  omp_init_lock, omp_destroy_lock
 
 cdef double MAX_REG_SCALE = 1000000.0

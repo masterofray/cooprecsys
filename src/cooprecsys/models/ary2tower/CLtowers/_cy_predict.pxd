@@ -1,7 +1,7 @@
 # cython: language_level=3
 # _cy_predict.pxd
 
-from ._cy_types cimport TwoTowerModel, flt
+from cooprecsys.models.ary2tower.CLtowers._cy_types cimport TwoTowerModel, flt
 
 cdef void c_predict_pairs(
     int[::1]      user_ids,

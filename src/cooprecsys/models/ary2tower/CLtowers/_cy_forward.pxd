@@ -2,7 +2,7 @@
 # _cy_forward.pxd
 # C-level declarations for fast inter-module forward pass.
 
-from ._cy_types cimport flt
+from cooprecsys.models.ary2tower.CLtowers._cy_types cimport flt
 
 cdef void c_tower_forward(
     int[::1]    ids,

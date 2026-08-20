@@ -14,10 +14,10 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-07-30"
 
-from ._cy_types      import TwoTowerModel
-from ._cy_forward    import tower_forward
-from ._cy_similarity import dot_product, cosine_similarity
-from ._cy_train      import fit_two_tower
+from cooprecsys.models.ary2tower.CLtowers._cy_types      import TwoTowerModel
+from cooprecsys.models.ary2tower.CLtowers._cy_forward    import tower_forward
+from cooprecsys.models.ary2tower.CLtowers._cy_similarity import dot_product, cosine_similarity
+from cooprecsys.models.ary2tower.CLtowers._cy_train      import fit_two_tower
 
 __all__ = ['TwoTowerModel',
            'tower_forward',

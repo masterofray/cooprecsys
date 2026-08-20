@@ -2,7 +2,7 @@
 # _cy_similarity.pxd
 # C-level declarations for fast similarity kernels (paired user-item representations).
 
-from ._cy_types cimport flt
+from cooprecsys.models.ary2tower.CLtowers._cy_types cimport flt
 
 cdef void c_dot_product(
     flt[:, ::1] user_out,

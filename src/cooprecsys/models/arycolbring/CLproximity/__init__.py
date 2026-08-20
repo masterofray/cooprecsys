@@ -14,13 +14,13 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-04-25"
 
-from ._cy_fit_bpr      import fit_bpr
-from ._cy_fit_warp     import fit_warp
-from ._cy_fit_logistic import fit_logistic
-from ._cy_fit_warp_kos import fit_warp_kos
-from ._cy_evaluate     import calculate_auc_from_rank
-from ._cy_types        import CSRMatrix, FastAryColBring
-from ._cy_predict      import predict_arycolbring, predict_ranks
+from cooprecsys.models.arycolbring.CLproximity._cy_fit_bpr      import fit_bpr
+from cooprecsys.models.arycolbring.CLproximity._cy_fit_warp     import fit_warp
+from cooprecsys.models.arycolbring.CLproximity._cy_fit_logistic import fit_logistic
+from cooprecsys.models.arycolbring.CLproximity._cy_fit_warp_kos import fit_warp_kos
+from cooprecsys.models.arycolbring.CLproximity._cy_evaluate     import calculate_auc_from_rank
+from cooprecsys.models.arycolbring.CLproximity._cy_types        import CSRMatrix, FastAryColBring
+from cooprecsys.models.arycolbring.CLproximity._cy_predict      import predict_arycolbring, predict_ranks
 
 __all__ = ['fit_bpr',
            'fit_warp',

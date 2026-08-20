@@ -6,7 +6,7 @@
 from libc.stdio cimport fprintf, stderr
 from cython.parallel cimport prange
 
-from ._cy_types cimport flt
+from cooprecsys.models.ary2tower.CLtowers._cy_types cimport flt
 
 
 cdef void c_tower_forward(

@@ -9,7 +9,7 @@ from libc.stdio  cimport fprintf, stderr
 from libc.math   cimport exp
 from cython.parallel cimport prange, threadid
 
-from ._cy_types cimport TwoTowerModel, flt
+from cooprecsys.models.ary2tower.CLtowers._cy_types cimport TwoTowerModel, flt
 
 
 # ------------------------------------------------------------------
