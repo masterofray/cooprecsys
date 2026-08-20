@@ -107,8 +107,8 @@ jobs:
           echo "Checking and repairing Linux wheels..."
           for whl in dist/*linux_x86_64.whl; do
             if [ -f "$whl" ]; then
-              echo "Repairing $whl to manylinux format..."
-              auditwheel repair "$whl" --plat manylinux2014_x86_64 -w dist/
+              echo "Repairing $whl to manylinux_2_28 format..."
+              auditwheel repair "$whl" --plat manylinux_2_28_x86_64 -w dist/
               rm "$whl"
             fi
           done
