@@ -24,10 +24,10 @@ from pathlib import Path
 from sklearn.model_selection import GroupShuffleSplit
 
 #mlflow.set_tracking_uri("sqlite:///mlflow.db")
-LocDir = Path(__file__).resolve().parents[2] / 'src'
+LocDir = Path(__file__).resolve().parents[2] / 'src' / 'cooprecsys'
 #sys.path.append(str(LocDir))
-from src.configs import LTRConfig, logger
-from src.models  import lgbm_fit_transform
+from src.cooprecsys.configs import LTRConfig, logger
+from src.cooprecsys.models  import lgbm_fit_transform
 
 def maintest():
     logger.info("=" * 60)
@@ -36,7 +36,7 @@ def maintest():
 
     # 1. Calling data
     #_________________________________________
-    data_path = LocDir.parents[0] / 'data' / 'sampledata.parquet'
+    data_path = LocDir.parents[1] / 'data' / 'sampledata.parquet'
     if not data_path.exists():
         raise FileNotFoundError(f"Could not find {str(data_path)}.")
     logger.info(f"Loading data from {data_path}.")

@@ -190,7 +190,7 @@ class LabelEncoderManager(object):
         """Loads the most recent encoder file if path is not provided."""
         if not Path(path).is_file():
             path = latest_found(
-                        dir       = str(LocDir.parents[2]), 
+                        dir       = str(path),
                         keyword   = 'encode', 
                         recursive = True, 
                         Not4Json  = True)
