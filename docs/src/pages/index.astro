@@ -1,7 +1,7 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import { getAllDocs, getDocsByCategory, getDocUrl, getCategoryUrl } from '../lib/docs.mjs';
-import { SITE_CONFIG } from '../lib/site-config.mjs';
+import { getAllDocs, getDocsByCategory, getDocUrl, getCategoryUrl } from '../lib/docs';
+import { SITE_CONFIG } from '../lib/site-config';
 
 const docs = await getAllDocs();
 const byCategory = await getDocsByCategory();

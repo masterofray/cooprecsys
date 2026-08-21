@@ -1,7 +1,8 @@
 ---
 import Logo from './Logo.astro';
-import { SITE_CONFIG } from '../lib/site-config.mjs';
-import { getCategories, getCategoryUrl } from '../lib/docs.mjs';
+import { SITE_CONFIG } from '../lib/site-config';
+import { getCategories, getCategoryUrl } from '../lib/docs';
+
 const categories = await getCategories();
 const year = new Date().getFullYear();
 ---
@@ -19,7 +20,13 @@ const year = new Date().getFullYear();
       </div>
       <div>
         <h3 class="text-[18px] font-semibold text-black mb-5">Documentation</h3>
-        <ul class="space-y-2.5 text-[15px]">{categories.map((c)=><li><a href={getCategoryUrl(c)} class="hover:text-primary transition-colors">{c}</a></li>)}</ul>
+        <ul class="space-y-2.5 text-[15px]">
+          {categories.map((c) => (
+            <li>
+              <a href={getCategoryUrl(c)} class="hover:text-primary transition-colors">{c}</a>
+            </li>
+          ))}
+        </ul>
       </div>
       <div>
         <h3 class="text-[18px] font-semibold text-black mb-5">Project</h3>

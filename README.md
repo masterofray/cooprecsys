@@ -1,18 +1,50 @@
-[![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=master)](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
-[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
-[![Python 3.8+](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/downloads/)
-[![Code style: Python](https://img.shields.io/badge/code%20style-python-blue)](https://www.python.org/)
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/masterofray/cooprecsys/blob/dev/notebook/AryColBring_Training_Pipeline.ipynb)
+[CI/CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
+[License: GPL v3](https://www.gnu.org/licenses/gpl-3.0)
+[Python 3.10–3.13](https://www.python.org/downloads/)
+[Python](https://www.python.org/)
+[Open In Colab](https://colab.research.google.com/github/masterofray/cooprecsys/blob/dev/notebook/AryColBring_Training_Pipeline.ipynb)
 
-# CoopRecSys
+# CoopRecSys v0.0.3
+
 <p align="center">
+  <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_red.jpg" alt="CoopRecSys Logo" width="180">
+  &nbsp;&nbsp;
+  <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_navi.jpg" alt="CoopRecSys Navigation Logo" width="180">
 </p>
-    <img src="./img/cooprecsys_banner.jpg" alt="CoopRecSys Logo" width="100%">
 
-**Koperasi Recommender System ML/AI Module**
+<p align="center">
+  <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_banner.jpg" alt="CoopRecSys v0.0.3 Banner" width="100%">
+</p>
+
+**Koperasi Recommender System ML/AI Module — Release 0.0.3**
 A production-grade machine learning and AI module for building intelligent recommendation systems tailored for cooperative (koperasi) product recommendations. This system combines collaborative filtering, learning-to-rank techniques, and explainable AI dashboards.
 
+> **Current release: v0.0.3** — a packaging, native-extension compatibility, build-system, and PyPI distribution hardening release. The release preserves the core Cython implementations while improving reproducible Linux wheel builds, cross-platform packaging, artifact validation, and PyPI metadata compliance.
+
+### Release Highlights
+
+- Linux native extensions are built in a controlled manylinux-compatible environment.
+- AryColBring and Ary2Tower Cython implementations are retained; the hardening is concentrated in the build pipeline.
+- Python wheel coverage targets CPython 3.10–3.13.
+- Windows wheels continue to use the native MSVC toolchain.
+- Release artifacts are validated before PyPI publication.
+- Package metadata is aligned with the official PyPI classifier taxonomy.
+
+
 ---
+
+---
+
+## Release 0.0.3
+
+CoopRecSys v0.0.3 is the current released package version. This release focuses on packaging reliability, native-extension compatibility, reproducible wheel generation, cross-platform distribution, and PyPI metadata compliance while preserving the core recommendation-model implementations.
+
+For installation, use the published release directly from PyPI:
+
+```bash
+pip install cooprecsys==0.0.3
+```
+
 
 ## Table of Contents
 
@@ -98,6 +130,18 @@ A production-grade machine learning and AI module for building intelligent recom
 
 ## Installation
 
+### Recommended: Install from PyPI
+
+```bash
+pip install cooprecsys==0.0.3
+```
+
+Or upgrade an existing installation:
+
+```bash
+pip install --upgrade cooprecsys
+```
+
 ### Prerequisites
 
 ```bash
@@ -128,10 +172,8 @@ brew install gcc llvm libomp
    pip install -r requirements.txt
    ```
 
-4. **Compile Cython extensions** (optional, for performance)
-   ```bash
-   python setup.py build_ext --inplace
-   ```
+4. **Compile native Cython extensions (repository development only)**
+   The published v0.0.3 wheels contain the compiled native extensions for supported platforms. Manual Cython compilation is primarily required when developing directly from source.
 
 ---
 
@@ -272,8 +314,7 @@ Step-by-step walkthroughs live in `notebook/`:
 
 ## Architecture
 
-> Note: the tree below is the pre-existing high-level sketch and does not
-> reflect every actual filename in `src/models/arycolbring/` (e.g. the
+> The tree below reflects the current package-oriented `src/cooprecsys/` layout and highlights the major runtime, model, feature, dashboard, and data-access components. (e.g. the
 > real training entry point is `trainer.py`, inference is `inference.py`,
 > Cython kernels live in `CLproximity/`, and the dashboard renderers are
 > `narative/advirender.py` / `narative/rearender.py` under a light-theme,
@@ -281,48 +322,38 @@ Step-by-step walkthroughs live in `notebook/`:
 > New since the last update: `src/models/ary2tower/` (two-tower neural
 > recommender) and `notebook/` (usage walkthroughs) -- both shown below.
 
-```
+```text
 cooprecsys/
 ├── src/
-│   ├── models/
-│   │   ├── arycolbring/          # Collaborative filtering
-│   │   │   ├── model.py
-│   │   │   ├── cy/               # Cython kernels
-│   │   │   ├── evaluation.py
-│   │   │   └── cross_validation.py
-│   │   ├── ary2tower/            # Two-tower neural recommender (NEW)
-│   │   │   ├── config.py / towers.py / trainer.py / inference.py
-│   │   │   ├── CLtowers/         # Cython + OpenMP kernels
-│   │   │   └── cysetup.py / .sh / .ps1
-│   │   ├── ltr_lgbm/             # Learning-to-Rank
-│   │   │   ├── model.py
-│   │   │   ├── pipeline.py
-│   │   │   └── explainer.py
-│   │   └── dashboard/            # AI Explainability
-│   │       ├── index.html        # Main dashboard
-│   │       ├── styles.css        # Responsive styling
-│   │       └── app.js            # Interactive logic
-│   ├── configs/
-│   │   ├── configuration.ini
-│   │   └── logger.py
-│   └── utils/
-│       ├── data_utils.py
-│       └── metrics.py
-├── notebook/                     # Usage walkthroughs (NEW: 01-06)
-├── test/
-│   ├── arycolbring_tests/        # CF unit tests
-│   │   ├── test_model.py
-│   │   ├── test_evaluation.py
-│   │   └── test_data_utils.py
-│   ├── ary2tower_tests/          # Two-tower unit tests (NEW)
-│   └── ltrlgbm_test/             # LTR integration tests
-│       ├── ltrlgbm_example.py    # ← Main test script
-│       └── ltrlgbm_inferencing.py
-├── .github/workflows/
-│   └── pipeline.yml              # CI/CD automation
-├── img/
-│   └── logo_navi.jpg             # Project logo
-├── requirements.txt
+│   └── cooprecsys/
+│       ├── assets/                    # Dashboard/static asset utilities
+│       ├── configs/                   # Model and runtime configuration
+│       ├── db/                       # DuckDB integration
+│       ├── features/                 # Feature engineering and preprocessing
+│       ├── models/
+│       │   ├── arycolbring/          # Cython collaborative filtering
+│       │   │   ├── CLproximity/      # Native numerical kernels
+│       │   │   ├── inout/            # Training/inference adapters
+│       │   │   ├── narative/         # Reports and explainability rendering
+│       │   │   ├── eval/             # Evaluation and ranking metrics
+│       │   │   ├── assist/           # Supporting utilities
+│       │   │   └── inference.py / trainer.py
+│       │   ├── ary2tower/             # Two-tower neural recommender
+│       │   │   ├── CLtowers/         # Cython + OpenMP kernels
+│       │   │   ├── inout/            # Model I/O and fallback logic
+│       │   │   ├── narative/         # Training/inference reports
+│       │   │   ├── viztower/         # Embedding and performance visualizations
+│       │   │   └── config.py / towers.py / trainer.py / inference.py
+│       │   └── ltr_lgbm/              # Learning-to-Rank with LightGBM
+│       ├── noisemaker/               # Data/noise utilities
+│       ├── prepare/                  # Dataset preparation utilities
+│       ├── qrates/                   # Ranking/quality-rate utilities and SQL
+│       └── __init__.py
+├── notebook/                         # Usage and training walkthroughs
+├── test/                             # Unit and integration tests
+├── .github/workflows/                # CI/CD automation
+├── docs/                             # Astro documentation site
+├── pyproject.toml                    # Package/build metadata
 └── README.md
 ```
 
@@ -363,7 +394,7 @@ python -m http.server 8000 --directory ./artifacts/reports
        cellpadding = "14" cellspacing="0"
        style       = "border-collapse:collapse;">
     <tr><td>
-    <img src="./img/dashboard_img/01_overviews.jpg"
+    <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard01_overviews.jpg"
          alt="Overview of CoopRecSys Explainable AI Dashboard"
          style="display:block; max-width:100%; height:auto;"/>
     </td></tr>
@@ -388,7 +419,7 @@ Figure 1 displays the primary overview screen of the dashboard, combining a high
        cellpadding = "14" cellspacing="0"
        style       = "border-collapse:collapse;">
     <tr><td>
-    <img src="./img/dashboard_img/02_rankings.jpg"
+    <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard02_rankings.jpg"
          alt="Rankings of CoopRecSys Explainable AI Dashboard"
          style="display:block; max-width:100%; height:auto;"/>
     </td></tr>
@@ -426,7 +457,7 @@ The **Rankings** page provides a transparent, interactive view of model inferenc
        cellpadding = "14" cellspacing="0"
        style       = "border-collapse:collapse;">
     <tr><td>
-    <img src="./img/dashboard_img/03_diagnostics.jpg"
+    <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard03_diagnostics.jpg"
          alt="Diagnostics of CoopRecSys Explainable AI Dashboard"
          style="display:block; max-width:100%; height:auto;"/>
     </td></tr>
@@ -472,7 +503,7 @@ The **Diagnostics** page provides a consolidated environment for model introspec
        cellpadding = "14" cellspacing="0"
        style       = "border-collapse:collapse;">
     <tr><td>
-    <img src="./img/dashboard_img/04_configs.jpg"
+    <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard04_configs.jpg"
          alt="Configs of CoopRecSys table Model"
          style="display:block; max-width:100%; height:auto;"/>
     </td></tr>
@@ -561,7 +592,7 @@ All tests run automatically on:
 artifact-uploaded) alongside the existing multi-Python-version smoke
 test.
 
-**Status Badge**: [![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=master)](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
+**CI/CD Pipeline**: https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml
 
 ### Test Results
 
@@ -612,18 +643,34 @@ Contributions are welcome! Please:
 
 ---
 
-## Author
+## Author & Maintainer
 
-**Aryanto** (masterofray)
-- Email: aryanto.dandan@gmail.com
+**Aryanto (masterofray)** — Author and Maintainer
+
+- Email: [aryanto.dandan@gmail.com](mailto:aryanto.dandan@gmail.com)
 - GitHub: [@masterofray](https://github.com/masterofray)
-- Role: Author & Maintainer
+- LinkedIn: [linkedin.com/in/aryanto-ray](https://www.linkedin.com/in/aryanto-ray)
+- AI / Data Science Portfolio: [ai.arydatalabs.workers.dev](https://ai.arydatalabs.workers.dev/)
 
 ---
 
 ## License
 
 This project is licensed under the **GNU General Public License v3.0** - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## Visual Identity
+
+<p align="center">
+  <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/Cooprecsys.png" alt="CoopRecSys Product Mark" width="220">
+</p>
+
+The project also maintains dedicated navigation and red-brand assets through ImageKit:
+
+- Navigation logo: https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_navi.jpg
+- Red logo: https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_red.jpg
+- Favicon: https://ik.imagekit.io/arydatalabs/cooprecsys/favicon.ico
 
 ---
 
@@ -641,8 +688,9 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 ## Support & Issues
 
 - **Report Issues**: [GitHub Issues](https://github.com/masterofray/cooprecsys/issues)
-- **Documentation**: See `/docs` folder
-- **Email**: aryanto.dandan@gmail.com
+- **Documentation**: See `/docs` or the published documentation site
+- **PyPI**: https://pypi.org/project/cooprecsys/
+- **Email**: [aryanto.dandan@gmail.com](mailto:aryanto.dandan@gmail.com)
 
 ---
 

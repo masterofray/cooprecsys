@@ -17,6 +17,7 @@ mlruns/
 # Dependencies
 node_modules/
 */node_modules/
+*/.astro/
 
 # Distribution / packaging
 .Python
