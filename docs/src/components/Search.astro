@@ -8,165 +8,53 @@
         query: '',
         loading: false,
         results: [],
-        popular: [],
-        fallbackIndex: [],
-        fallbackLoadState: 'idle',
-        fallbackPromise: null,
         pagefindStatus: 'unknown',
         searchRequestId: 0,
-        fallbackReported: false,
-        init() {
-            this.ensureFallbackData();
-        },
-        async ensureFallbackData() {
-            if (this.fallbackLoadState === 'ready') return true;
-            if (this.fallbackLoadState === 'loading' && this.fallbackPromise) {
-                await this.fallbackPromise;
-                return this.fallbackLoadState === 'ready';
-            }
-
-            this.fallbackLoadState = 'loading';
-            this.fallbackPromise = fetch('/search-index.json')
-                .then((res) => {
-                    if (!res.ok) {
-                        throw new Error(`Fallback index request failed (${res.status})`);
-                    }
-                    return res.json();
-                })
-                .then((payload) => {
-                    this.fallbackIndex = Array.isArray(payload?.docs) ? payload.docs : [];
-                    this.popular = Array.isArray(payload?.popular) ? payload.popular : [];
-                    this.fallbackLoadState = 'ready';
-                })
-                .catch((error) => {
-                    console.error('Fallback search index failed to load:', error);
-                    this.fallbackLoadState = 'error';
-                    this.fallbackIndex = [];
-                    this.popular = [];
-                });
-
-            await this.fallbackPromise;
-            return this.fallbackLoadState === 'ready';
-        },
-        scoreFallbackItem(item, q, tokens) {
-            const title = (item.title || '').toLowerCase();
-            const excerpt = (item.excerpt || '').toLowerCase();
-            const category = (item.category || '').toLowerCase();
-
-            let score = 0;
-            if (title === q) score += 300;
-            if (title.startsWith(q)) score += 180;
-            if (title.includes(q)) score += 120;
-            if (category.includes(q)) score += 50;
-            if (excerpt.includes(q)) score += 35;
-
-            for (const token of tokens) {
-                if (title.startsWith(token)) score += 50;
-                else if (title.includes(token)) score += 30;
-                if (category.includes(token)) score += 10;
-                if (excerpt.includes(token)) score += 8;
-            }
-
-            return score;
-        },
-        fallbackSearch(term) {
-            const q = term.trim().toLowerCase();
-            if (!q) return [];
-            const tokens = q.split(/\s+/).filter(Boolean);
-
-            return this.fallbackIndex
-                .map((item) => ({
-                    item,
-                    score: this.scoreFallbackItem(item, q, tokens),
-                }))
-                .filter((entry) => entry.score > 0)
-                .sort((a, b) => {
-                    if (b.score !== a.score) return b.score - a.score;
-                    return a.item.title.localeCompare(b.item.title);
-                })
-                .slice(0, 8)
-                .map(({ item }) => ({
-                    url: item.url,
-                    title: item.title,
-                    excerptText: item.excerpt,
-                }));
-        },
-        reportFallback(reason) {
-            if (this.fallbackReported) return;
-            this.fallbackReported = true;
-            window.dispatchEvent(
-                new CustomEvent('sgkb:search:fallback', {
-                    detail: { reason },
-                }),
-            );
-            console.info('Search fallback enabled:', reason);
-        },
         async ensurePagefind() {
             if (this.pagefindStatus === 'ready') return true;
             if (this.pagefindStatus === 'unavailable') return false;
-            if (typeof window.pagefind !== 'undefined') {
-                this.pagefindStatus = 'ready';
-                return true;
-            }
             try {
-                window.pagefind = await import('/pagefind/pagefind.js');
+                window.pagefind = await import('/cooprecsys/pagefind/pagefind.js');
                 await window.pagefind.init();
                 this.pagefindStatus = 'ready';
                 return true;
-            } catch {
+            } catch (error) {
+                console.error('Pagefind failed to initialize:', error);
                 this.pagefindStatus = 'unavailable';
                 return false;
             }
         },
-        async runFallbackSearch(query, reason, requestId) {
-            const hasIndex = await this.ensureFallbackData();
-            if (requestId !== this.searchRequestId) return;
-            if (!hasIndex) {
-                this.results = [];
-                this.loading = false;
-                return;
-            }
-            this.reportFallback(reason);
-            this.results = this.fallbackSearch(query);
-            this.loading = false;
-        },
         async search() {
             const requestId = ++this.searchRequestId;
             this.open = true;
-
             const query = this.query.trim();
             if (!query) {
                 this.results = [];
                 this.loading = false;
                 return;
             }
-
             this.loading = true;
-            const pagefindReady = await this.ensurePagefind();
-            if (requestId !== this.searchRequestId) return;
-
-            if (!pagefindReady) {
-                await this.runFallbackSearch(query, 'pagefind-unavailable', requestId);
+            if (!(await this.ensurePagefind())) {
+                this.results = [];
+                this.loading = false;
                 return;
             }
-
+            if (requestId !== this.searchRequestId) return;
             try {
                 const found = await window.pagefind.search(query);
                 if (requestId !== this.searchRequestId) return;
-
-                const pagefindResults = await Promise.all(
-                    found.results.slice(0, 8).map((r) => r.data()),
-                );
+                const pagefindResults = await Promise.all(found.results.slice(0, 8).map((r) => r.data()));
                 if (requestId !== this.searchRequestId) return;
-
                 this.results = pagefindResults.map((result) => ({
                     url: result.url,
                     title: result.meta?.title || 'Untitled',
                     excerptText: result.excerpt?.replace(/<[^>]*>/g, '') || '',
                 }));
-                this.loading = false;
-            } catch {
-                await this.runFallbackSearch(query, 'pagefind-search-error', requestId);
+            } catch (error) {
+                console.error('Pagefind search failed:', error);
+                this.results = [];
+            } finally {
+                if (requestId === this.searchRequestId) this.loading = false;
             }
         },
         async searchFromButton() {
@@ -174,10 +62,6 @@
             await this.search();
             this.$refs.searchInput?.focus();
         },
-        async usePopular(term) {
-            this.query = term;
-            await this.search();
-        }
     }"
     @click.outside="open = false"
     @keydown.escape="open = false"
@@ -191,7 +75,7 @@
             x-ref="searchInput"
             type="text"
             x-model="query"
-            @focus="focused = true; open = true; ensureFallbackData()"
+            @focus="focused = true; open = true; ensurePagefind()"
             @blur="focused = false"
             @click="open = true"
             @input="loading = query.trim().length > 0"

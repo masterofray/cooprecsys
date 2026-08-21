@@ -7,7 +7,7 @@
     "dev": "astro dev",
     "start": "astro dev",
     "build": "astro build",
-    "postbuild": "pagefind --site dist",
+    "build:search": "pagefind --site dist",
     "preview": "astro preview",
     "astro": "astro"
   },
@@ -30,5 +30,8 @@
     "pagefind": "^1.4.0",
     "turndown": "^7.2.2"
   },
-  "description": "Advanced documentation site for the CoopRecSys Python ML/AI recommendation system."
+  "description": "Advanced documentation site for the CoopRecSys Python ML/AI recommendation system.",
+  "engines": {
+    "node": ">=20.0.0"
+  }
 }
