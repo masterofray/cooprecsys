@@ -2,7 +2,7 @@
 import { getCollection } from "astro:content";
 import Layout from "../../../layouts/Layout.astro";
 import Search from "../../../components/Search.astro";
-import { getDocUrl, getCategoryUrl } from "../../../lib/docs.mjs";
+import { getDocUrl, getCategoryUrl } from "../../../lib/docs";
 
 export async function getStaticPaths() {
     const allDocs = await getCollection("docs");

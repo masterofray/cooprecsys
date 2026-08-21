@@ -1,7 +1,7 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import Logo from "../components/Logo.astro";
-import { SITE_CONFIG } from "../lib/site-config.mjs";
+import { SITE_CONFIG } from "../lib/site-config";
 ---
 
 <Layout title="404 - Page Not Found">
@@ -61,11 +61,10 @@ import { SITE_CONFIG } from "../lib/site-config.mjs";
                                 stroke-width="2.5"
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
-                                ><path
-                                    d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
-                                ></path><polyline points="9 22 9 12 15 12 15 22"
-                                ></polyline></svg
                             >
+                                <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+                            </svg>
                             Back to Home
                         </a>
                         <a
@@ -82,20 +81,17 @@ import { SITE_CONFIG } from "../lib/site-config.mjs";
                                 stroke-width="2.5"
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
-                                ><path
-                                    d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"
-                                ></path><polyline points="14 2 14 8 20 8"
-                                ></polyline></svg
                             >
+                                <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
                             Browse Docs
                         </a>
                     </div>
                 </div>
             </div>
 
-            <p
-                class="mt-12 text-sm text-brand-gray-400 font-bold uppercase tracking-widest"
-            >
+            <p class="mt-12 text-sm text-brand-gray-400 font-bold uppercase tracking-widest">
                 Search might help you find what you need
             </p>
         </div>
