@@ -1,0 +1,19 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import SearchHero from '../../components/SearchHero.astro';
+import { getDocsByCategory, getDocUrl, getCategoryUrl, getAllDocs } from '../../lib/docs';
+
+const allDocs = await getAllDocs();
+const byCategory = await getDocsByCategory();
+const categories = Object.entries(byCategory);
+---
+<Layout title="Documentation - CoopRecSys" description="Browse CoopRecSys documentation by architecture, model family, data pipeline, explainability, and operations.">
+  <SearchHero articleCount={allDocs.length} categoryCount={categories.length} lastUpdatedLabel="current release" />
+  <section class="py-14 bg-white">
+    <div class="container-wide">
+      <div class="grid md:grid-cols-2 xl:grid-cols-3 gap-5">
+        {categories.map(([category, docs]) => <a href={getCategoryUrl(category)} class="rounded-[20px] border border-brand-gray-200 p-6 hover:border-primary/40 hover:shadow-[var(--sgkb-shadow-md)] transition-all"><div class="flex items-center justify-between"><h2 class="text-xl font-semibold">{category}</h2><span class="text-xs px-2.5 py-1 rounded-full bg-brand-gray-100">{docs.length}</span></div><p class="mt-3 text-sm text-brand-gray-500 leading-6">{docs[0]?.data.description || `Documentation for ${category}.`}</p><div class="mt-5 space-y-2">{docs.slice(0,4).map((doc)=><div class="text-sm font-medium hover:text-primary">{doc.data.title}</div>)}</div></a>)}
+      </div>
+    </div>
+  </section>
+</Layout>

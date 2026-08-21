@@ -1,0 +1,66 @@
+---
+title: "Package Architecture"
+description: "How the CoopRecSys package is divided into assets, configuration, data access, feature engineering, model families, preparation, and evaluation."
+category: "Architecture"
+order: 30
+tags: ["architecture", "package-structure", "design"]
+author: "Aryanto"
+---
+
+## High-level architecture
+
+```text
+cooprecsys/
+├── assets/        # dashboard assets and visualization helpers
+├── configs/       # model and runtime configuration
+├── db/            # DuckDB access utilities
+├── features/      # feature engineering and encoding
+├── models/
+│   ├── arycolbring/
+│   ├── ary2tower/
+│   └── ltr_lgbm/
+├── noisemaker/    # data/noise manipulation utilities
+├── prepare/       # preparation and structural utilities
+└── qrates/        # scoring/rating and SQL helpers
+```
+
+## Model layers
+
+### AryColBring
+
+The collaborative-filtering implementation is centered on `CLproximity/`, which contains Cython source and compiled extension modules. Higher-level modules under `inout/`, `narative/`, and the model root provide training, inference, rendering, and support logic.
+
+### Ary2Tower
+
+The two-tower model uses `CLtowers/` for Cython kernels, with `towers.py`, `trainer.py`, `inference.py`, and `inout/` providing the Python-facing orchestration layer. The `narative/` and `viztower/` subtrees handle reporting and visualization responsibilities.
+
+### LTR-LightGBM
+
+The LTR model is separated into data preparation, inference/training handlers, reporting, optimization-related utilities, and visualization helpers.
+
+## Data flow
+
+```text
+Raw transactions / model input
+          |
+          v
+     prepare + db
+          |
+          v
+   features + encoding
+          |
+          +----------------------+
+          |                      |
+          v                      v
+     AryColBring            Ary2Tower / LTR
+          |                      |
+          +----------+-----------+
+                     |
+                     v
+              evaluation/report
+                     |
+                     v
+          dashboards / artifacts
+```
+
+The actual repository is more detailed than the historical README sketch. The source tree supplied for this documentation is treated as authoritative for current directory naming.

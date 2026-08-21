@@ -1,0 +1,49 @@
+---
+title: "Ary2Tower: Two-Tower Neural Recommendation"
+description: "Architecture and operating notes for the Ary2Tower dual-encoder recommendation model."
+category: "Models"
+order: 50
+tags: ["ary2tower", "two-tower", "neural-recommender", "cython"]
+author: "Aryanto"
+---
+
+## Architecture
+
+Ary2Tower follows a two-tower representation-learning pattern. Each tower transforms its input embedding through dense layers and ReLU activations before producing a comparable representation.
+
+The repository README describes the conceptual stack as:
+
+```text
+Embedding → Dense → ReLU → Dense
+```
+
+Similarity is computed using dot-product or cosine-style comparison depending on the implementation path.
+
+## Training
+
+The project documentation describes BPR-style pairwise training with SGD and momentum. The orchestration layer is located in `trainer.py`, while native kernels live in `CLtowers/`.
+
+## Native kernels
+
+```text
+src/cooprecsys/models/ary2tower/CLtowers/
+```
+
+The directory contains Cython `.pyx` sources, `.pxd` declarations, generated C sources, and compiled extension modules.
+
+## Fallback behavior
+
+The existing package design includes a pure-NumPy fallback when the compiled extension is unavailable. This makes the model more portable for environments where a native build is not available, at the cost of native-kernel performance.
+
+## Visualization
+
+`viztower/` contains visualization modules for:
+
+- embedding inspection,
+- model metrics,
+- performance plots,
+- dashboard components.
+
+## When to choose Ary2Tower
+
+Use Ary2Tower when the recommendation problem benefits from learned continuous representations and separate user/item tower transformations rather than a purely tabular ranking formulation.

@@ -1,0 +1,73 @@
+---
+title: "Current Source Tree Reference"
+description: "Reference for the current ./src/cooprecsys package structure supplied for this documentation."
+category: "Reference"
+order: 120
+tags: ["reference", "source-tree", "api"]
+author: "Aryanto"
+---
+
+The following structure reflects the repository tree supplied for this documentation effort.
+
+```text
+src/cooprecsys/
+├── assets/
+│   ├── icon/
+│   ├── dashboard_utils.py
+│   ├── statsrender.py
+│   └── vizdata.py
+├── configs/
+│   ├── configuration.ini
+│   ├── fallback_config.py
+│   ├── lgbm_config.py
+│   └── logged.py
+├── db/
+│   └── callduckdb.py
+├── features/
+│   ├── date_processor.py
+│   ├── encdec.py
+│   ├── feat_engine.py
+│   ├── feat_utils.py
+│   ├── lgbm_processor.py
+│   └── load.py
+├── models/
+│   ├── ary2tower/
+│   │   ├── CLtowers/
+│   │   ├── inout/
+│   │   ├── narative/
+│   │   ├── viztower/
+│   │   ├── a2tcysetup.py
+│   │   ├── config.py
+│   │   ├── inference.py
+│   │   ├── report.py
+│   │   ├── towers.py
+│   │   └── trainer.py
+│   ├── arycolbring/
+│   │   ├── CLproximity/
+│   │   ├── assist/
+│   │   ├── eval/
+│   │   ├── inout/
+│   │   ├── narative/
+│   │   ├── cysetup.py
+│   │   ├── inference.py
+│   │   ├── reasoner2api.py
+│   │   └── trainer.py
+│   └── ltr_lgbm/
+│       ├── ftcore/
+│       ├── inout/
+│       ├── report/
+│       ├── dataprepared.py
+│       ├── ltr_call.py
+│       └── ltr_predict.py
+├── noisemaker/
+├── prepare/
+└── qrates/
+```
+
+## Design boundary
+
+The structure separates concerns rather than forcing every capability into the model classes. This is useful for maintenance because data preparation, model training, report generation, and dashboard support can evolve independently.
+
+## Native extension directories
+
+`CLproximity/` and `CLtowers/` are special cases. They contain Cython sources and generated native binaries. When distributing through PyPI, prefer built wheels so end users receive a tested artifact rather than compiling those modules ad hoc.

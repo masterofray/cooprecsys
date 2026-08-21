@@ -1,0 +1,100 @@
+---
+import Logo from './Logo.astro';
+import { SITE_CONFIG } from '../lib/site-config';
+
+const links = SITE_CONFIG.links;
+const navItems = [
+  { name: 'Home', href: links.home },
+  { name: 'Documentation', href: links.docsHome },
+  { name: 'PyPI', href: links.pypi, external: true },
+  { name: 'GitHub', href: links.github, external: true },
+];
+const currentPath = Astro.url.pathname;
+---
+<div x-data="{ mobileMenuOpen: false, scrolled: false, init() { window.addEventListener('scroll', () => { this.scrolled = window.scrollY > 20; }); } }">
+  <header class="sticky top-0 z-50 w-full border-b border-brand-gray-200 bg-white transition-all duration-300" :class="scrolled ? 'shadow-sm' : ''">
+    <div class="container-wide flex h-[88px] items-center justify-between">
+      <div class="flex items-center gap-8">
+        <a href={links.home} class="shrink-0 transition-transform active:scale-95" aria-label="CoopRecSys home">
+          <Logo />
+        </a>
+        <nav class="hidden lg:flex items-center gap-7">
+          {navItems.map((nav) => {
+            const active = !nav.external && currentPath.startsWith(nav.href);
+            return (
+              <a
+                href={nav.href}
+                class:list={[
+                  'text-[16px] leading-none font-medium transition-colors whitespace-nowrap',
+                  active ? 'text-brand-gray-900' : 'text-[var(--sgkb-header-nav)] hover:text-brand-gray-900'
+                ]}
+                target={nav.external ? '_blank' : undefined}
+                rel={nav.external ? 'noopener noreferrer' : undefined}
+              >
+                {nav.name}
+              </a>
+            );
+          })}
+        </nav>
+      </div>
+      <div class="flex items-center gap-3">
+        <a
+          href={links.portfolio}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hidden sm:inline-flex items-center px-6 py-3 bg-primary text-white text-[15px] font-semibold rounded-full hover:bg-primary-dark transition-all active:scale-95"
+        >
+          Author Portfolio
+        </a>
+        <button
+          type="button"
+          @click="mobileMenuOpen = true"
+          class="lg:hidden p-2 text-brand-gray-600 hover:bg-brand-gray-100 rounded-lg"
+          aria-label="Open menu"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Mobile Menu Drawer -->
+  <div
+    x-show="mobileMenuOpen"
+    class="fixed inset-0 z-[100] lg:hidden"
+    style="display: none;"
+  >
+    <div class="absolute inset-0 bg-brand-gray-900/50 backdrop-blur-sm" @click="mobileMenuOpen = false"></div>
+    <div class="absolute inset-y-0 right-0 w-full max-w-xs bg-white shadow-2xl p-7 flex flex-col">
+      <div class="flex items-center justify-between mb-8">
+        <Logo />
+        <button @click="mobileMenuOpen = false" class="p-2 bg-brand-gray-50 rounded-xl" aria-label="Close menu">✕</button>
+      </div>
+      <nav class="flex flex-col gap-2">
+        {navItems.map((nav) => (
+          <a
+            href={nav.href}
+            target={nav.external ? '_blank' : undefined}
+            rel={nav.external ? 'noopener noreferrer' : undefined}
+            @click="mobileMenuOpen = false"
+            class="px-4 py-3 rounded-xl font-medium hover:bg-brand-gray-50"
+          >
+            {nav.name}
+          </a>
+        ))}
+      </nav>
+      <div class="mt-auto pt-8 border-t border-brand-gray-100">
+        <a
+          href={links.portfolio}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="block w-full py-3 bg-primary text-white text-center font-bold rounded-xl"
+        >
+          Author Portfolio
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
