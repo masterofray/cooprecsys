@@ -1,7 +1,7 @@
 ---
 import Logo from './Logo.astro';
-import { SITE_CONFIG } from '../lib/site-config';
-import { getCategories, getCategoryUrl } from '../lib/docs';
+import { SITE_CONFIG } from '../lib/site-config.mjs';
+import { getCategories, getCategoryUrl } from '../lib/docs.mjs';
 const categories = await getCategories();
 const year = new Date().getFullYear();
 ---

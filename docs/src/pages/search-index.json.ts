@@ -1,6 +1,6 @@
 import { getCollection } from "astro:content";
 import type { APIRoute } from "astro";
-import { getDocUrl } from "../lib/docs.ts";
+import { getDocUrl } from "../lib/docs.mjs";
 
 export const prerender = true;
 

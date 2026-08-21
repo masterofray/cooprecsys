@@ -1,7 +1,7 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import SearchHero from '../../components/SearchHero.astro';
-import { getDocsByCategory, getDocUrl, getCategoryUrl, getAllDocs } from '../../lib/docs';
+import { getDocsByCategory, getDocUrl, getCategoryUrl, getAllDocs } from '../../lib/docs.mjs';
 
 const allDocs = await getAllDocs();
 const byCategory = await getDocsByCategory();
