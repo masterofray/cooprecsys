@@ -9,10 +9,10 @@
   <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_banner.jpg" alt="CoopRecSys v0.0.3 Banner" width="100%">
 </p>
 
-**Cooperative Recommender System ML/AI Module — Release 0.0.3**
+**Cooperative Recommender System ML/AI Module Release 0.0.3**
 A production-grade machine learning and AI module for building intelligent recommendation systems tailored for cooperative (koperasi) product recommendations. This system combines collaborative filtering, learning-to-rank techniques, and explainable AI dashboards.
 
-> **Current release: v0.0.3** — a packaging, native-extension compatibility, build-system, and PyPI distribution hardening release. The release preserves the core Cython implementations while improving reproducible Linux wheel builds, cross-platform packaging, artifact validation, and PyPI metadata compliance.
+> **Current release is v0.0.3**: a packaging, native-extension compatibility, build-system, and PyPI distribution hardening release. The release preserves the core Cython implementations while improving reproducible Linux wheel builds, cross-platform packaging, artifact validation, and PyPI metadata compliance.
 
 ### Release Highlights
 
@@ -110,7 +110,7 @@ pip install cooprecsys==0.0.3
 | Component | Technology | Version |
 |-----------|-----------|---------|
 | **Language** | Python | 3.10+ |
-| **Performance** | Cython | 0.29+ |
+| **Performance** | Cython | 3.0.1+ |
 | **ML Framework** | LightGBM | Latest |
 | **Matrix Ops** | NumPy, SciPy | 1.21+, 1.7+ |
 | **Data Processing** | Pandas, DuckDB | 1.3+, 0.8+ |
@@ -653,20 +653,6 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 
 ---
 
-## Visual Identity
-
-<p align="center">
-  <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/Cooprecsys.png" alt="CoopRecSys Product Mark" width="220">
-</p>
-
-The project also maintains dedicated navigation and red-brand assets through ImageKit:
-
-- Navigation logo: https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_navi.jpg
-- Red logo: https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_red.jpg
-- Favicon: https://ik.imagekit.io/arydatalabs/cooprecsys/favicon.ico
-
----
-
 ## References
 
 - [AryColBring Model Documentation](src/models/README.md)
@@ -681,7 +667,7 @@ The project also maintains dedicated navigation and red-brand assets through Ima
 ## Support & Issues
 
 - **Report Issues**: [GitHub Issues](https://github.com/masterofray/cooprecsys/issues)
-- **Documentation**: See [Documentation](https://masterofray.github.io/cooprecsys/) or the published documentation site
+- **Documentation**: See [Documentation](https://masterofray.github.io/cooprecsys/) as published documentation site
 - **PyPI**: https://pypi.org/project/cooprecsys/
 - **Email**: [aryanto.dandan@gmail.com](mailto:aryanto.dandan@gmail.com)
 
