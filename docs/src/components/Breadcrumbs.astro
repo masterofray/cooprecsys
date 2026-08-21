@@ -8,7 +8,7 @@ interface Props {
 }
 
 const { items, variant = "default" } = Astro.props;
-import { SITE_CONFIG } from "../lib/site-config";
+import { SITE_CONFIG } from "../lib/site-config.mjs";
 
 const textClass = variant === "white" ? "text-white/80" : "text-brand-gray-400";
 const activeTextClass =

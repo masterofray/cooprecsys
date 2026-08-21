@@ -2,8 +2,8 @@
 import Layout from "./Layout.astro";
 import Sidebar from "../components/Sidebar.astro";
 import TableOfContents from "../components/TableOfContents.astro";
-import { SITE_CONFIG } from "../lib/site-config";
-import { getCategoryUrl } from "../lib/docs";
+import { SITE_CONFIG } from "../lib/site-config.mjs";
+import { getCategoryUrl } from "../lib/docs.mjs";
 
 interface Props {
     title: string;
