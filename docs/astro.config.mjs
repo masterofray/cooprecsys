@@ -14,12 +14,6 @@ export default defineConfig({
   ],
   vite: {
     plugins: [tailwindcss()],
-    resolve: {
-      alias: {
-        '@components': '/src/components',
-        '../../components': '/src/components',
-      },
-    },
   },
   output: 'static',
 });
