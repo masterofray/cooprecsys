@@ -1,0 +1,40 @@
+---
+import Logo from './Logo.astro';
+import { SITE_CONFIG } from '../lib/site-config';
+import { getCategories, getCategoryUrl } from '../lib/docs';
+const categories = await getCategories();
+const year = new Date().getFullYear();
+---
+<footer class="bg-[var(--sgkb-footer-bg)] text-[var(--sgkb-footer-text)] pt-16 pb-8 font-inter">
+  <div class="container-wide">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1.25fr_0.8fr_0.8fr_1fr] gap-10 lg:gap-14 mb-14">
+      <div>
+        <Logo />
+        <p class="mt-5 max-w-[38ch] text-[16px] leading-[1.65]">Advanced documentation for CoopRecSys: recommendation models, feature engineering, explainability, dashboards, packaging, and deployment.</p>
+        <div class="flex flex-wrap gap-3 mt-6">
+          <a href={SITE_CONFIG.links.portfolio} target="_blank" rel="noopener noreferrer" class="text-primary font-semibold">Portfolio</a>
+          <a href={SITE_CONFIG.links.linkedin} target="_blank" rel="noopener noreferrer" class="text-primary font-semibold">LinkedIn</a>
+          <a href={SITE_CONFIG.links.email} class="text-primary font-semibold">Email</a>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-[18px] font-semibold text-black mb-5">Documentation</h3>
+        <ul class="space-y-2.5 text-[15px]">{categories.map((c)=><li><a href={getCategoryUrl(c)} class="hover:text-primary transition-colors">{c}</a></li>)}</ul>
+      </div>
+      <div>
+        <h3 class="text-[18px] font-semibold text-black mb-5">Project</h3>
+        <ul class="space-y-2.5 text-[15px]">
+          <li><a href={SITE_CONFIG.links.github} target="_blank" rel="noopener noreferrer">GitHub</a></li>
+          <li><a href={SITE_CONFIG.links.pypi} target="_blank" rel="noopener noreferrer">PyPI</a></li>
+          <li><a href={SITE_CONFIG.links.issues} target="_blank" rel="noopener noreferrer">Issues</a></li>
+        </ul>
+      </div>
+      <div class="bg-white border border-[var(--sgkb-footer-border)] rounded-2xl p-6">
+        <h3 class="text-[18px] font-semibold text-black mb-4">Maintainer</h3>
+        <p class="text-[15px] leading-[1.6]">Aryanto (masterofray)</p>
+        <p class="text-[14px] mt-2"><a class="text-primary" href={SITE_CONFIG.links.email}>aryanto.dandan@gmail.com</a></p>
+      </div>
+    </div>
+    <div class="pt-6 border-t border-[var(--sgkb-footer-bottom-border)] text-center text-[14px]">© {year} Aryanto · CoopRecSys · GPL-3.0</div>
+  </div>
+</footer>

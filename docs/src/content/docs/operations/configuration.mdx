@@ -1,0 +1,56 @@
+---
+title: "Configuration & Runtime Operations"
+description: "Configure model defaults, MLflow tracking, logging, and runtime behavior using the current CoopRecSys configuration layout."
+category: "Operations"
+order: 90
+tags: ["configuration", "mlflow", "logging", "runtime"]
+author: "Aryanto"
+---
+
+## Configuration locations
+
+The current package contains:
+
+```text
+src/cooprecsys/configs/
+├── configuration.ini
+├── fallback_config.py
+├── lgbm_config.py
+└── logged.py
+```
+
+The model-specific packages also contain their own `config.py` modules where appropriate.
+
+## MLflow
+
+For local tracking:
+
+```bash
+export MLFLOW_TRACKING_URI=file:./mlruns
+```
+
+For a remote server:
+
+```bash
+export MLFLOW_TRACKING_URI=http://localhost:5000
+```
+
+## Logging
+
+The project README identifies `LOG_LEVEL` as an environment-level control:
+
+```bash
+export LOG_LEVEL=DEBUG
+```
+
+Use a less verbose level for routine production execution and raise verbosity only when investigating pipeline behavior.
+
+## Configuration discipline
+
+Keep model configuration versioned with the experiment or release that generated the model. In production, record the effective configuration alongside:
+
+- model version,
+- feature engineering version,
+- data window,
+- execution timestamp,
+- experiment/run identifier.

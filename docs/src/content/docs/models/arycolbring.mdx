@@ -1,0 +1,77 @@
+---
+title: "AryColBring: Cython-Accelerated Collaborative Filtering"
+description: "Technical guide to the AryColBring model family, supported losses, native kernels, and operational considerations."
+category: "Models"
+order: 40
+tags: ["arycolbring", "collaborative-filtering", "cython", "openmp"]
+author: "Aryanto"
+---
+
+## Purpose
+
+AryColBring is the package's high-performance collaborative-filtering model. The implementation is optimized around sparse interactions and native numerical kernels.
+
+## Supported objectives
+
+The project README identifies four training objectives:
+
+- `logistic`
+- `warp`
+- `bpr`
+- `warp-kos`
+
+These provide different optimization behaviors for implicit-feedback recommendation settings.
+
+## Native implementation
+
+The high-throughput kernels are under:
+
+```text
+src/cooprecsys/models/arycolbring/CLproximity/
+```
+
+The directory contains Cython `.pyx` sources, generated C sources, and compiled Python extension modules. Hot paths can therefore execute outside the Python interpreter's normal bytecode loop.
+
+## Conceptual training flow
+
+```text
+sparse interaction matrix
+        |
+        v
+index / representation preparation
+        |
+        v
+native training kernel
+        |
+        +--> logistic / BPR / WARP / WARP-kOS
+        |
+        v
+user-item representation
+        |
+        v
+prediction / ranking
+```
+
+## Practical considerations
+
+### Sparse data
+
+Use sparse matrices for interaction-heavy workloads. This reduces memory pressure and aligns with the computational assumptions of collaborative filtering.
+
+### Threading
+
+The package supports multi-threaded training through native/OpenMP paths and higher-level parallelization utilities. Thread counts should be tuned against the host CPU and workload size.
+
+### Native wheels
+
+For v0.0.3, the release pipeline builds Linux wheels inside a manylinux environment and tests package import after installation. This avoids relying on a local developer's glibc/toolchain combination.
+
+## Evaluation
+
+The repository includes evaluation modules under:
+
+```text
+src/cooprecsys/models/arycolbring/eval/
+```
+
+and test coverage for model and evaluation behavior under the repository's test suite.

@@ -1,0 +1,61 @@
+---
+title: "Explainability & Dashboard Architecture"
+description: "Overview of the CoopRecSys dashboard ecosystem, reporting layers, and explainability workflow."
+category: "Explainability & Dashboards"
+order: 80
+tags: ["dashboard", "explainability", "shap", "diagnostics"]
+author: "Aryanto"
+---
+
+![CoopRecSys dashboard overview](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard01_overviews.jpg)
+
+CoopRecSys includes dashboard and report-generation components designed to move model outputs from raw scores to interpretable operational evidence.
+
+## Dashboard surfaces
+
+The documented dashboard is organized into four conceptual surfaces:
+
+1. **Overview** — high-level prediction and dataset status.
+2. **Rankings** — inspect the produced recommendation ordering.
+3. **Diagnostics** — investigate feature importance, score distributions, drift, and SHAP samples.
+4. **Configs** — inspect and manage model configuration.
+
+## Ranking surface
+
+![CoopRecSys rankings](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard02_rankings.jpg)
+
+The Rankings view is intended for inspecting top predictions with feature context, explainability signals, filters, sorting, and snapshots.
+
+## Diagnostics surface
+
+![CoopRecSys diagnostics](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard03_diagnostics.jpg)
+
+The Diagnostics view is intended for model introspection, including feature importance, relevance-score distributions, SHAP sample inspection, and drift indicators.
+
+The README identifies GAIN, SPLIT, permutation importance, KS tests, and PSI as relevant diagnostics concepts.
+
+## Configuration surface
+
+![CoopRecSys configurations](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard04_configs.jpg)
+
+The Config view centralizes LTR-related configuration such as objectives, metrics, learning rate, depth, leaves, feature/bagging fractions, and regularization parameters.
+
+## Narrative reporting
+
+Model packages expose `narative/` trees containing report renderers, templates, static assets, and support code. These modules are responsible for turning model artifacts into human-readable reports rather than changing the underlying model implementation.
+
+## Operational principle
+
+Explainability should be treated as part of the model delivery lifecycle:
+
+```text
+model output
+   ↓
+feature contributions / importance
+   ↓
+diagnostics + ranking context
+   ↓
+narrative explanation
+   ↓
+analyst / ML engineer review
+```

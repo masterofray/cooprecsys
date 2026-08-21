@@ -1,0 +1,52 @@
+---
+title: "Data Preparation & Feature Engineering"
+description: "Responsibilities of the prepare, db, features, and configuration layers in the current CoopRecSys source tree."
+category: "Data & Features"
+order: 70
+tags: ["data", "features", "duckdb", "encoding"]
+author: "Aryanto"
+---
+
+## Data and preparation layers
+
+The current source tree exposes dedicated packages for data preparation and feature engineering:
+
+```text
+prepare/
+db/
+features/
+configs/
+```
+
+### `prepare/`
+
+Contains helpers for columns identification, dictionary/JSON handling, missing/failed-item processing, and archive/unzip operations.
+
+### `db/`
+
+The current tree contains `callduckdb.py`, indicating a focused DuckDB access layer for analytical ingestion and processing.
+
+### `features/`
+
+The feature layer includes date processing, encoding/decoding, feature-engineering orchestration, feature utilities, LightGBM-specific processing, and loading helpers.
+
+## Feature engineering principles
+
+For recommendation workloads, treat feature engineering as a reproducible transformation layer rather than embedding transformations directly into model training code.
+
+A production pipeline should preserve:
+
+- feature names and types,
+- category/value mappings,
+- temporal windows,
+- train/test boundaries,
+- transformation assumptions,
+- model/version metadata.
+
+## DuckDB integration
+
+DuckDB is used as an analytical data-access component in the package. This is especially useful when feature preparation requires columnar scans, aggregation, or intermediate SQL-based transformations without introducing a separate database service.
+
+## Encodings
+
+The `encdec.py` module indicates a dedicated location for encoding/decoding concerns. Ensure the same fitted mappings or deterministic encoding rules are used at inference time.

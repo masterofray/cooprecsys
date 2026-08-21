@@ -1,0 +1,70 @@
+---
+title: "Testing, CI/CD, and Native Build Validation"
+description: "How the CoopRecSys project validates Python, Cython, manylinux, Windows, release artifacts, and PyPI publication."
+category: "Operations"
+order: 100
+tags: ["testing", "ci-cd", "github-actions", "manylinux", "pypi"]
+author: "Aryanto"
+---
+
+## Test layers
+
+The repository README documents several validation layers:
+
+```bash
+python -m test.ltrlgbm_test.ltrlgbm_example
+pytest test/arycolbring_tests/ -v
+pytest test/ary2tower_tests/ -v
+pytest test/ --cov=src --cov-report=html
+black --check src test
+flake8 src test
+isort --check-only src test
+```
+
+## Native extension build
+
+The release process compiles the Cython extensions for each supported CPython version. Linux builds are produced in a controlled manylinux environment; Windows builds use the native MSVC toolchain.
+
+This matters because a Cython extension is an ELF/PE binary, not pure Python. A wheel can pass package metadata validation while still failing at import time if it was compiled against an incompatible runtime ABI.
+
+## Wheel validation
+
+The publishing pipeline validates:
+
+- wheel and sdist presence,
+- package name consistency,
+- version consistency,
+- Linux manylinux tags,
+- `twine check`,
+- artifact SHA-256 hashes,
+- installed-wheel import tests in isolated environments.
+
+## Release pipeline
+
+The practical release flow is:
+
+```text
+version in pyproject.toml
+        ↓
+Git tag
+        ↓
+Cython/native build matrix
+        ↓
+wheel + sdist
+        ↓
+isolated installation tests
+        ↓
+GitHub Release
+        ↓
+PyPI publisher
+```
+
+## PyPI metadata compliance
+
+The v0.0.3 release hardened package metadata after PyPI rejected an invalid classifier. The supported classifier for the beta stage is:
+
+```text
+Development Status :: 4 - Beta
+```
+
+This illustrates an important release-engineering rule: local checks such as `twine check` should be supplemented with server-side publication diagnostics.

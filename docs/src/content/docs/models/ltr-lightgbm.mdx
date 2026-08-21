@@ -1,0 +1,76 @@
+---
+title: "LTR-LightGBM: Learning-to-Rank Pipeline"
+description: "How CoopRecSys structures group-aware ranking, feature-rich recommendation, tuning, inference, and experiment tracking with LightGBM."
+category: "Models"
+order: 60
+tags: ["lightgbm", "learning-to-rank", "mlflow", "ranking"]
+author: "Aryanto"
+---
+
+## Purpose
+
+LTR-LightGBM is the tabular, feature-rich ranking path in CoopRecSys. It is appropriate when recommendation quality depends on engineered features, query groups, and ranking-oriented objectives.
+
+## Group-aware splitting
+
+The project README demonstrates splitting by customer identity so that a user's rows stay within the intended train/test partition:
+
+```python
+from sklearn.model_selection import GroupShuffleSplit
+
+gss = GroupShuffleSplit(n_splits=1, test_size=0.2)
+train_idx, test_idx = next(gss.split(data, groups=data['CustomerID']))
+train_df = data.iloc[train_idx]
+test_df = data.iloc[test_idx]
+```
+
+Group-aware splitting is critical for avoiding leakage when multiple interactions belong to the same customer or query group.
+
+## Configuration
+
+The model configuration is represented through `src/cooprecsys/configs/configuration.ini` and the LTR configuration modules under `configs/`.
+
+A representative configuration from the project README includes:
+
+```ini
+[model]
+loss = warp
+num_components = 32
+learning_rate = 0.05
+epochs = 10
+
+[data]
+test_size = 0.2
+random_state = 42
+
+[mlflow]
+experiment_name = cooprecsys_prod
+```
+
+## Ranking metrics
+
+The original project documentation identifies NDCG, MAP, and AUC as ranking/evaluation metrics. Use the metric set that matches the production objective and the structure of the query groups.
+
+## Experiment tracking
+
+MLflow integration is part of the documented LTR workflow. Configure `MLFLOW_TRACKING_URI` for local or remote tracking before running experiments.
+
+## Production workflow
+
+```text
+transaction rows
+      ↓
+feature engineering
+      ↓
+query/customer grouping
+      ↓
+train / validation split
+      ↓
+LightGBM ranking model
+      ↓
+metrics + MLflow
+      ↓
+ranking inference
+      ↓
+explainability / report artifacts
+```

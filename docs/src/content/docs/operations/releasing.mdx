@@ -1,0 +1,43 @@
+---
+title: "Release Engineering: v0.0.3 and Beyond"
+description: "A release checklist for building, validating, tagging, and publishing CoopRecSys artifacts."
+category: "Operations"
+order: 110
+tags: ["release", "versioning", "pypi", "artifacts"]
+author: "Aryanto"
+---
+
+## Versioning
+
+Set the version in `pyproject.toml` before a release:
+
+```toml
+version = "0.0.3"
+```
+
+Then create the matching Git tag:
+
+```text
+v0.0.3
+```
+
+The build and publisher workflows should treat the package version and release tag as one invariant.
+
+## Artifact set
+
+For v0.0.3, the expected release family contains a source distribution and platform-specific wheels for the Python versions in the release matrix.
+
+## Recommended release sequence
+
+1. Update `pyproject.toml` version and any release metadata.
+2. Confirm Trove classifiers are valid.
+3. Build Linux and Windows wheels.
+4. Build the source distribution.
+5. Run isolated installation tests.
+6. Create/update the GitHub Release.
+7. Run the PyPI publisher against the release artifacts.
+8. Verify the new release on PyPI.
+
+## Why artifacts should not be repaired at publish time
+
+Native extension binaries should be compiled in the intended compatibility environment before they become release artifacts. The PyPI publisher should validate and upload artifacts, not attempt to change their ABI after the fact.

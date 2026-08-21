@@ -1,0 +1,68 @@
+---
+title: "Installation & Environment Setup"
+description: "Install CoopRecSys from PyPI, prepare a virtual environment, and verify the native recommendation stack."
+category: "Getting Started"
+order: 10
+tags: ["installation", "python", "pypi", "environment"]
+author: "Aryanto"
+---
+
+## Recommended installation
+
+For released builds, install CoopRecSys from PyPI inside an isolated Python environment.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install cooprecsys==0.0.3
+```
+
+On Windows PowerShell:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install cooprecsys==0.0.3
+```
+
+## Verify the installation
+
+```bash
+python -c "import cooprecsys; print(cooprecsys.__file__)"
+```
+
+The import test should complete without an unresolved native-symbol error. The project CI validates installed Linux and Windows wheels by importing the package in isolated environments.
+
+## Source checkout
+
+```bash
+git clone https://github.com/masterofray/cooprecsys.git
+cd cooprecsys
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+```
+
+For development builds that need Cython extensions compiled locally, install the project build dependencies and run the repository's platform-specific Cython build commands described in the model-specific documentation.
+
+## Native build considerations
+
+The package contains Cython/OpenMP native kernels under `arycolbring/CLproximity` and `ary2tower/CLtowers`. Released Linux wheels are built in a controlled manylinux environment so that the generated shared libraries use a compatible Linux ABI.
+
+You normally **do not need a local compiler when installing a compatible published wheel**.
+
+## Supported release matrix
+
+The v0.0.3 release process targets:
+
+| Platform family | Python |
+| --- | --- |
+| Linux x86_64 | 3.10, 3.11, 3.12, 3.13 |
+| Windows x86_64 | 3.10, 3.11, 3.12, 3.13 |
+
+## Installation troubleshooting
+
+If `import cooprecsys` fails immediately after installation, first verify that the wheel tag matches your interpreter and platform. Do not mix a wheel built for another CPython minor version with the current interpreter.
