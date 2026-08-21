@@ -1,0 +1,46 @@
+---
+title: "Welcome to CoopRecSys"
+description: "Orientation to CoopRecSys, its model families, production scope, and documentation map."
+category: "Overview"
+order: 1
+tags: ["overview", "recommendation-systems", "ml", "ai"]
+author: "Aryanto"
+tableOfContents: true
+---
+
+![CoopRecSys banner](https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_banner.jpg)
+
+CoopRecSys is a Python machine-learning and AI module for building recommendation systems tailored to cooperative product-recommendation workloads.
+
+The current release line combines three recommendation approaches:
+
+- **AryColBring** — Cython/OpenMP collaborative filtering with Logistic, WARP, BPR, and WARP-kOS losses.
+- **Ary2Tower** — a two-tower neural recommender with Cython/OpenMP kernels and a pure-NumPy fallback path.
+- **LTR-LightGBM** — learning-to-rank based recommendation workflows with group-aware splitting, ranking metrics, and MLflow tracking.
+
+The package also includes data preparation, feature processing, DuckDB integration, evaluation helpers, narrative/reporting components, and dashboard-oriented visualization utilities.
+
+## What this documentation covers
+
+The documentation is organized around how an ML engineer actually operates the package:
+
+1. **Getting Started** — installation, environments, package verification, and first-run guidance.
+2. **Architecture** — repository layout and how data, features, models, evaluation, and dashboards fit together.
+3. **Models** — detailed guidance for AryColBring, Ary2Tower, and LTR-LightGBM.
+4. **Data & Features** — ingestion, preparation, encoding, and feature engineering responsibilities.
+5. **Explainability & Dashboards** — interpretation workflows and the four dashboard surfaces.
+6. **Operations** — configuration, testing, CI/CD, native build behavior, and release engineering.
+7. **Reference** — package surface, conventions, and implementation notes.
+
+## Release baseline
+
+The current documentation targets **CoopRecSys v0.0.3**, with the CI release matrix covering Python 3.10–3.13 and Linux manylinux-compatible x86_64 wheels plus Windows wheels.
+
+> **Engineering note:** the repository contains generated native artifacts under individual model directories in some development checkouts. For consumers, the recommended installation path is the published wheel or source distribution rather than copying generated `.so` files manually.
+
+## Maintainer
+
+**Aryanto (masterofray)**  
+Portfolio: [ai.arydatalabs.workers.dev](https://ai.arydatalabs.workers.dev)  
+LinkedIn: [linkedin.com/in/aryanto-ray](https://www.linkedin.com/in/aryanto-ray)  
+Email: [aryanto.dandan@gmail.com](mailto:aryanto.dandan@gmail.com)

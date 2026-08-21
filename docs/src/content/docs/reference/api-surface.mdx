@@ -1,0 +1,45 @@
+---
+title: "API Surface & Import Guidance"
+description: "How to think about the public package surface and where to look when integrating CoopRecSys into an application."
+category: "Reference"
+order: 130
+tags: ["api", "imports", "integration"]
+author: "Aryanto"
+---
+
+## Package entry point
+
+The package is imported as:
+
+```python
+import cooprecsys
+```
+
+Model functionality is organized beneath the `models` package. The project README demonstrates direct imports for the documented model families, for example:
+
+```python
+from src.models.arycolbring import AryColBring
+```
+
+and LTR workflows through the LTR modules.
+
+## Integration recommendation
+
+For application integration, keep the following boundaries explicit:
+
+- **data layer** — input normalization and loading,
+- **feature layer** — deterministic feature transformations,
+- **model layer** — training/inference,
+- **evaluation layer** — offline metrics,
+- **explainability layer** — diagnostics and narrative reports,
+- **application layer** — business-specific orchestration.
+
+This separation makes it easier to test inference independently from the training pipeline and to version feature transformations alongside the model artifact.
+
+## API documentation scope
+
+This site intentionally documents the package architecture and stable integration concepts using the source tree and project README as the primary evidence. It does not invent a generated symbol-by-symbol API reference for functions whose signatures are not exposed by the supplied materials.
+
+For exact implementation signatures, use the source repository:
+
+[GitHub source](https://github.com/masterofray/cooprecsys)

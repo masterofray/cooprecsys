@@ -1,0 +1,32 @@
+---
+title: "Contributing & Development Standards"
+description: "Development workflow, testing expectations, and contribution practices for CoopRecSys."
+category: "Development"
+order: 150
+tags: ["contributing", "development", "testing"]
+author: "Aryanto"
+---
+
+## Contribution workflow
+
+1. Fork the repository.
+2. Create a focused feature branch.
+3. Add or update tests with the change.
+4. Run the model-specific test suite.
+5. Run formatting and lint checks.
+6. Update documentation when behavior or interfaces change.
+7. Open a pull request with a concise technical description.
+
+## Development standards
+
+The existing project README recommends:
+
+- PEP 8-compatible Python style,
+- docstrings for functions,
+- type hints,
+- unit tests for new code,
+- README/documentation updates for new features.
+
+## Native code changes
+
+Changes to Cython kernels deserve additional scrutiny because they affect both source-level behavior and compiled binary compatibility. Validate changes on the supported Python matrix and confirm the generated wheel imports successfully before creating a release.

@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://masterofray.github.io/cooprecsys/sitemap-index.xml
