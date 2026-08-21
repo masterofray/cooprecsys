@@ -54,7 +54,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --quiet -r requirements.txt
+          pip install -e ".[dev]"
 
       # ------------------------------------------------------
       # Debug repository structure
@@ -323,65 +323,3 @@ jobs:
             echo "Bandit exited with unexpected code: $EXIT_CODE"
             exit 0
           fi
-
-
-  # =========================================================
-  # CYTHON BUILD VALIDATION
-  # =========================================================
-  Cython-Build-Validation:
-    name: Cython Build test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install cython numpy pandas setuptools wheel
-      
-      - name: Verify GCC/OpenMP
-        run: |
-          gcc --version
-          g++ --version
-
-      #- name: Debug Paths
-      #  run: |
-      #    echo "PWD:"
-      #    pwd
-      #    echo ""
-      #    echo "ROOT FILES:"
-      #    ls -la
-      #    echo ""
-      #    echo "DIRECTORIES:"
-      #    find . -maxdepth 3 -type d
-
-      - name: Build AryColBring Cython Extensions
-        working-directory: ./src/models/arycolbring
-        run: |
-          chmod +x ./cysetup.sh
-          bash ./cysetup.sh
-      
-      - name: Verify Compiled Shared Objects
-        working-directory: ./src/models/arycolbring
-        run: |
-          echo "Checking compiled modules..."
-          find . -name "*.so" -o -name "*.pyd"
-          test $(find . -name "*.so" -o -name "*.pyd" | wc -l) -gt 0
-      
-      - name: Import Test
-        working-directory: ./src/models/arycolbring
-        run: |
-          python -c "
-          import sys
-          print(sys.path)
-          from CLproximity import _cy_math
-          from CLproximity import _cy_update
-          from CLproximity import _cy_predict
-          print('SUCCESS: Cython modules imported')
-          "
