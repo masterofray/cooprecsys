@@ -44,7 +44,7 @@ from ....prepare import latest_found, FileCopier
 
 rpath        = _cfg.get('PATHS', 'html_report_path')
 STATIC_DIR   = LocDir.parent / "static"
-IMG_DIR      = LocDir.parents[5] / 'img'
+IMG_DIR      = LocDir.parents[3] / 'assets' / 'icon'
 OUTPUT_DIR   = (LocDir.parents[5] / rpath).parents[0]
 DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
