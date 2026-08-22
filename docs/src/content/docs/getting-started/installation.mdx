@@ -1,10 +1,11 @@
 ---
 title: "Installation & Environment Setup"
-description: "Install CoopRecSys from PyPI, prepare a virtual environment, and verify the native recommendation stack."
+description: "Install CoopRecSys from a wheel or source checkout, verify the native stack, and build Ary2Tower extensions locally when required."
 category: "Getting Started"
 order: 10
-tags: ["installation", "python", "pypi", "environment"]
+tags: ["installation", "python", "pypi", "environment", "cython"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ## Recommended installation
@@ -16,7 +17,7 @@ python -m venv .venv
 source .venv/bin/activate
 
 python -m pip install --upgrade pip
-python -m pip install cooprecsys==0.0.3
+python -m pip install cooprecsys
 ```
 
 On Windows PowerShell:
@@ -25,16 +26,23 @@ On Windows PowerShell:
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install cooprecsys==0.0.3
+python -m pip install cooprecsys
 ```
 
-## Verify the installation
+## Verify the package
 
 ```bash
 python -c "import cooprecsys; print(cooprecsys.__file__)"
 ```
 
-The import test should complete without an unresolved native-symbol error. The project CI validates installed Linux and Windows wheels by importing the package in isolated environments.
+For Ary2Tower, verify the native backend too:
+
+```python
+from cooprecsys.models.ary2tower.towers import backend_info
+print(backend_info())
+```
+
+The result tells you whether the compiled Cython/OpenMP path is available. The Python API remains usable through NumPy when native modules are unavailable.
 
 ## Source checkout
 
@@ -46,23 +54,44 @@ source .venv/bin/activate
 python -m pip install --upgrade pip
 ```
 
-For development builds that need Cython extensions compiled locally, install the project build dependencies and run the repository's platform-specific Cython build commands described in the model-specific documentation.
+## Build Ary2Tower Cython extensions
 
-## Native build considerations
+The development build entry point is deliberately inside the model package:
 
-The package contains Cython/OpenMP native kernels under `arycolbring/CLproximity` and `ary2tower/CLtowers`. Released Linux wheels are built in a controlled manylinux environment so that the generated shared libraries use a compatible Linux ABI.
+```bash
+python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
+```
 
-You normally **do not need a local compiler when installing a compatible published wheel**.
+This command compiles the five `CLtowers` extension modules in place so the normal Python imports resolve them directly from the package directory.
+
+Unix helper:
+
+```bash
+./src/cooprecsys/models/ary2tower/cysetup.sh
+```
+
+PowerShell helper:
+
+```powershell
+.\src\cooprecsys\models\ary2tower\cysetup.ps1
+```
+
+When packaging for a wheel, compile inside the CI matrix rather than relying on a developer's local binary ABI. Consumers should install the resulting wheel rather than recompiling it.
+
+## Source build dependencies
+
+A native build requires a compatible C/C++ toolchain, Python development headers, Cython, NumPy, and an OpenMP-capable compiler/runtime appropriate to the host platform.
 
 ## Supported release matrix
 
-The v0.0.3 release process targets:
+The repository release workflow targets CPython 3.10–3.13 for Linux x86_64 and Windows x86_64 wheels. Validate the imported package in each target environment rather than treating a successful compilation alone as sufficient.
 
-| Platform family | Python |
-| --- | --- |
-| Linux x86_64 | 3.10, 3.11, 3.12, 3.13 |
-| Windows x86_64 | 3.10, 3.11, 3.12, 3.13 |
+## Troubleshooting native imports
 
-## Installation troubleshooting
+If the Cython build succeeds but `backend_info()` still reports the NumPy path, check:
 
-If `import cooprecsys` fails immediately after installation, first verify that the wheel tag matches your interpreter and platform. Do not mix a wheel built for another CPython minor version with the current interpreter.
+1. the extension files exist inside `models/ary2tower/CLtowers`;
+2. the extension names match the current Python ABI;
+3. the current working tree is the one imported by Python (`print(cooprecsys.__file__)`);
+4. no stale build directory shadows the package;
+5. the wheel contains the compiled extension modules.

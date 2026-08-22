@@ -1,0 +1,54 @@
+---
+title: "Noisemaker: Splitting, Exchange & Robustness Utilities"
+description: "How the noisemaker package supports controlled train/test splits, feature exchange, and robustness experiments without changing the model implementation."
+category: "Data & Features"
+order: 75
+tags: ["noisemaker", "split", "robustness", "data"]
+author: "Aryanto"
+lastUpdated: "2026-08-22"
+---
+
+## Purpose
+
+`noisemaker/` is a data-manipulation layer. It should be used to create controlled training/evaluation conditions, not to hide business logic inside a recommender.
+
+```text
+src/cooprecsys/noisemaker/
+├── ersetz.py
+├── flex.py
+└── ostensible.py
+```
+
+## `flex.py`: controlled train/test splitting
+
+`coo_ttsplit()` handles sparse-matrix train/test splitting, while `user_based_train_test_split()` keeps a user-level boundary when that is required by the evaluation design.
+
+The latter is important for recommender validation because randomly splitting individual interactions can leak a user's preference profile into both train and validation sets.
+
+```python
+from cooprecsys.noisemaker.flex import user_based_train_test_split
+
+train_df, test_df = user_based_train_test_split(
+    transactions,
+    test_size=0.2,
+    random_state=42,
+)
+```
+
+The exact split function should match the representation used by the model and the intended production query boundary.
+
+## `ersetz.py`: feature/interactions exchange
+
+This module contains utilities for transforming transaction tables into sparse interaction representations while optionally retaining user/item feature matrices and sample weights.
+
+Its design overlaps conceptually with `qrates.quasi_grade.Decomposition_Matrix_Dev()`. The practical difference is intent: `noisemaker` is useful for controlled data manipulation/experimentation, while `qrates` is the scoring/rating layer.
+
+## `ostensible.py`: robustness transformations
+
+`extended_norm_exchange()` provides another controlled transformation path around feature/interaction values. Use these helpers when testing how sensitive a model is to perturbation or alternate representations.
+
+## Production guidance
+
+Keep the original dataset immutable and version the transformation parameters used for the experiment. A robustness experiment is only useful if another engineer can reproduce both the transformation and the baseline model result.
+
+Avoid using `noisemaker` as a hidden online serving step. Serving data should pass through deterministic, explicitly versioned preprocessing instead.
