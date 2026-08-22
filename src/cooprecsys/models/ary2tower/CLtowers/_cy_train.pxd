@@ -4,9 +4,9 @@
 
 from cooprecsys.models.ary2tower.CLtowers._cy_types cimport TwoTowerModel, flt
 
-cdef flt c_sigmoid(flt x) nogil
-cdef unsigned int c_rand_r(unsigned int *seed) nogil
-cdef flt c_dot(flt* a, flt* b, int dim) nogil
+cdef flt c_sigmoid(flt x) noexcept nogil
+cdef unsigned int c_rand_r(unsigned int *seed) noexcept nogil
+cdef flt c_dot(flt* a, flt* b, int dim) noexcept nogil
 
 cdef void tower_forward_single(
     flt[:, ::1] embeddings,
@@ -20,7 +20,7 @@ cdef void tower_forward_single(
     int         output_dim,
     flt*        hidden_scratch,
     flt*        out_scratch
-) nogil
+) noexcept nogil
 
 cdef void tower_backward_update(
     flt[:, ::1] embeddings,
@@ -38,7 +38,7 @@ cdef void tower_backward_update(
     double      learning_rate,
     double      momentum_coef,
     flt*        d_hidden_scratch
-) nogil
+) noexcept nogil
 
 cdef void c_fit_two_tower(
     int[::1]          user_ids,
@@ -51,4 +51,4 @@ cdef void c_fit_two_tower(
     unsigned int[::1] random_states,
     flt*              scratch_pool,
     bint              verbose
-) nogil
+) noexcept nogil

@@ -16,14 +16,14 @@ from cooprecsys.models.ary2tower.CLtowers._cy_types cimport TwoTowerModel, flt
 # Inline C Utilities & Math Kernels
 # ------------------------------------------------------------------
 
-cdef inline flt c_sigmoid(flt x) nogil:
+cdef inline flt c_sigmoid(flt x) noexcept nogil:
     if x > 0.0:
         return <flt>(1.0 / (1.0 + exp(-x)))
     else:
         return <flt>(exp(x) / (1.0 + exp(x)))
 
 
-cdef inline unsigned int c_rand_r(unsigned int *seed) nogil:
+cdef inline unsigned int c_rand_r(unsigned int *seed) noexcept nogil:
     """Minimal thread-local xorshift PRNG for nogil sampling."""
     seed[0] ^= seed[0] << 13
     seed[0] ^= seed[0] >> 17
@@ -31,7 +31,7 @@ cdef inline unsigned int c_rand_r(unsigned int *seed) nogil:
     return seed[0]
 
 
-cdef inline flt c_dot(flt* a, flt* b, int dim) nogil:
+cdef inline flt c_dot(flt* a, flt* b, int dim) noexcept nogil:
     cdef int k
     cdef flt acc = 0.0
     for k in range(dim):
@@ -51,7 +51,7 @@ cdef inline void tower_forward_single(
     int         output_dim,
     flt*        hidden_scratch,
     flt*        out_scratch
-) nogil:
+) noexcept nogil:
     """Forward pass for ONE entity ID."""
     cdef int j, k
     cdef flt acc
@@ -85,7 +85,7 @@ cdef inline void tower_backward_update(
     double      learning_rate,
     double      momentum_coef,
     flt*        d_hidden_scratch
-) nogil:
+) noexcept nogil:
     """Backprop & SGD+Momentum update in-place for ONE entity."""
     cdef int j, k, m
     cdef flt grad, velocity, d_hidden_pre
@@ -150,7 +150,7 @@ cdef void c_fit_two_tower(
     unsigned int[::1] random_states,
     flt*              scratch_pool,
     bint              verbose
-) nogil:
+) noexcept nogil:
     cdef int no_examples = user_ids.shape[0]
     cdef int embedding_dim = model.embedding_dim
     cdef int hidden_dim = model.hidden_dim
@@ -293,11 +293,18 @@ def fit_two_tower(
     cdef int output_dim = model.output_dim
     cdef int stride = 4 * hidden_dim + 6 * output_dim
 
-    cdef unsigned int[::1] random_states = (
-        random_state
-        .randint(1, 2 ** 31 - 1, size=num_threads)
-        .astype(np.uint32)
-    )
+    if num_threads <= 0:
+        raise ValueError("num_threads must be > 0")
+
+    # numpy.default_rng() exposes `integers`, while the legacy RandomState
+    # exposes `randint`. Support both so Python-side RNG choice is not a
+    # hidden failure point for the compiled training backend.
+    if hasattr(random_state, "integers"):
+        seed_values = random_state.integers(1, 2 ** 31 - 1, size=num_threads, dtype=np.uint32)
+    else:
+        seed_values = random_state.randint(1, 2 ** 31 - 1, size=num_threads).astype(np.uint32)
+
+    cdef unsigned int[::1] random_states = seed_values
 
     # Contiguous scratch pool allocation (Single allocation, 0 thread locks)
     cdef flt* scratch_pool = <flt*>malloc(sizeof(flt) * num_threads * stride)

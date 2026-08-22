@@ -1,155 +1,170 @@
 #!/usr/bin/env python3
+"""Residual candidate generation for ary2tower inference.
 
-__author__     = "Aryanto"
-__copyright__  = "Copyright 2026, Masterofray/Rekomendasi Produk Koperasi"
-__credits__    = ["aryanto"]
-__license__    = "GNU_Public"
-__version__    = "0.0.1"
-__maintainer__ = "Aryanto"
-__email__      = "aryanto.dandan@gmail.com"
-__status__     = "Development"
-__created__    = "2026-08-01"
-
+The fallback is deliberately NOT item-to-item filtering. Its job is to fill
+remaining recommendation slots with candidates that are globally relevant,
+recent and statistically reliable when the learned ranker/candidate pool is
+short. The primary path should normally score the full catalogue with the
+compiled two-tower kernel; this class is the final backstop.
 """
-fallback_reasoner.py
-_________________________________________
-TwoTowerFallBack: purchase-aware recommendation cleanup + item-to-item
-cold-start fallback, for a two-tower model's item tower outputs.
-Mirrors AryInfFallBack's role and output contract
-(arycolbring/inout/fallback_reasoner.py):
+from __future__ import annotations
 
-  1. Filter: drop candidates already in the user's purchase history.
-  2. Item-to-item fallback: if filtering leaves the list short, backfill
-     via cosine similarity over item embeddings, seeded by the user's
-     purchase history (or an explicit seed list for a brand-new user
-     with no purchase history at all -- the true cold-start case).
-
-Intentionally simpler than AryInfFallBack in one respect: column
-auto-detection there goes through `prepare.DetectReco_Identifier`
-(a heavier dependency); this module takes explicit `user_col`/
-`item_col` instead, keeping ary2tower's own dependency footprint to
-just NumPy/pandas.
-"""
-
+from typing import Any, Dict, List, Optional, Set, Tuple
 import numpy as np
 import pandas as pd
 from ....configs import logger
-from typing import Any, Dict, List, Optional, Set, Tuple
 
 
 class TwoTowerFallBack:
-    """Wraps a trained item tower's output embeddings with
-    purchase-aware recommendation cleanup.
-
-    Parameters
-    ----------
-    purchase_data   : DataFrame with (at least) a user-id and an
-        item-id column.
-    item_embeddings : (n_items, output_dim) tower outputs (e.g.
-        `TwoTowerInference.weights.item_embeddings` after running every
-        catalog item through the item tower once).
-    user_col, item_col : column names in `purchase_data`.
-    """
-
     SOURCE_MODEL = "model_topn"
-    SOURCE_ITEM2ITEM = "item2item_fallback"
+    SOURCE_POPULARITY = "bayesian_popularity_fallback"
 
-    def __init__(self, purchase_data: pd.DataFrame,
-                 item_embeddings: np.ndarray,
-                 user_col: str = "user_id", item_col: str = "item_id"):
+    def __init__(
+        self,
+        purchase_data: pd.DataFrame,
+        n_items: int,
+        user_col: str = "user_id",
+        item_col: str = "item_id",
+        timestamp_col: Optional[str] = None,
+        half_life_days: float = 30.0,
+        prior_strength: float = 10.0,
+    ):
         if user_col not in purchase_data.columns:
-            raise ValueError(f"user_col '{user_col}' not found in purchase_data "
-                             f"columns: {list(purchase_data.columns)}")
+            raise ValueError(f"user_col '{user_col}' not found in purchase_data")
         if item_col not in purchase_data.columns:
-            raise ValueError(f"item_col '{item_col}' not found in purchase_data "
-                             f"columns: {list(purchase_data.columns)}")
+            raise ValueError(f"item_col '{item_col}' not found in purchase_data")
+        if n_items <= 0:
+            raise ValueError("n_items must be > 0")
+        if prior_strength <= 0:
+            raise ValueError("prior_strength must be > 0")
 
         self.user_col = user_col
         self.item_col = item_col
-        self.item_embeddings = np.asarray(item_embeddings, dtype=np.float64)
+        self.n_items = int(n_items)
+        self.half_life_days = float(half_life_days)
+        self.prior_strength = float(prior_strength)
         self._purchase_map = self._build_purchase_map(purchase_data)
-        logger.info("TwoTowerFallBack initialized: %d user(s) with purchase history, "
-                   "%d item embedding(s).", len(self._purchase_map),
-                   self.item_embeddings.shape[0])
+        self._fallback_scores = self._build_fallback_scores(
+            purchase_data, timestamp_col=timestamp_col
+        )
 
-    def _build_purchase_map(self, purchase_data: pd.DataFrame) -> Dict[Any, Set[Any]]:
-        return purchase_data.groupby(self.user_col)[self.item_col].apply(set).to_dict()
+        logger.info(
+            "TwoTowerFallBack initialized: %d users, %d catalogue items, strategy=%s",
+            len(self._purchase_map), self.n_items, self.SOURCE_POPULARITY,
+        )
 
-    def purchased_items(self, user_id: Any) -> Set[Any]:
-        """Every item `user_id` has already purchased (empty set for an
-        unseen/new user)."""
+    def _build_purchase_map(self, data: pd.DataFrame) -> Dict[Any, Set[int]]:
+        out: Dict[Any, Set[int]] = {}
+        for uid, group in data.groupby(self.user_col, sort=False):
+            out[uid] = set(int(x) for x in group[self.item_col].dropna().tolist())
+        return out
+
+    def purchased_items(self, user_id: Any) -> Set[int]:
         return self._purchase_map.get(user_id, set())
 
-    def item_to_item_candidates(self, seed_items: List[int],
-                                 exclude: Optional[Set[int]] = None,
-                                 n: int = 5) -> List[Tuple[int, float]]:
-        """Cosine-similarity neighbors of the (mean of the) `seed_items`
-        embeddings -- the true cold-start path: works from any seed
-        item list, purchase history or otherwise (e.g. items viewed in
-        the current session), with no dependency on the model having
-        seen the target user before.
+    def _build_fallback_scores(
+        self, data: pd.DataFrame, timestamp_col: Optional[str]
+    ) -> np.ndarray:
+        """Bayesian-smoothed global prior, optionally time-decayed.
+
+        Score = log1p(weighted interaction count) shrunk toward the global
+        mean. This is substantially more robust than raw popularity and does
+        not use item-item similarity.
         """
-        exclude = set(exclude or set())
-        n_catalog = self.item_embeddings.shape[0]
-        valid_seeds = [i for i in seed_items if 0 <= i < n_catalog]
-        if not valid_seeds:
-            logger.warning("item_to_item_candidates(): no valid seed items in range.")
-            return list()
+        valid = pd.to_numeric(data[self.item_col], errors="coerce")
+        mask = valid.notna() & (valid >= 0) & (valid < self.n_items)
+        items = valid[mask].astype(np.int64).to_numpy()
+        weights = np.ones(items.shape[0], dtype=np.float64)
 
-        seed_vector = self.item_embeddings[valid_seeds].mean(axis=0)
-        norms = np.linalg.norm(self.item_embeddings, axis=1)
-        seed_norm = np.linalg.norm(seed_vector)
-        similarities = (self.item_embeddings @ seed_vector) / (norms * seed_norm + 1e-8)
+        time_col = timestamp_col
+        if time_col is None:
+            for candidate in ("timestamp", "event_time", "created_at", "datetime", "date"):
+                if candidate in data.columns:
+                    time_col = candidate
+                    break
+        if time_col is not None and time_col in data.columns and items.size:
+            ts = pd.to_datetime(data.loc[mask, time_col], errors="coerce", utc=True)
+            if ts.notna().any():
+                age_days = (ts.max() - ts).dt.total_seconds().to_numpy() / 86400.0
+                age_days = np.maximum(np.nan_to_num(age_days, nan=0.0, posinf=0.0, neginf=0.0), 0.0)
+                weights = np.exp(-np.log(2.0) * age_days / max(self.half_life_days, 1e-6))
 
-        order = np.argsort(similarities)[::-1]
-        excluded_ids = exclude | set(valid_seeds)
-        results: List[Tuple[int, float]] = list()
-        for idx in order:
-            idx = int(idx)
-            if idx in excluded_ids:
+        weighted_counts = np.bincount(items, weights=weights, minlength=self.n_items).astype(np.float64)
+        positive = weighted_counts[weighted_counts > 0]
+        global_mean = float(positive.mean()) if positive.size else 0.0
+        smoothed = (weighted_counts + self.prior_strength * global_mean) / (1.0 + self.prior_strength)
+        scores = np.log1p(smoothed)
+
+        # Deterministic tie-breaker: lower item ids come later only when scores tie.
+        scores += np.linspace(0.0, -1e-9, self.n_items)
+        return scores.astype(np.float64, copy=False)
+
+    def popularity_candidates(
+        self,
+        exclude: Optional[Set[int]] = None,
+        n: int = 10,
+    ) -> List[Tuple[int, float]]:
+        if n <= 0:
+            return []
+        excluded = {int(x) for x in (exclude or set())}
+        order = np.argsort(self._fallback_scores)[::-1]
+        out: List[Tuple[int, float]] = []
+        for iid in order:
+            iid = int(iid)
+            if iid in excluded:
                 continue
-            results.append((idx, float(similarities[idx])))
-            if len(results) >= n:
+            out.append((iid, float(self._fallback_scores[iid])))
+            if len(out) >= n:
                 break
-        return results
+        return out
 
-    def clean_recommendations(self, user_id: Any,
-                               candidate_pool: List[Tuple[int, float]],
-                               n_items: int = 10) -> pd.DataFrame:
-        """Filter `candidate_pool` (a model's raw ranked (item_id, score)
-        list) against `user_id`'s purchase history, then backfill any
-        gap left by filtering via item-to-item fallback so the returned
-        list is always `n_items` long (when the catalogue is large
-        enough to support it).
+    def clean_recommendations(
+        self,
+        user_id: Any,
+        candidate_pool: List[Tuple[int, float]],
+        n_items: int = 10,
+    ) -> pd.DataFrame:
+        """Filter purchased/excluded candidates and fill gaps from the prior.
 
-        Returns a DataFrame with columns:
-        user_id, rank, item_id, score, source, is_fallback
+        Contract: returns exactly ``n_items`` unique, unseen catalogue items
+        whenever that many eligible items exist. No item-to-item method is used.
         """
-        bought = self.purchased_items(user_id)
-        filtered = [(item_id, score) for item_id, score in candidate_pool
-                   if item_id not in bought]
+        if n_items <= 0:
+            raise ValueError("n_items must be > 0")
 
-        rows: List[Dict[str, Any]] = list()
-        for item_id, score in filtered[:n_items]:
-            rows.append({"user_id": user_id, "item_id": item_id, "score": score,
-                        "source": self.SOURCE_MODEL, "is_fallback": False})
+        bought = self.purchased_items(user_id)
+        seen_model: Set[int] = set()
+        rows: List[Dict[str, Any]] = []
+
+        for item_id, score in candidate_pool:
+            iid = int(item_id)
+            if iid in bought or iid in seen_model or iid < 0 or iid >= self.n_items:
+                continue
+            seen_model.add(iid)
+            rows.append({
+                "user_id": user_id, "item_id": iid, "score": float(score),
+                "source": self.SOURCE_MODEL, "is_fallback": False,
+            })
+            if len(rows) >= n_items:
+                break
 
         if len(rows) < n_items:
-            already_seen = bought | {r["item_id"] for r in rows} | {i for i, _ in candidate_pool}
-            seeds = list(bought) if bought else [item_id for item_id, _ in candidate_pool[:3]]
-            needed = n_items - len(rows)
-            fallback_candidates = self.item_to_item_candidates(
-                seeds, exclude=already_seen, n=needed)
-            for item_id, score in fallback_candidates:
-                rows.append({"user_id": user_id, "item_id": item_id, "score": score,
-                            "source": self.SOURCE_ITEM2ITEM, "is_fallback": True})
+            excluded = bought | seen_model
+            for iid, prior_score in self.popularity_candidates(exclude=excluded, n=n_items - len(rows)):
+                rows.append({
+                    "user_id": user_id, "item_id": iid, "score": prior_score,
+                    "source": self.SOURCE_POPULARITY, "is_fallback": True,
+                })
 
-        logger.info("clean_recommendations(user_id=%s): %d model, %d fallback slot(s).",
-                    user_id, sum(1 for r in rows if not r["is_fallback"]),
-                    sum(1 for r in rows if r["is_fallback"]))
+        if len(rows) < n_items:
+            logger.warning(
+                "user_id=%s: unable to fill %d requested slots; only %d eligible unique items exist",
+                user_id, n_items, len(rows),
+            )
 
-        result = pd.DataFrame(rows, columns=["user_id", "item_id", "score",
-                                             "source", "is_fallback"])
+        result = pd.DataFrame(rows, columns=[
+            "user_id", "item_id", "score", "source", "is_fallback"
+        ])
         if not result.empty:
-            result.insert(1, "rank", range(1, len(result) + 1))
+            result.insert(1, "rank", np.arange(1, len(result) + 1))
         return result
