@@ -4,19 +4,14 @@ on:
   push:
     branches:
       - master
-      - dev
+      - staging
     tags:
       - "v*.*.*"
-
-  pull_request:
-    branches:
-      - master
-      - dev
 
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release, e.g. 0.0.3 (blank = build-only run)"
+        description: "Version to release, e.g. 0.1.1 (blank = build-only run)"
         required: false
         type: string
 
