@@ -3,11 +3,14 @@ name: AryColBring Smoke Test Pipeline
 on:
   push:
     branches:
-      - 'dev*'
+      - 'dev'
+      - 'master'
+
   pull_request:
     branches:
-      - 'dev*'
-      - 'main'
+      - 'dev'
+      - 'master'
+
   workflow_dispatch:
     inputs:
       run_smoke:
@@ -41,7 +44,7 @@ jobs:
           echo "=========================================================================="
           # uvx memisahkan eksekusi dari dependensi pyproject.toml yang sedang konflik
           uvx bandit \
-            -r ./src \
+            -r ./src/cooprecsys \
             -lll \
             --confidence-level high \
             -s B101,B311,B608
@@ -114,13 +117,13 @@ jobs:
 
       - name: Compile Cython Extensions
         run: |
-          cd ./src/models/arycolbring
+          cd ./src/cooprecsys/models/arycolbring
           bash cysetup.sh
 
       - name: Verify Package Imports
         run: |
           export PYTHONPATH="${{ github.workspace }}"
-          python -c "from src.models.arycolbring import inference; print('import OK')"
+          python -c "from src.cooprecsys.models.arycolbring import inference; print('import OK')"
 
       - name: Run Pytest Suite (t03_pytest.py + t05_dashboard_refactor.py)
         run: |
@@ -138,7 +141,7 @@ jobs:
           pytest test/arycolbring_tests/t03_pytest.py \
                  test/arycolbring_tests/t05_dashboard_refactor.py \
                  -v --tb=short \
-                 --cov=src/models/arycolbring --cov=src/assets \
+                 --cov=src/cooprecsys/models/arycolbring --cov=src/assets \
                  --cov-report=xml --cov-report=term-missing
 
       - name: Upload Coverage Report
@@ -192,7 +195,7 @@ jobs:
           echo "=========================================================================="
           echo "Compiling Cython extension modules."
           echo "=========================================================================="
-          cd ./src/models/arycolbring
+          cd ./src/cooprecsys/models/arycolbring
           bash cysetup.sh
 
       - name: Execute Automated Smoke Test

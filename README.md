@@ -1,4 +1,4 @@
-[![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=master)](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
+[![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=dev)](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: Python](https://img.shields.io/badge/code%20style-python-blue)](https://www.python.org/)
@@ -22,9 +22,6 @@ A production-grade machine learning and AI module for building intelligent recom
 - Windows wheels continue to use the native MSVC toolchain.
 - Release artifacts are validated before PyPI publication.
 - Package metadata is aligned with the official PyPI classifier taxonomy.
-
-
----
 
 ---
 
