@@ -1,0 +1,50 @@
+# ==========================================================
+# Workflow for Ary2tower models
+# Author: Aryanto
+# ==========================================================
+
+name: Ary2Towers Pipeline
+
+on:
+  push:
+    branches:
+      - dev
+      - staging
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  test-ary2tower:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy pandas pyarrow duckdb tqdm cython pytest pytest-cov
+
+      - name: Build ary2tower Cython extension
+        working-directory: src/cooprecsys/models/ary2tower
+        run: python a2tcysetup.py build_ext --inplace
+
+      - name: Train smoke test
+        run: python test/ary2tower_tests/ary2tower_train_smoketest.py
+
+      - name: Inference smoke test
+        run: python test/ary2tower_tests/ary2tower_inference_smoketest.py
+
+      - name: Direct ary2tower pytest suite
+        run: pytest test/ary2tower_tests/t03_pytest.py -v --tb=short
