@@ -14,7 +14,7 @@ __created__    = "2026-07-31"
 performance_plots.py
 _________________________________________
 Model-performance plots for ary2tower: prediction score distribution
-(reuses src/assets/vizdata.py's histogram math -- same numbers as the
+(reuses cooprecsys/assets/vizdata.py's histogram math -- same numbers as the
 dashboard's Insights tab) and a precision/recall-at-K curve (new here;
 no equivalent existed elsewhere in the repo to reuse).
 """
@@ -37,7 +37,7 @@ def plot_score_distribution(scores: Sequence[float],
                              ax: Optional[plt.Axes] = None) -> plt.Figure:
     """Histogram of prediction scores, with a mean/median overlay --
     same computation as the dashboard's Insights tab (see
-    src.assets.vizdata.score_distribution)."""
+    cooprecsys.assets.vizdata.score_distribution)."""
     logger.debug("Plotting score distribution (n=%d).",
                  0 if scores is None else len(scores))
     dist = score_distribution(scores, bins=bins)

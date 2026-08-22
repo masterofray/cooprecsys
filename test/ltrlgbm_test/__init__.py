@@ -10,8 +10,8 @@ __email__      = "aryanto.dandan@gmail.com"
 __status__     = "Development"
 __created__    = "2026-05-02"
 
-from .ltrlgbm_example import maintest as lgbmtest
-from .ltrlgbm_inferencing import inference_test
+from .ltrtrain_smoketest     import maintest as lgbmtest
+from .ltrinference_smoketest import inference_test
 
 if __name__ == '__main__':
     lgbmtest()

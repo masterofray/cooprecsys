@@ -1,0 +1,81 @@
+---
+title: "Configuration Files Reference"
+description: "File-by-file reference for the shared CoopRecSys configuration directory and the model-local configuration pattern."
+category: "Reference"
+order: 126
+tags: ["configuration", "ini", "fallback", "lgbm", "logging"]
+author: "Aryanto"
+lastUpdated: "2026-08-22"
+---
+
+## `configs/` directory
+
+```text
+src/cooprecsys/configs/
+├── configuration.ini
+├── fallback_config.py
+├── lgbm_config.py
+└── logged.py
+```
+
+### `configuration.ini`
+
+The shared source of defaults for progress bars, SHAP/reporting, sparse/native model defaults, DuckDB, logging, LTR-LightGBM, rating generation, paths, and the generic fallback configuration.
+
+The most operationally important sections are:
+
+| Section | Main use |
+| --- | --- |
+| `[model]` | shared dtype, components, loss, schedule, epochs, native threads |
+| `[duckdb]` | DuckDB worker/thread count |
+| `[logging]` | root and tuning log levels |
+| `[SHAP]` | explanation/sample/report defaults |
+| `[FEATURES]` | LTR label/query/top-column controls |
+| `[MODEL_LGBM]` | LTR model path and base model settings |
+| `[TRAINING]` | boosting, early stopping, LambdaRank parameters |
+| `[TUNING]` | Optuna-style tuning controls |
+| `[RATING]` | pseudo-rating weights, range, method, output column |
+| `[INFERENCE]` | LTR top-k and score output settings |
+| `[PATHS]` | artifact/report/MLflow/encoder locations |
+| `[FALLBACK]` | generic fallback, ANN, cold-start, cache and execution settings |
+
+### `fallback_config.py`
+
+Defines `FallbackConfig`, a typed dataclass that reads the `[FALLBACK]` section and validates options such as:
+
+- strategy: `content`, `popularity`, `collaborative`, `hybrid`;
+- score mode: `min`, `quantile`, `fixed`;
+- ANN threshold/library/GPU flag;
+- cold-start policy;
+- candidate scan size and batch size;
+- DuckDB and parallel execution flags.
+
+This generic configuration class should not be confused with Ary2Tower's dedicated `TwoTowerFallBack`, which is intentionally narrower and uses Bayesian-smoothed popularity with optional time decay for residual slots.
+
+### `lgbm_config.py`
+
+Defines typed LightGBM configuration objects, including `FeatureConfig`, `ModelConfig`, `TrainingConfig`, `TuningConfig`, `InferenceConfig`, `PathConfig`, and the umbrella `LTRConfig`.
+
+Use `LTRConfig.from_ini(...)` when a repeatable LTR experiment should be driven by the shared INI instead of a pile of ad-hoc command-line values.
+
+### `logged.py`
+
+Provides `setup_logging()` so the rest of the package can use a consistent logger setup. This is especially important when debugging whether a native Cython path or a Python fallback was selected.
+
+## Configuration vs model code
+
+Do not put large data-dependent objects into the INI file. The configuration is for defaults and policy; fitted encoders, model weights, generated reports, and large feature tables belong in artifact storage.
+
+## Example: inspect effective defaults
+
+```python
+from pathlib import Path
+from configparser import ConfigParser
+
+cfg = ConfigParser()
+cfg.read(Path('src/cooprecsys/configs/configuration.ini'))
+
+print(cfg.get('model', 'dtype'))
+print(cfg.getint('duckdb', 'threads'))
+print(cfg.get('RATING', 'methodscore'))
+```

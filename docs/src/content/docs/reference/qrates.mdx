@@ -1,0 +1,136 @@
+---
+title: "QRates: Pseudo-Ratings & Quasi-Grade Retrieval"
+description: "How CoopRecSys uses qrates to turn implicit transactions into pseudo-ratings, weighted scores, and feature-group retrieval signals."
+category: "Reference"
+order: 125
+tags: ["qrates", "pseudo-rating", "scoring", "scann", "retrieval"]
+author: "Aryanto"
+lastUpdated: "2026-08-22"
+---
+
+## Why `qrates` exists
+
+Many commerce datasets have no explicit 1–5 rating. A transaction still carries useful preference signals: frequency, quantity, spend, discount/loyalty, and recency. `qrates` converts those implicit signals into deterministic scores that can be used for analysis, ranking features, candidate generation, or downstream learning-to-rank.
+
+The package contains three distinct ideas:
+
+```text
+transactions
+   ├── quasi_grade.py   → pseudo-rating + sparse decomposition
+   ├── counterfeit.py   → multi-signal composite rating engine
+   └── multi_scann.py   → feature-group retrieval / quasi-rating search
+```
+
+## `quasi_grade.py`: basic pseudo-rating and matrix preparation
+
+`GenQuasi_Grade()` aggregates each user-item pair with a DuckDB query and creates a pseudo-rating from transaction quantity:
+
+```text
+pseudo_rating = ln(1 + sum(quantity))
+```
+
+The result also contains transaction count and total spend. `GenQuasi_Lazy()` first discovers the relevant columns using `DetectReco_Identifier()`.
+
+```python
+from cooprecsys.qrates.quasi_grade import GenQuasi_Lazy
+
+rated = GenQuasi_Lazy(transactions)
+```
+
+`Decomposition_Matrix_Dev()` can then construct sparse interaction matrices plus optional user/item feature matrices and sample weights. It returns:
+
+- interaction matrix;
+- user feature matrix;
+- item feature matrix;
+- sample-weight matrix;
+- user index → original ID mapping;
+- item index → original ID mapping.
+
+That is a useful bridge into sparse model training.
+
+## `counterfeit.py`: composite implicit-feedback scoring
+
+`CFRatingEngine` is more expressive than the basic log-quantity pseudo-rating. It automatically detects which signals exist and builds one of several scenarios:
+
+| Scenario | Available signals |
+| --- | --- |
+| `FULL` | frequency, quantity, spend, recency, loyalty |
+| `NO_PRICE` | frequency, quantity, recency, loyalty |
+| `NO_DISCOUNT` | frequency, quantity, spend, recency |
+| `NO_DATE` | frequency, quantity, spend, loyalty |
+| `NO_PRICE_DISCOUNT` | frequency, quantity, recency |
+| `NO_PRICE_DATE` | frequency, quantity, loyalty |
+| `NO_DISCOUNT_DATE` | frequency, quantity, spend |
+| `MINIMAL` | frequency, quantity |
+
+Supported scoring methods are `weighted`, `lasso`, `ridge`, `pca`, and `equal`.
+
+```python
+from cooprecsys.qrates.counterfeit import CFRatingEngine
+
+engine = CFRatingEngine(
+    transactions,
+    user_col='CustomerID',
+    item_col='CategoryID',
+    quantity_col='Quantity',
+    total_price_col='TotalPrice',
+    discount_col='Discount',
+    date_col='SalesDate',
+    method='lasso',
+)
+ratings = engine.fit()
+```
+
+The weighted method uses the `[RATING]` weights from `configuration.ini`; explicit weights can override them. The engine normalizes weights when they do not sum to one.
+
+## `multi_scann.py`: feature-group retrieval
+
+`QuasiRate_ScaNN` creates one retrieval model per feature group. When the ScaNN library is installed it can use ScaNN's approximate-nearest-neighbor search. When ScaNN is unavailable, the supplied implementation falls back to an ML-based GMM posterior embedding and cosine-distance search rather than instantiating a classical sklearn KNN estimator.
+
+Typical setup:
+
+```python
+from cooprecsys.qrates.multi_scann import QuasiRate_ScaNN
+
+feature_groups = {
+    'transaction_metrics': ['ProductPrice', 'Quantity', 'Discount', 'TotalPrice'],
+    'customer_profile': ['EmployeeAge', 'YearsWorking'],
+}
+
+searcher = QuasiRate_ScaNN(
+    feature_groups=feature_groups,
+    scann_config={},
+)
+searcher.fit(catalog_df)
+```
+
+Then query one record:
+
+```python
+results, unified = searcher.search(query_dict, k=5)
+```
+
+Or a batch:
+
+```python
+results, unified = searcher.search_batch(query_df, k=5)
+```
+
+The unified output contains `final_rquasi`. Lower values represent closer/better quasi-rate matches unless `invert_score=True` is requested.
+
+## SQL templates
+
+`qrates/sqlrender/` contains:
+
+- `Features_Aggs.sql` — aggregation and normalized feature extraction;
+- `Weighted_Score.sql` — the templated weighted composite score.
+
+They are rendered internally with detected column names and optional signals. You normally do not need to edit them for a standard workflow; custom business weighting is better expressed through `CFRatingEngine(weights=...)` or the `[RATING]` configuration.
+
+## When to use each path
+
+- Use **`GenQuasi_Grade()`** when you need a lightweight deterministic pseudo-rating from quantity.
+- Use **`CFRatingEngine`** when you want a richer, interpretable transaction score from multiple signals.
+- Use **`QuasiRate_ScaNN`** when the task is closer to feature-space retrieval than direct collaborative filtering.
+
+`qrates` is therefore a scoring/retrieval utility layer, not a fourth competing recommendation model family.

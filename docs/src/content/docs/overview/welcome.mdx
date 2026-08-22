@@ -1,42 +1,52 @@
 ---
 title: "Welcome to CoopRecSys"
-description: "Orientation to CoopRecSys, its model families, production scope, and documentation map."
+description: "Orientation to CoopRecSys, its recommendation model families, production data stack, native acceleration, and documentation map."
 category: "Overview"
 order: 1
 tags: ["overview", "recommendation-systems", "ml", "ai"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 tableOfContents: true
 ---
 
 ![CoopRecSys banner](https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_banner.jpg)
 
-CoopRecSys is a Python machine-learning and AI module for building recommendation systems tailored to cooperative product-recommendation workloads.
+CoopRecSys is a Python machine-learning and AI toolkit for building production-oriented recommendation systems around cooperative and commerce-style transaction data.
 
-The current release line combines three recommendation approaches:
+The current model layer contains three complementary approaches:
 
-- **AryColBring** — Cython/OpenMP collaborative filtering with Logistic, WARP, BPR, and WARP-kOS losses.
-- **Ary2Tower** — a two-tower neural recommender with Cython/OpenMP kernels and a pure-NumPy fallback path.
-- **LTR-LightGBM** — learning-to-rank based recommendation workflows with group-aware splitting, ranking metrics, and MLflow tracking.
+- **AryColBring** — Cython/OpenMP collaborative filtering for sparse implicit-feedback interactions, with Logistic, WARP, BPR, and WARP-kOS objectives.
+- **Ary2Tower** — a two-tower neural recommender whose hot paths can execute through compiled Cython/OpenMP kernels, with a pure-NumPy execution path when native extensions are unavailable.
+- **LTR-LightGBM** — feature-rich learning-to-rank workflows for query/customer groups where engineered features and ranking objectives matter.
 
-The package also includes data preparation, feature processing, DuckDB integration, evaluation helpers, narrative/reporting components, and dashboard-oriented visualization utilities.
+The package around those models is intentionally broader than the model classes themselves. It includes `assets`, `configs`, `db`, `features`, `noisemaker`, `prepare`, and `qrates` so that ingestion, pseudo-ratings, feature preparation, experimentation, evaluation, and reporting can be kept reproducible.
 
 ## What this documentation covers
 
-The documentation is organized around how an ML engineer actually operates the package:
+1. **Getting Started** — installation, environments, source builds, and first recommendation workflows.
+2. **Architecture** — how data, features, model families, reports, and dashboard surfaces connect.
+3. **Models** — AryColBring, Ary2Tower, and LTR-LightGBM, including native extension behavior.
+4. **Data & Features** — `prepare`, `db`, `features`, encoding, DuckDB workflows, and feature lifecycle.
+5. **Explainability & Dashboards** — reporting, visual diagnostics, and operational dashboard surfaces.
+6. **Operations** — configuration, native builds, tests, CI/CD, release packaging, and wheels.
+7. **Reference** — package layout, API conventions, configuration files, `qrates`, and reusable utilities.
 
-1. **Getting Started** — installation, environments, package verification, and first-run guidance.
-2. **Architecture** — repository layout and how data, features, models, evaluation, and dashboards fit together.
-3. **Models** — detailed guidance for AryColBring, Ary2Tower, and LTR-LightGBM.
-4. **Data & Features** — ingestion, preparation, encoding, and feature engineering responsibilities.
-5. **Explainability & Dashboards** — interpretation workflows and the four dashboard surfaces.
-6. **Operations** — configuration, testing, CI/CD, native build behavior, and release engineering.
-7. **Reference** — package surface, conventions, and implementation notes.
+## Canonical import rule
+
+Source-tree layout and installed-package layout are different concepts. The public Python package should be imported as `cooprecsys`, not as `src.models` or `src.cooprecsys`.
+
+```python
+from cooprecsys.models.ary2tower import TwoTowerTrainer, TwoTowerInference
+from cooprecsys.models.arycolbring import AryColBring
+```
+
+The `src/` prefix belongs to the repository filesystem layout used by a source checkout; it is **not** the Python import namespace.
 
 ## Release baseline
 
-The current documentation targets **CoopRecSys v0.0.3**, with the CI release matrix covering Python 3.10–3.13 and Linux manylinux-compatible x86_64 wheels plus Windows wheels.
+This documentation is aligned with the current production documentation/source tree and the recent native two-tower fixes. Where the repository contains optional or model-specific components, the pages document the behavior present in the supplied source rather than inventing a larger public API.
 
-> **Engineering note:** the repository contains generated native artifacts under individual model directories in some development checkouts. For consumers, the recommended installation path is the published wheel or source distribution rather than copying generated `.so` files manually.
+> **Engineering note:** native extensions are build artifacts. Consumers should prefer published wheels. Developers building from source should use the model-specific build entry point documented for that model so the extension is compiled in the correct package directory.
 
 ## Maintainer
 

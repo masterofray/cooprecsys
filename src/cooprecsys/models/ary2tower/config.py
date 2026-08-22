@@ -17,7 +17,7 @@ Hyperparameter configuration for the two-tower model.
 
 Validated eagerly in __post_init__ (construction time), matching the
 convention this repo already uses in
-src/models/arycolbring/inout/scaffold.py's AryColBringBase.__init__ --
+cooprecsys.models.ary2tower/inout/scaffold.py's AryColBringBase.__init__ --
 see t03_pytest.py's TestReasonerHyperparameterValidation, which is
 where a matching bug (validation claimed to happen "at fit time" but
 actually raised at construction) was caught and fixed for that module.

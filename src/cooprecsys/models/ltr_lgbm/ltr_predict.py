@@ -18,12 +18,12 @@ from datetime import datetime
 from typing   import List, Tuple
 from .inout   import AdaptiveFallbackRanker, LTRModelInference
 
-LocDir = Path(__file__).resolve().parents[2]
+LocDir = Path(__file__).resolve().parents[3]
 
-from ...prepare  import latest_found
-from ...configs  import LTRConfig, logger, FallbackConfig, _cfg
+from ...prepare  import  latest_found
+from ...configs  import  LTRConfig, logger, FallbackConfig, _cfg
 from ...features import (LabelEncoderManager, load_data, TrueString,
-                      DateProcessor, Inference_DataSplit, DataProcessor)
+                         DateProcessor, Inference_DataSplit, DataProcessor)
 
 
 def LoadEncode(Data           : pd.DataFrame,
@@ -31,13 +31,13 @@ def LoadEncode(Data           : pd.DataFrame,
                location       : Path = None,
                clean          : bool = True,
               ) -> Tuple[pd.DataFrame, object]:
-    lct  = Path(location) if location else LocDir.parent/'artifact'
+    lct  = Path(location) if location else LocDir.parent/'artifacts'
     LEM  = LabelEncoderManager(
             data        = deepcopy(Data), 
             Column      = feature_column,
             EncDir      = lct,
             Remove4Done = clean)
-    LEM.load()
+    LEM.load(lct)
     LEM.transform()
     EncData = LEM.data
     logger.debug('Finished to Encoding the data')

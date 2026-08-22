@@ -15,7 +15,7 @@ a2trearender.py
 _________________________________________
 ary2tower's inference dashboard renderer. Same context-building shape
 as arycolbring/narative/rearender.py, reusing the SAME shared helpers
-(src/assets/dashboard_utils.py, src/assets/vizdata.py) -- only real
+(cooprecsys/assets/dashboard_utils.py, cooprecsys/assets/vizdata.py) -- only real
 production-inference metrics are shown here (latency/qps/throughput),
 never ranking-quality metrics (precision/recall/ndcg/auc/mrr) or a
 fabricated "coverage" number; see the Task 1 dashboard fix this
@@ -37,7 +37,7 @@ try:
                             score_distribution, embedding_projection_2d,
                             similarity_heatmap, top_k_similar_items)
 except ImportError:  # pragma: no cover - fallback for standalone/test use
-    from src.assets import (generate_scorecards as _gen_scorecards,
+    from ....assets import (generate_scorecards as _gen_scorecards,
                             generate_gauges, normalize_charts, overall_score_percent,
                             score_distribution, embedding_projection_2d,
                             similarity_heatmap, top_k_similar_items)

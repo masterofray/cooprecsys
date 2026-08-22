@@ -152,6 +152,32 @@
     }
 }
 
+@keyframes docsButtonNudge {
+    0%, 100% { transform: translateX(0) rotate(0deg); }
+    25% { transform: translateX(-1px) rotate(-0.7deg); }
+    50% { transform: translateX(1px) rotate(0.7deg); }
+    75% { transform: translateX(-0.5px) rotate(-0.3deg); }
+}
+
+.docs-button {
+    will-change: transform, background-color, box-shadow;
+}
+
+.docs-button:hover {
+    animation: docsButtonNudge 220ms ease-in-out;
+}
+
+.docs-button:focus-visible {
+    outline: 3px solid var(--sgkb-focus-ring);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .docs-button:hover {
+        animation: none;
+    }
+}
+
 .animate-slide-down {
     animation: slideDown 0.2s ease-out;
 }

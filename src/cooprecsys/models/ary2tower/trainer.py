@@ -92,6 +92,29 @@ class TwoTowerTrainer:
         self._architect.fit(interactions)
         return self
 
+
+    def fit_dataframe(self, frame, user_col: str = "user_id", item_col: str = "item_id") -> "TwoTowerTrainer":
+        """Train directly from a pandas-like DataFrame of user/item interactions.
+
+        User and item ids are expected to be integer-like zero-based indices.
+        Duplicate pairs are harmless; they become repeated implicit positives.
+        """
+        if not hasattr(frame, "columns"):
+            raise TypeError("frame must be a pandas DataFrame or DataFrame-like object")
+        if user_col not in frame.columns or item_col not in frame.columns:
+            raise ValueError(f"frame must contain columns {user_col!r} and {item_col!r}")
+        rows = np.asarray(frame[user_col], dtype=np.int64)
+        cols = np.asarray(frame[item_col], dtype=np.int64)
+        if rows.size == 0:
+            raise ValueError("frame contains zero interactions")
+        if rows.min() < 0 or rows.max() >= self.n_users:
+            raise ValueError("user ids are outside the configured [0, n_users) range")
+        if cols.min() < 0 or cols.max() >= self.n_items:
+            raise ValueError("item ids are outside the configured [0, n_items) range")
+        values = np.ones(rows.shape[0], dtype=np.float32)
+        matrix = sp.coo_matrix((values, (rows, cols)), shape=(self.n_users, self.n_items)).tocsr()
+        return self.fit(matrix)
+
     def save_model(self, path: Union[str, Path]) -> None:
         """Save all weight arrays to a single .npz file."""
         path = Path(path)

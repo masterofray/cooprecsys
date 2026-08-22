@@ -71,11 +71,13 @@ class TwoTowerArchitect(TwoTowerBase):
         logger.info("Starting training: %d examples, %d epochs",
                     n_examples, self.config.n_epochs)
 
+        cy_model = self.weights.as_cython_model() if _HAS_CYTHON else None
+
         for epoch in range(self.config.n_epochs):
             shuffle_indices = rng.permutation(n_examples).astype(np.int32)
 
             if _HAS_CYTHON:
-                model = self.weights.as_cython_model()
+                model = cy_model
                 _cy_fit_two_tower(user_ids, positive_item_ids, shuffle_indices,
                                   model, self.config.learning_rate,
                                   self.config.momentum, self.config.num_threads,

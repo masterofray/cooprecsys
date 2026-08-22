@@ -1,45 +1,61 @@
 ---
 title: "API Surface & Import Guidance"
-description: "How to think about the public package surface and where to look when integrating CoopRecSys into an application."
+description: "How to import CoopRecSys, which layers are public integration boundaries, and how to keep training/inference code portable."
 category: "Reference"
 order: 130
 tags: ["api", "imports", "integration"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ## Package entry point
-
-The package is imported as:
 
 ```python
 import cooprecsys
 ```
 
-Model functionality is organized beneath the `models` package. The project README demonstrates direct imports for the documented model families, for example:
+Model APIs are grouped below `cooprecsys.models`:
 
 ```python
-from src.models.arycolbring import AryColBring
+from cooprecsys.models.ary2tower import (
+    TwoTowerConfig,
+    TwoTowerTrainer,
+    TwoTowerInference,
+)
+from cooprecsys.models.arycolbring import AryColBring
 ```
 
-and LTR workflows through the LTR modules.
+Do not use `from src.models...` in application code. That is a repository-layout import and does not describe the installed package namespace.
 
-## Integration recommendation
+## Integration boundaries
 
-For application integration, keep the following boundaries explicit:
+Keep these concerns separate:
 
-- **data layer** — input normalization and loading,
-- **feature layer** — deterministic feature transformations,
-- **model layer** — training/inference,
-- **evaluation layer** — offline metrics,
-- **explainability layer** — diagnostics and narrative reports,
-- **application layer** — business-specific orchestration.
+- **data** — pandas/DuckDB ingestion;
+- **prepare** — schema discovery and file/metadata helpers;
+- **features** — deterministic feature transformations and encoders;
+- **qrates** — pseudo-rating/composite-score derivation;
+- **models** — fit/predict/recommend;
+- **evaluation/reporting** — metrics, diagnostics, HTML artifacts;
+- **application** — business-specific orchestration.
 
-This separation makes it easier to test inference independently from the training pipeline and to version feature transformations alongside the model artifact.
+## Important Ary2Tower APIs
+
+`TwoTowerTrainer` manages fitting and model serialization. `TwoTowerInference` provides paired scoring plus top-N serving. `TwoTowerWeights`, `UserTower`, and `ItemTower` expose the underlying representation layer for advanced diagnostics.
+
+The lower-level `TwoTowerPredictor` in `models/ary2tower/inout/approximator.py` is useful when an application needs direct pair scoring or explicit ranking over a supplied item set without the higher-level serving wrapper.
+
+## Native backend inspection
+
+```python
+from cooprecsys.models.ary2tower.towers import backend_info
+print(backend_info())
+```
+
+The expected production-native path identifies the compiled Cython/OpenMP backend. If the extension cannot be imported, the Python API remains available through NumPy implementations.
 
 ## API documentation scope
 
-This site intentionally documents the package architecture and stable integration concepts using the source tree and project README as the primary evidence. It does not invent a generated symbol-by-symbol API reference for functions whose signatures are not exposed by the supplied materials.
-
-For exact implementation signatures, use the source repository:
+This site documents stable integration concepts and important concrete entry points from the supplied source. It deliberately avoids pretending to be a generated symbol-by-symbol API reference. For exact signatures, inspect the source package linked below.
 
 [GitHub source](https://github.com/masterofray/cooprecsys)

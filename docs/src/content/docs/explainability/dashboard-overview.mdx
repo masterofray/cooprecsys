@@ -1,61 +1,56 @@
 ---
 title: "Explainability & Dashboard Architecture"
-description: "Overview of the CoopRecSys dashboard ecosystem, reporting layers, and explainability workflow."
+description: "Overview of CoopRecSys reporting, visualization, dashboard surfaces, configuration inspection, and model diagnostics."
 category: "Explainability & Dashboards"
 order: 80
-tags: ["dashboard", "explainability", "shap", "diagnostics"]
+tags: ["dashboard", "explainability", "shap", "diagnostics", "reports"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ![CoopRecSys dashboard overview](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard01_overviews.jpg)
 
-CoopRecSys includes dashboard and report-generation components designed to move model outputs from raw scores to interpretable operational evidence.
+CoopRecSys separates model mathematics from human-facing reporting. `report.py`, `narative/`, `viztower/`, and the shared `assets/` utilities turn model outputs into diagnostics and operational artifacts.
 
 ## Dashboard surfaces
 
-The documented dashboard is organized into four conceptual surfaces:
-
-1. **Overview** — high-level prediction and dataset status.
-2. **Rankings** — inspect the produced recommendation ordering.
-3. **Diagnostics** — investigate feature importance, score distributions, drift, and SHAP samples.
-4. **Configs** — inspect and manage model configuration.
+1. **Overview** — prediction, model, and dataset status.
+2. **Rankings** — inspect recommendation ordering and score context.
+3. **Diagnostics** — inspect score distributions, feature importance, drift, and selected explanation samples.
+4. **Configs** — inspect the effective model/runtime configuration.
 
 ## Ranking surface
 
 ![CoopRecSys rankings](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard02_rankings.jpg)
 
-The Rankings view is intended for inspecting top predictions with feature context, explainability signals, filters, sorting, and snapshots.
+For Ary2Tower, a useful ranking report should expose requested N, returned N, exclusions, fallback count, and source (`model_topn` vs residual fallback) so a shortfall can be diagnosed rather than hidden.
 
 ## Diagnostics surface
 
 ![CoopRecSys diagnostics](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard03_diagnostics.jpg)
 
-The Diagnostics view is intended for model introspection, including feature importance, relevance-score distributions, SHAP sample inspection, and drift indicators.
-
-The README identifies GAIN, SPLIT, permutation importance, KS tests, and PSI as relevant diagnostics concepts.
+Diagnostics can combine feature importance, score distributions, embedding projections, drift indicators, SHAP samples, and backend/runtime information. Native backend selection is a deployment diagnostic as much as it is a performance setting.
 
 ## Configuration surface
 
 ![CoopRecSys configurations](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard04_configs.jpg)
 
-The Config view centralizes LTR-related configuration such as objectives, metrics, learning rate, depth, leaves, feature/bagging fractions, and regularization parameters.
+The configuration surface should reflect the actual files under `configs/` plus model-local configuration. See [Configuration Files](../reference/configuration-files) for the exact sections and their purposes.
 
 ## Narrative reporting
 
-Model packages expose `narative/` trees containing report renderers, templates, static assets, and support code. These modules are responsible for turning model artifacts into human-readable reports rather than changing the underlying model implementation.
+Each model may expose a `narative/` tree containing report renderers, templates, static CSS/JavaScript, and support code. These components should explain model behavior without changing model weights or ranking logic.
 
 ## Operational principle
-
-Explainability should be treated as part of the model delivery lifecycle:
 
 ```text
 model output
    ↓
-feature contributions / importance
+ranking + runtime metadata
    ↓
-diagnostics + ranking context
+feature / embedding / score diagnostics
    ↓
-narrative explanation
+narrative report
    ↓
 analyst / ML engineer review
 ```

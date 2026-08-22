@@ -1,28 +1,57 @@
 ---
-title: "Dashboard Asset Reference"
-description: "Visual reference for the published CoopRecSys dashboard surfaces and associated ImageKit assets."
+title: "Assets, Visualization & Dashboard Helpers"
+description: "How CoopRecSys uses the assets package for dashboard utilities, chart data, miniature statistics, and packaged frontend resources."
 category: "Reference"
 order: 140
-tags: ["dashboard", "assets", "visual-reference"]
+tags: ["assets", "dashboard", "visualization", "charts"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
-## Brand assets
+## `assets/` is a support layer
 
-![CoopRecSys logo](https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_red.jpg)
+The `assets` package is not where recommendation models live. It contains reusable reporting/dashboard helpers and bundled presentation resources.
 
-![CoopRecSys navigation logo](https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_logo_navi.jpg)
+```text
+src/cooprecsys/assets/
+├── icon/
+├── dashboard_utils.py
+├── statsrender.py
+├── vizdata.py
+├── vendors_css.zip
+└── vendors_js.zip
+```
 
-![CoopRecSys product mark](https://ik.imagekit.io/arydatalabs/cooprecsys/Cooprecsys.png)
+## `dashboard_utils.py`
 
-## Dashboard captures
+Provides small transformations for human-readable labels, numeric formatting, gauge detection, scorecards, and chart normalization.
 
-![Overview](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard01_overviews.jpg)
+These helpers are useful when a model/report produces metrics such as NDCG, MAP, coverage, latency, fallback rate, or score distributions and the dashboard needs a stable JSON-friendly representation.
 
-![Rankings](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard02_rankings.jpg)
+## `statsrender.py`
 
-![Diagnostics](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard03_diagnostics.jpg)
+`Gen_MiniStats()` converts tabular statistics into compact dashboard/report data. It belongs after model evaluation, not inside the training algorithm itself.
 
-![Configurations](https://ik.imagekit.io/arydatalabs/cooprecsys/dashboard04_configs.jpg)
+## `vizdata.py`
 
-The assets are hosted on ImageKit and are referenced directly from the documentation so the documentation repository does not need to duplicate the binary image files.
+This module contains data-level visualization helpers such as score distributions, 2-D embedding projections, similarity heatmaps, top-K similar-item calculations for diagnostics, and conversion of scores into prediction frames.
+
+The similarity helper here is a **visualization/analysis utility**. It should not be confused with the Ary2Tower residual recommendation fallback, which deliberately uses a global Bayesian/recency prior rather than item-item similarity.
+
+## Packaged frontend resources
+
+`vendors_css.zip` and `vendors_js.zip` are packaged frontend assets used by the broader dashboard/report environment. Keep them versioned with the code that expects their structure.
+
+## Example: prepare scorecard data
+
+```python
+from cooprecsys.assets.dashboard_utils import generate_scorecards
+
+cards = generate_scorecards({
+    'ndcg@10': 0.61,
+    'coverage': 0.84,
+    'fallback_rate': 0.07,
+})
+```
+
+The output can then be handed to the dashboard/report layer without coupling the UI to the internals of a model trainer.

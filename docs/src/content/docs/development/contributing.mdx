@@ -1,32 +1,50 @@
 ---
 title: "Contributing & Development Standards"
-description: "Development workflow, testing expectations, and contribution practices for CoopRecSys."
+description: "Development workflow, model/API compatibility rules, native build expectations, documentation standards, and regression testing for CoopRecSys."
 category: "Development"
 order: 150
-tags: ["contributing", "development", "testing"]
+tags: ["contributing", "development", "testing", "cython"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ## Contribution workflow
 
-1. Fork the repository.
-2. Create a focused feature branch.
-3. Add or update tests with the change.
-4. Run the model-specific test suite.
-5. Run formatting and lint checks.
-6. Update documentation when behavior or interfaces change.
-7. Open a pull request with a concise technical description.
-
-## Development standards
-
-The existing project README recommends:
-
-- PEP 8-compatible Python style,
-- docstrings for functions,
-- type hints,
-- unit tests for new code,
-- README/documentation updates for new features.
+1. Fork or branch from the current production baseline.
+2. Make a focused change.
+3. Add or update tests for changed behavior.
+4. Run the affected model suite.
+5. Validate imports from the installed package namespace (`cooprecsys`), not only from the source path.
+6. For Cython changes, rebuild the native extensions and test runtime backend selection.
+7. Update the corresponding docs page when behavior or interfaces change.
+8. Open a pull request with the technical rationale and regression surface.
 
 ## Native code changes
 
-Changes to Cython kernels deserve additional scrutiny because they affect both source-level behavior and compiled binary compatibility. Validate changes on the supported Python matrix and confirm the generated wheel imports successfully before creating a release.
+For `ary2tower/CLtowers` changes, test at least:
+
+```bash
+python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
+```
+
+Then run an actual forward/training/inference call. Compilation success is not enough; the runtime must load the intended extension modules.
+
+## API compatibility
+
+Preserve the distinction between repository paths and package imports:
+
+```python
+from cooprecsys.models.ary2tower import TwoTowerInference
+```
+
+not:
+
+```python
+from src.models.ary2tower import TwoTowerInference
+```
+
+## Regression coverage for recommendation count
+
+Ary2Tower changes should explicitly test the top-N contract. A request for N must return N unique eligible items whenever the catalogue makes that mathematically possible. Purchase exclusion must not silently reduce the result count.
+
+The residual fallback is part of that contract and should be tested for both presence and source attribution.

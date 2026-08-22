@@ -17,7 +17,7 @@ High-dimensional embedding visualization for ary2tower tower outputs
 (or raw id embeddings).
 
 Deliberately does NOT reimplement the PCA/cosine-similarity math --
-that already exists, tested, in src/assets/vizdata.py (built for the
+that already exists, tested, in cooprecsys/assets/vizdata.py (built for the
 Task 1 dashboard refactor). This module only adds a matplotlib
 rendering layer on top of that same math, so the numbers on a static
 PNG (this module) and the numbers on the interactive dashboard
@@ -49,7 +49,7 @@ def plot_embedding_projection(embeddings: np.ndarray,
                                ax: Optional[plt.Axes] = None) -> plt.Figure:
     """Scatter plot of `embeddings` projected to 2D via PCA (same
     computation as the dashboard's Insights tab -- see
-    src.assets.vizdata.embedding_projection_2d)."""
+    cooprecsys.assets.vizdata.embedding_projection_2d)."""
     logger.debug("Plotting embedding projection for %d entities.",
                  0 if embeddings is None else len(embeddings))
     projection = embedding_projection_2d(embeddings, ids=ids,
@@ -92,7 +92,7 @@ def plot_similarity_heatmap(embeddings: np.ndarray,
                              ax: Optional[plt.Axes] = None) -> plt.Figure:
     """Heatmap of cosine similarity among the first `top_n` entities in
     `embeddings` (same computation as the dashboard's Insights tab --
-    see src.assets.vizdata.similarity_heatmap)."""
+    see cooprecsys.assets.vizdata.similarity_heatmap)."""
     logger.debug("Plotting similarity heatmap (top_n=%d).", top_n)
     heatmap = similarity_heatmap(embeddings, ids=ids, top_n=top_n)
 

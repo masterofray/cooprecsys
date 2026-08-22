@@ -35,11 +35,11 @@ to be installed -- they are not runnable in a bare/offline sandbox.
 import numpy as np
 import pytest
 
-from src.assets import (bealabel, detect_gauge_metric, generate_gauges,
-                        generate_scorecards, overall_score_percent,
-                        score_distribution, embedding_projection_2d,
-                        similarity_heatmap, top_k_similar_items)
-from src.models.arycolbring.narative.rearender import build_inference_context
+from src.cooprecsys.assets import (bealabel, detect_gauge_metric, generate_gauges,
+                                   generate_scorecards, overall_score_percent,
+                                   score_distribution, embedding_projection_2d,
+                                   similarity_heatmap, top_k_similar_items)
+from src.cooprecsys.models.arycolbring.narative.rearender import build_inference_context
 
 
 # ================================================================

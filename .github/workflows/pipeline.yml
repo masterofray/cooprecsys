@@ -11,35 +11,28 @@ on:
     branches:
       - dev
       - master
-
   pull_request:
     branches:
       - dev
       - master
-
   workflow_dispatch:
 
 env:
   PYTHON_VERSION: "3.10"
 
 jobs:
-
   # ==========================================================
   # LTR LIGHTGBM SMOKE TEST
   # ==========================================================
   smoke-ltr:
-
     name: LTR LightGBM Smoke Test
     runs-on: ubuntu-latest
-
     steps:
-
       # ------------------------------------------------------
       # Checkout repository
       # ------------------------------------------------------
       - name: Checkout Source Code
         uses: actions/checkout@v4
-
       # ------------------------------------------------------
       # Setup Python
       # ------------------------------------------------------
@@ -47,15 +40,13 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-
       # ------------------------------------------------------
       # Upgrade pip + install dependencies
       # ------------------------------------------------------
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --quiet -r requirements.txt
-
+          pip install -e ".[dev]"
       # ------------------------------------------------------
       # Debug repository structure
       # ------------------------------------------------------
@@ -63,15 +54,12 @@ jobs:
         run: |
           echo "===== ROOT DIRECTORY ====="
           ls -la
-
           echo ""
           echo "===== TEST DIRECTORY ====="
           ls -la test/ || echo "Folder test tidak ditemukan"
-
           echo ""
           echo "===== PYTHON PATH ====="
           python -c "import sys; print(sys.path)"
-
       # ------------------------------------------------------
       # Run LTR Smoke Test
       # ------------------------------------------------------
@@ -82,14 +70,10 @@ jobs:
           # This is MUCH more stable in GitHub Actions
           MLFLOW_TRACKING_URI: "file:./mlruns"
           MLFLOW_ALLOW_FILE_STORE: "true"
-
         run: |
           echo "===== STARTING LTR LIGHTGBM TEST ====="
-
-          python -m test.ltrlgbm_test.ltrlgbm_example
-
+          python -m test.ltrlgbm_test.ltrtrain_smoketest
           echo "===== TEST FINISHED ====="
-
       # ------------------------------------------------------
       # Upload Full Artifacts Directory
       # ------------------------------------------------------
@@ -103,7 +87,6 @@ jobs:
             mlruns/
           retention-days: 7
           if-no-files-found: warn
-
       # ------------------------------------------------------
       # Install tree utility
       # ------------------------------------------------------
@@ -111,20 +94,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y tree
-      
       # ------------------------------------------------------
       # Debug artifact folder
       # ------------------------------------------------------
       - name: Debug Artifact Folder
         run: |
           echo "===== ARTIFACT TREE ====="
-      
           if [ -d "artifacts" ]; then
             tree artifacts
           else
             echo "artifacts folder NOT FOUND"
           fi
-      
 
   # ==========================================================
   # COPYING THE FILES
@@ -133,38 +113,31 @@ jobs:
     name: Merge Artifacts
     runs-on: ubuntu-latest
     needs: smoke-ltr
-
     steps:
-  
-      # ------------------------------------------------------
+        # ------------------------------------------------------
       # Install tree utility
       # ------------------------------------------------------
       - name: Install tree
         run: |
           sudo apt-get update
           sudo apt-get install -y tree
-  
       # ------------------------------------------------------
       # Merge uploaded artifacts
       # ------------------------------------------------------
       - name: Merge All Artifacts
         uses: actions/upload-artifact/merge@v4
-  
         with:
           name: all-artifacts
           pattern: full-artifacts
           separate-directories: false
-  
       # ------------------------------------------------------
       # Download merged artifacts for verification
       # ------------------------------------------------------
       - name: Download Merged Artifact
         uses: actions/download-artifact@v4
-  
         with:
           name: all-artifacts
           path: merged-debug/
-  
       # ------------------------------------------------------
       # Debug merged contents
       # ------------------------------------------------------
@@ -172,23 +145,18 @@ jobs:
         run: |
           echo "===== MERGED TREE ====="
           tree merged-debug
-  
           echo ""
           echo "===== SEARCH ENCODER ====="
           find merged-debug -iname "*encoder*"
-  
           echo ""
           echo "===== SEARCH MODEL ====="
           find merged-debug -iname "*model*"
-  
           echo ""
           echo "===== SEARCH CLOUDPICKLE ====="
           find merged-debug -name "*.cloudpickle"
-  
           echo ""
           echo "===== SEARCH PARQUET ====="
           find merged-debug -name "*.parquet"
-
 
   # ==========================================================
   # LTR INFERENCE FALLBACK TEST
@@ -197,7 +165,6 @@ jobs:
     name: LTR Inference Fallback Test
     runs-on: ubuntu-latest
     needs: merge-artifacts
-
     steps:
       - name: Checkout Source Code
         uses: actions/checkout@v4
@@ -210,7 +177,7 @@ jobs:
       - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --quiet -r requirements.txt
+          pip install -e ".[dev]"
 
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -218,7 +185,6 @@ jobs:
           name: all-artifacts
           path: .
           merge-multiple: true
-
 
       # ------------------------------------------------------
       # Install tree utility
@@ -235,32 +201,25 @@ jobs:
         run: |
           echo "===== CURRENT DIRECTORY ====="
           pwd
-      
           echo ""
           echo "===== ROOT TREE ====="
           tree -L 5
-      
           echo ""
           echo "===== ARTIFACT TREE ====="
-      
           if [ -d "artifacts" ]; then
             tree artifacts
           else
             echo "artifacts folder NOT FOUND"
           fi
-      
           echo ""
           echo "===== SEARCH FOR PKL FILES ====="
           find . -name "*.pkl"
-      
           echo ""
           echo "===== SEARCH FOR MODEL FILES ====="
           find . -iname "*model*"
-      
           echo ""
           echo "===== SEARCH FOR ENCODER FILES ====="
           find . -iname "*encoder*"
-      
           echo ""
           echo "===== SEARCH FOR ALL PARQUET ====="
           find . -name "*.parquet"
@@ -272,7 +231,7 @@ jobs:
       - name: Run Inference Fallback Test
         run: |
           echo "===== STARTING INFERENCE FALLBACK TEST ====="
-          python -m test.ltrlgbm_test.ltrlgbm_inferencing
+          python -m test.ltrlgbm_test.ltrinference_smoketest
           echo "===== INFERENCE FALLBACK TEST FINISHED ====="
 
       - name: Upload Ranking Results
@@ -283,7 +242,6 @@ jobs:
           path: artifacts/*.parquet
           retention-days: 7
           if-no-files-found: warn
-
 
   # ==========================================================
   # SECURITY SCAN
@@ -323,65 +281,3 @@ jobs:
             echo "Bandit exited with unexpected code: $EXIT_CODE"
             exit 0
           fi
-
-
-  # =========================================================
-  # CYTHON BUILD VALIDATION
-  # =========================================================
-  Cython-Build-Validation:
-    name: Cython Build test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install cython numpy pandas setuptools wheel
-      
-      - name: Verify GCC/OpenMP
-        run: |
-          gcc --version
-          g++ --version
-
-      #- name: Debug Paths
-      #  run: |
-      #    echo "PWD:"
-      #    pwd
-      #    echo ""
-      #    echo "ROOT FILES:"
-      #    ls -la
-      #    echo ""
-      #    echo "DIRECTORIES:"
-      #    find . -maxdepth 3 -type d
-
-      - name: Build AryColBring Cython Extensions
-        working-directory: ./src/models/arycolbring
-        run: |
-          chmod +x ./cysetup.sh
-          bash ./cysetup.sh
-      
-      - name: Verify Compiled Shared Objects
-        working-directory: ./src/models/arycolbring
-        run: |
-          echo "Checking compiled modules..."
-          find . -name "*.so" -o -name "*.pyd"
-          test $(find . -name "*.so" -o -name "*.pyd" | wc -l) -gt 0
-      
-      - name: Import Test
-        working-directory: ./src/models/arycolbring
-        run: |
-          python -c "
-          import sys
-          print(sys.path)
-          from CLproximity import _cy_math
-          from CLproximity import _cy_update
-          from CLproximity import _cy_predict
-          print('SUCCESS: Cython modules imported')
-          "
