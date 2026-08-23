@@ -18,6 +18,7 @@ from .report    import generate_two_tower_report
 from . import viztower
 from . import inout
 from . import narative
+from . import CLtowers
 
 __all__ = ['TwoTowerConfig',
            'TwoTowerWeights',
@@ -29,4 +30,5 @@ __all__ = ['TwoTowerConfig',
            'viztower',
            'inout',
            'narative',
+           'CLtowers',
            ]

@@ -20,9 +20,19 @@ env:
   PYTHON_VERSION: "3.13"
 
 jobs:
-  test-ary2tower:
+  ary2tower-smoketest:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      # Keep testing every Python version even when one of them fails.
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,15 +59,50 @@ jobs:
           python -c "import sys; print(sys.path)"
 
       - name: Build ary2tower Cython extension
-        working-directory: src/cooprecsys/models/ary2tower
-        run: python a2tcysetup.py build_ext --inplace
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Building Ary2Tower native extension!"
+          echo "=========================================================================="
+          if [ -f "./src/cooprecsys/models/ary2tower/a2tcysetup.py" ]; then
+            python ./src/cooprecsys/models/ary2tower/a2tcysetup.py \
+              build_ext \
+              --inplace
+          else
+            echo "::error::Ary2Tower for a2tcysetup.py is not found."
+            exit 1
+          fi
+
+      - name: Verify Package Imports
+        continue-on-error: true
+        run: |
+          export PYTHONPATH="${{ github.workspace }}"
+          python -c "
+          from src.cooprecsys.models.ary2tower import CLtowers
+          print('SUCCESS: all of Ary2Tower cython module import works.')
+          "
 
       - name: Train smoke test
-        run: python test/ary2tower_tests/ary2tower_train_smoketest.py
+        run: |
+          echo "=========================================================================="
+          echo "Launching Ary2Tower Train smoke test."
+          echo "=========================================================================="
+          export PYTHONPATH="${{ github.workspace }}"
+          python -m test.ary2tower_tests.a2t01_train_smoketest
 
       - name: Inference smoke test
-        run: python test/ary2tower_tests/ary2tower_inference_smoketest.py
+        run: |
+          echo "=========================================================================="
+          echo "Launching Ary2Tower Inference smoke test."
+          echo "=========================================================================="
+          export PYTHONPATH="${{ github.workspace }}"
+          python -m test.ary2tower_tests.a2t02_inference_smoketest
 
-      - name: Direct ary2tower pytest suite
+      - name: Direct pytest suite
         continue-on-error: true
-        run: pytest test/ary2tower_tests/t03_pytest.py -v --tb=short
+        run: |
+          echo "=========================================================================="
+          echo "Direct Pytest Suite test."
+          echo "=========================================================================="
+          export PYTHONPATH="${{ github.workspace }}"
+          pytest -m test.ary2tower_tests.a2t03_pytest -v --tb=short
