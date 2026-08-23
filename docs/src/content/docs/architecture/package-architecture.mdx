@@ -1,66 +1,73 @@
 ---
 title: "Package Architecture"
-description: "How the CoopRecSys package is divided into assets, configuration, data access, feature engineering, model families, preparation, and evaluation."
+description: "How CoopRecSys separates data access, feature engineering, configuration, model families, native kernels, fallback logic, scoring, and reporting."
 category: "Architecture"
 order: 30
-tags: ["architecture", "package-structure", "design"]
+tags: ["architecture", "package-structure", "design", "duckdb", "cython"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ## High-level architecture
 
 ```text
 cooprecsys/
-├── assets/        # dashboard assets and visualization helpers
-├── configs/       # model and runtime configuration
-├── db/            # DuckDB access utilities
-├── features/      # feature engineering and encoding
+├── assets/        # dashboard/report assets and visualization helpers
+├── configs/       # shared INI + typed runtime/model configuration
+├── db/            # DuckDB connection/query utilities
+├── features/      # date, encoding, feature engineering, loading, LTR prep
 ├── models/
+│   ├── ary2tower/ # two-tower neural recommender + Cython kernels
 │   ├── arycolbring/
-│   ├── ary2tower/
 │   └── ltr_lgbm/
-├── noisemaker/    # data/noise manipulation utilities
-├── prepare/       # preparation and structural utilities
-└── qrates/        # scoring/rating and SQL helpers
+├── noisemaker/    # data exchange, splitting, and robustness/noise helpers
+├── prepare/       # schema identification, JSON/dict helpers, file utilities
+└── qrates/        # pseudo-ratings, composite scoring, quasi-rate retrieval
 ```
+
+The important architectural boundary is that models consume prepared representations. `prepare` discovers and normalizes structure, `db` supplies analytical execution, `features` creates reusable transformations, and `qrates` can derive a scoring/rating signal before a downstream model is trained.
 
 ## Model layers
 
 ### AryColBring
 
-The collaborative-filtering implementation is centered on `CLproximity/`, which contains Cython source and compiled extension modules. Higher-level modules under `inout/`, `narative/`, and the model root provide training, inference, rendering, and support logic.
+AryColBring remains part of the documented model family. Its `CLproximity/` directory contains Cython/OpenMP proximity/training kernels, while `inout/`, `eval/`, `assist/`, and `narative/` separate prediction, evaluation, support, and report responsibilities.
 
 ### Ary2Tower
 
-The two-tower model uses `CLtowers/` for Cython kernels, with `towers.py`, `trainer.py`, `inference.py`, and `inout/` providing the Python-facing orchestration layer. The `narative/` and `viztower/` subtrees handle reporting and visualization responsibilities.
+Ary2Tower exposes a Python orchestration layer (`towers.py`, `trainer.py`, `inference.py`, `report.py`) around `CLtowers/` native kernels. The compiled package includes forward, prediction, similarity, training, and type-level Cython modules. `inout/` contains the lower-level architect/predictor interfaces and the residual fallback reasoner.
+
+The current inference contract is important: the primary recommendation path scores the eligible catalogue, instead of taking a small top-k pool and then losing rows during purchase filtering. When the requested count still cannot be filled, the residual fallback uses a Bayesian-smoothed popularity prior with optional recency decay; it is not an item-to-item similarity filter.
 
 ### LTR-LightGBM
 
-The LTR model is separated into data preparation, inference/training handlers, reporting, optimization-related utilities, and visualization helpers.
+LTR-LightGBM is the feature-rich ranking path. It keeps group-aware preparation, ranker invocation, prediction, reporting, and feature-processing utilities separate from the lower-level model implementation.
 
 ## Data flow
 
 ```text
-Raw transactions / model input
-          |
-          v
-     prepare + db
-          |
-          v
-   features + encoding
-          |
-          +----------------------+
-          |                      |
-          v                      v
-     AryColBring            Ary2Tower / LTR
-          |                      |
-          +----------+-----------+
+Raw transactions / pandas / DuckDB
+                 |
+                 v
+         prepare + db loading
+                 |
+                 v
+       dates + encoders + features
+                 |
+          +------+------+
+          |             |
+          v             v
+       qrates       model training
+          |         /      |      \
+          |   AryColBring Ary2Tower LTR
+          |         \      |      /
+          +----------+-----+-----+
                      |
                      v
-              evaluation/report
+              ranking / inference
                      |
                      v
-          dashboards / artifacts
+            reports / dashboard
 ```
 
-The actual repository is more detailed than the historical README sketch. The source tree supplied for this documentation is treated as authoritative for current directory naming.
+This separation also means a pandas DataFrame can be the source for a simple workflow, while the same data can be registered into DuckDB for large analytical transformations without changing the downstream model API.

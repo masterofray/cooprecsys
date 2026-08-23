@@ -27,8 +27,8 @@ LocDir     = Path(__file__).parent.resolve()
 Tplatedir  = LocDir / "templates"
 advdir     = LocDir / "sttrain"
 readir     = LocDir / "stinferc"
-IMG_DIR    = LocDir.parents[3] / 'img'
-OUTPUT_DIR = (LocDir.parents[3] / _cfg.get('PATHS', 'ACB_rpath') / 'ACB_reports').resolve()
+IMG_DIR    = LocDir.parents[2] / 'assets' / 'icon'
+OUTPUT_DIR = (LocDir.parents[4] / _cfg.get('PATHS', 'ACB_rpath') / 'ACB_reports').resolve()
 
 def get_env() -> Environment:
     """Initialize Jinja2 environment."""
@@ -45,15 +45,6 @@ def get_env() -> Environment:
         logger.debug("Jinja environment initialized successfully.")
         return env
     except Exception as exc:
-        # BUGFIX: this used to build a fallback (loader-less) Environment
-        # here and then hit a `finally: return env` below -- in Python, a
-        # `return` inside `finally` always wins and silently discards any
-        # in-flight exception, so the `raise RuntimeError() from exc` a
-        # few lines down was dead code: every failure here was silently
-        # swallowed and replaced with a broken Environment that has no
-        # template loader (any .get_template() call on it would then fail
-        # with a confusing, unrelated error). Now it just logs and raises,
-        # which is what the code already looked like it was trying to do.
         logger.error("Failed initializing Jinja environment.", exc_info = True)
         raise RuntimeError("Failed to initialize Jinja environment.") from exc
 

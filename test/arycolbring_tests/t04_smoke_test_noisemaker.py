@@ -18,7 +18,6 @@ ersetz, and flex modules, ensuring stable tensor
 alignment, matrix densities, and valid splitting splits.
 """
 
-import sys
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -26,13 +25,13 @@ from pathlib import Path
 from typing import List
 
 LocDir = Path(__file__).resolve().parents[2] / 'src'
-sys.path.append(str(LocDir))
-from configs    import logger
-from features   import load_data
-from noisemaker import (ExchangeResult,
-                        coo_ttsplit,
-                        exnorex,
-                        usertts)
+#sys.path.append(str(LocDir))
+from src.cooprecsys.configs    import logger
+from src.cooprecsys.features   import load_data
+from src.cooprecsys.noisemaker import (ExchangeResult,
+                                       coo_ttsplit,
+                                       exnorex,
+                                       usertts)
 
 
 def Noisemaker_Smoke_Test(Data      : pd.DataFrame,

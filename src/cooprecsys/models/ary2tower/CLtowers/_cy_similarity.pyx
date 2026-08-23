@@ -20,7 +20,7 @@ cdef void c_dot_product(
     flt[::1]    scores,
     int         num_threads,
     bint        verbose
-) nogil:
+) noexcept nogil:
     """
     Pure C-level Dot Product implementation.
     scores[i] = user_out[i] . item_out[i]
@@ -50,7 +50,7 @@ cdef void c_cosine_similarity(
     int         num_threads,
     flt         eps,
     bint        verbose
-) nogil:
+) noexcept nogil:
     """
     Pure C-level Cosine Similarity implementation.
     scores[i] = (user_out[i] . item_out[i]) / (||user_out[i]|| * ||item_out[i]|| + eps)

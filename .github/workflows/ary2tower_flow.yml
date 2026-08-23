@@ -1,0 +1,108 @@
+# ==========================================================
+# Workflow for Ary2tower models
+# Author: Aryanto
+# ==========================================================
+
+name: Ary2Towers Pipeline
+
+on:
+  push:
+    branches:
+      - dev
+      - staging
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+
+jobs:
+  ary2tower-smoketest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      # Keep testing every Python version even when one of them fails.
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Debug Repository Structure
+        run: |
+          echo "===== ROOT DIRECTORY ====="
+          ls -lAh --group-directories-first
+          echo ""
+          echo "===== TEST DIRECTORY ====="
+          ls -lAh --group-directories-first test/ || echo "Test Dir is not found."
+          echo ""
+          echo "===== PYTHON PATH ====="
+          python -c "import sys; print(sys.path)"
+
+      - name: Build ary2tower Cython extension
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Building Ary2Tower native extension!"
+          echo "=========================================================================="
+          if [ -f "./src/cooprecsys/models/ary2tower/a2tcysetup.py" ]; then
+            python ./src/cooprecsys/models/ary2tower/a2tcysetup.py \
+              build_ext \
+              --inplace
+          else
+            echo "::error::Ary2Tower for a2tcysetup.py is not found."
+            exit 1
+          fi
+
+      - name: Verify Package Imports
+        continue-on-error: true
+        run: |
+          export PYTHONPATH="${{ github.workspace }}"
+          python -c "
+          from src.cooprecsys.models.ary2tower import CLtowers
+          print('SUCCESS: all of Ary2Tower cython module import works.')
+          "
+
+      - name: Train smoke test
+        run: |
+          echo "=========================================================================="
+          echo "Launching Ary2Tower Train smoke test."
+          echo "=========================================================================="
+          export PYTHONPATH="${{ github.workspace }}"
+          python -m test.ary2tower_tests.a2t01_train_smoketest
+
+      - name: Inference smoke test
+        run: |
+          echo "=========================================================================="
+          echo "Launching Ary2Tower Inference smoke test."
+          echo "=========================================================================="
+          export PYTHONPATH="${{ github.workspace }}"
+          python -m test.ary2tower_tests.a2t02_inference_smoketest
+
+      - name: Direct pytest suite
+        continue-on-error: true
+        run: |
+          echo "=========================================================================="
+          echo "Direct Pytest Suite test."
+          echo "=========================================================================="
+          export PYTHONPATH="${{ github.workspace }}"
+          pytest -m test.ary2tower_tests.a2t03_pytest -v --tb=short

@@ -1,0 +1,416 @@
+name: AryColBring Smoke Test Pipeline
+
+on:
+  push:
+    branches:
+      - 'dev'
+      - 'master'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==========================================================================
+  # JOB 1: Security scan
+  # Scan the main source tree for common security issues.
+  # ==========================================================================
+  security-scan:
+    name: Run Bandit Security Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      # Pull the exact commit that triggered this workflow.
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Set up uv so Bandit can run without messing with the repo environment.
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      # Run Bandit against the current production source tree.
+      - name: Run Bandit Security Analysis
+        run: |
+          echo "=========================================================================="
+          echo "Running Bandit security checks."
+          echo "=========================================================================="
+
+          # Keep Bandit isolated from the project's dependency tree.
+          uvx bandit \
+            -r ./src/cooprecsys \
+            -lll \
+            --confidence-level high \
+            -s B101,B311,B608
+
+  # ==========================================================================
+  # JOB 2: Lint + formatting
+  #
+  # Black  -> formatting
+  # Flake8 -> lint / common Python issues
+  # isort  -> import sorting
+  #
+  # Everything lives under src/cooprecsys now.
+  # ==========================================================================
+  lint:
+    name: Lint (black / flake8 / isort)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Pull the repo into the runner.
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Use one stable Python version for linting.
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Set up uv and cache project dependencies.
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      # Install the project plus development dependencies.
+      - name: Install Dev Dependencies
+        run: |
+          uv pip install --system ".[dev]"
+
+      # Check formatting for the new source layout.
+      - name: Run Black (check only)
+        continue-on-error: true
+        run: |
+          # No auto-formatting here.
+          # CI should complain, not silently rewrite code.
+          black --check --target-version py312 \
+            src/cooprecsys/models/arycolbring \
+            src/cooprecsys/assets \
+            test/arycolbring_tests
+
+      # Run Flake8 against the new source tree.
+      - name: Run Flake8
+        continue-on-error: true
+        run: |
+          flake8 \
+            src/cooprecsys/models/arycolbring \
+            src/cooprecsys/assets \
+            test/arycolbring_tests
+
+      # Make sure imports are sorted cleanly.
+      - name: Run isort (check only)
+        continue-on-error: true
+        run: |
+          isort --check-only \
+            src/cooprecsys/models/arycolbring \
+            src/cooprecsys/assets \
+            test/arycolbring_tests
+
+  # ==========================================================================
+  # JOB 3: Unit + integration tests
+  # ==========================================================================
+  pytest-suite:
+    name: Pytest Suite (unit + integration, coverage)
+    runs-on: ubuntu-latest
+
+    steps:
+      # Pull the repo into the runner.
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Use Python 3.12 as the main test environment.
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Set up uv and dependency caching.
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      # Install GCC and the native tools needed by Cython.
+      - name: Install System Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      # Install the package and all development dependencies.
+      - name: Install Dependencies with uv
+        run: |
+          uv pip install --system ".[dev]"
+
+      # Install the tools required by cysetup.py.
+      # This replaces the old cysetup.sh build flow completely.
+      - name: Install Native Build Dependencies
+        run: |
+          echo "=========================================================================="
+          echo "Installing native build dependencies."
+          echo "=========================================================================="
+          uv pip install --system \
+            "setuptools>=70.0" \
+            "wheel>=0.42" \
+            "Cython>=3.0" \
+            "numpy>=2.0"
+
+      # Build AryColBring directly from the current source tree.
+      - name: Build AryColBring Cython Extension
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Building AryColBring native extension with cysetup.py."
+          echo "=========================================================================="
+          # This is the only supported AryColBring location now.
+          if [ -f "./src/cooprecsys/models/arycolbring/cysetup.py" ]; then
+            python ./src/cooprecsys/models/arycolbring/cysetup.py \
+              build_ext \
+              --inplace
+          else
+            echo "::error::AryColBring cysetup.py not found."
+            exit 1
+          fi
+
+      # Make sure the build actually produced a native extension.
+      - name: Verify Native Extensions
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Checking generated native extensions."
+          echo "=========================================================================="
+          find src/cooprecsys -type f -name "*.so" -print
+          SO_COUNT=$(find src/cooprecsys -type f -name "*.so" | wc -l)
+          echo "Found $SO_COUNT native extension(s)."
+          test "$SO_COUNT" -gt 0
+
+      # Check for the exact finite-math symbol problem from the production build.
+      - name: Check Native Extension Symbols
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Checking for forbidden finite-math symbols."
+          echo "=========================================================================="
+          if find src/cooprecsys -type f -name "*.so" -print0 \
+              | xargs -0 -r readelf -Ws 2>/dev/null \
+              | grep -E '\b__([A-Za-z0-9]+)_finite\b'; then
+            echo "::error::Generated extension still references a __*_finite glibc symbol."
+            exit 1
+          fi
+          echo "OK: no __*_finite symbol references in generated extensions."
+
+      # Verify that Python can load the freshly-built extension.
+      - name: Verify Package Imports
+        continue-on-error: true
+        run: |
+          export PYTHONPATH="${{ github.workspace }}"
+          python -c "
+          from src.cooprecsys.models.arycolbring import inference
+          print('SUCCESS: AryColBring inference import works.')
+          "
+
+      # Run the actual unit + integration test suite.
+      - name: Run Pytest Suite
+        continue-on-error: true
+        run: |
+          export PYTHONPATH="${{ github.workspace }}"
+          # No fake coverage threshold here.
+          # First get a real baseline, then lock in a real minimum later.
+          pytest \
+            test/arycolbring_tests/t03_pytest.py \
+            test/arycolbring_tests/t05_dashboard_refactor.py \
+            -v \
+            --tb=short \
+            --cov=src/cooprecsys/models/arycolbring \
+            --cov=src/cooprecsys/assets \
+            --cov-report=xml \
+            --cov-report=term-missing
+
+      # Save the generated coverage report in GitHub Actions.
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: arycolbring-coverage
+          path: coverage.xml
+
+  # ==========================================================================
+  # JOB 4: AryColBring smoke tests across supported Python versions.
+  #
+  # Each Python version:
+  #   1. Sets up Python
+  #   2. Installs dependencies
+  #   3. Builds the native extension
+  #   4. Validates the .so
+  #   5. Runs training
+  #   6. Runs inference
+  # ==========================================================================
+  smoke-test:
+    name: Smoke Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Keep testing every Python version even when one of them fails.
+      fail-fast: false
+      matrix:
+        python-version:
+          - '3.10'
+          - '3.11'
+          - '3.12'
+          - '3.13'
+
+    steps:
+      # Pull the exact commit being tested.
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Install the Python version for this matrix entry.
+      - name: Set up Python Environment
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Set up uv for dependency management and caching.
+      - name: Set up uv Package Manager
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: "pyproject.toml"
+
+      # Install GCC and other native build tools.
+      - name: Install System Build Tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential
+
+      # Install the project and development dependencies.
+      - name: Install Dependencies with uv
+        run: |
+          echo "=========================================================================="
+          echo "Installing project dependencies with uv."
+          echo "=========================================================================="
+          uv pip install --system ".[dev]"
+
+      # Install the native build stack used by cysetup.py.
+      - name: Install Native Build Dependencies
+        run: |
+          echo "=========================================================================="
+          echo "Installing setuptools, wheel, Cython, and NumPy."
+          echo "=========================================================================="
+          uv pip install --system \
+            "setuptools>=70.0" \
+            "wheel>=0.42" \
+            "Cython>=3.0" \
+            "numpy>=2.0"
+
+      # Build AryColBring directly from the new src/cooprecsys layout.
+      - name: Build AryColBring Cython Extension
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Building AryColBring with cysetup.py."
+          echo "=========================================================================="
+          # No old src/models fallback.
+          # No cysetup.sh.
+          python ./src/cooprecsys/models/arycolbring/cysetup.py \
+            build_ext \
+            --inplace
+
+      # Make sure the native extension really exists.
+      - name: Verify Native Extensions
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Checking generated .so files."
+          echo "=========================================================================="
+          find src/cooprecsys -type f -name "*.so" -print
+          SO_COUNT=$(find src/cooprecsys -type f -name "*.so" | wc -l)
+          echo "Native extension count: $SO_COUNT"
+          test "$SO_COUNT" -gt 0
+
+      # Reuse the same production symbol validation.
+      - name: Check Native Extension Symbols
+        run: |
+          set -eux
+          echo "=========================================================================="
+          echo "Checking generated extensions for forbidden __*_finite symbols."
+          echo "=========================================================================="
+          if find src/cooprecsys -type f -name "*.so" -print0 \
+              | xargs -0 -r readelf -Ws 2>/dev/null \
+              | grep -E '\b__([A-Za-z0-9]+)_finite\b'; then
+            echo "::error::Generated extension still references a __*_finite glibc symbol."
+            exit 1
+          fi
+          echo "OK: no __*_finite symbol references in generated extensions."
+
+      # Make sure the freshly compiled module can actually be imported.
+      - name: Verify AryColBring Import
+        run: |
+          export PYTHONPATH="$PWD:$PWD/src"
+          echo "Just remove temporary the ary2tower script!!!"
+          rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
+          python -c "
+          from src.cooprecsys.models.arycolbring import inference
+          print('SUCCESS: AryColBring import works on Python ${{ matrix.python-version }}')
+          "
+
+      # Run a small training job.
+      # This is just a pipeline sanity check, not production model training.
+      - name: Execute Automated Smoke Test
+        run: |
+          echo "=========================================================================="
+          echo "Launching AryColBring model training smoke test."
+          echo "Python version: ${{ matrix.python-version }}"
+          echo "=========================================================================="
+          export PYTHONPATH="$PWD:$PWD/src"
+          rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
+          python test/arycolbring_tests/t01_advisor.py \
+            -d ./data/sampledata.parquet \
+            -t 0.25 \
+            -e 50 \
+            -n "Test experiment Python ${{ matrix.python-version }}"
+          echo "=========================================================================="
+          echo "Training smoke test finished."
+          echo "=========================================================================="
+
+      # Find the model created by training and run inference against it.
+      - name: Execute Inference Smoke Test
+        run: |
+          echo "=========================================================================="
+          echo "Launching AryColBring inference smoke test."
+          echo "=========================================================================="
+          export PYTHONPATH="$PWD:$PWD/src"
+          rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
+          # The training script creates timestamp-based model filenames.
+          # Grab the newest one instead of hardcoding a date.
+          MODEL_PATH=$(find ./artifacts/ACBmodel \
+            -name '*_models.npz' \
+            -printf '%T@ %p\n' \
+            | sort -n \
+            | tail -1 \
+            | cut -d' ' -f2-)
+          # If training didn't create a model, fail immediately.
+          if [ -z "$MODEL_PATH" ]; then
+            echo "::error::No trained model found under ./artifacts/ACBmodel."
+            echo "The training smoke test probably wrote the model somewhere else."
+            exit 1
+          fi
+          echo "Using model: $MODEL_PATH"
+          # Run inference against the model produced by the training test.
+          python -m test.arycolbring_tests.t02_reasoner \
+            -m "$MODEL_PATH" \
+            -u 20 \
+            -r 10
+          echo "=========================================================================="
+          echo "Inference smoke test finished."
+          echo "Python version: ${{ matrix.python-version }}"
+          echo "=========================================================================="

@@ -1,13 +1,14 @@
 ---
 title: "Current Source Tree Reference"
-description: "Reference for the current ./src/cooprecsys package structure supplied for this documentation."
+description: "Reference for the current ./src/cooprecsys package structure and the responsibilities of its major directories."
 category: "Reference"
 order: 120
-tags: ["reference", "source-tree", "api"]
+tags: ["reference", "source-tree", "api", "structure"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
-The following structure reflects the repository tree supplied for this documentation effort.
+The repository source tree is organized below `src/cooprecsys/`. The package installed by Python is still imported as `cooprecsys`.
 
 ```text
 src/cooprecsys/
@@ -38,6 +39,8 @@ src/cooprecsys/
 │   │   ├── viztower/
 │   │   ├── a2tcysetup.py
 │   │   ├── config.py
+│   │   ├── cysetup.sh
+│   │   ├── cysetup.ps1
 │   │   ├── inference.py
 │   │   ├── report.py
 │   │   ├── towers.py
@@ -62,12 +65,39 @@ src/cooprecsys/
 ├── noisemaker/
 ├── prepare/
 └── qrates/
+    ├── counterfeit.py
+    ├── multi_scann.py
+    ├── quasi_grade.py
+    └── sqlrender/
 ```
 
-## Design boundary
+## Directory responsibilities
 
-The structure separates concerns rather than forcing every capability into the model classes. This is useful for maintenance because data preparation, model training, report generation, and dashboard support can evolve independently.
+- `assets` — dashboard helper functions, statistics rendering, chart data and packaged UI assets.
+- `configs` — shared INI defaults plus typed fallback/LTR configuration and logging.
+- `db` — in-process DuckDB lifecycle and query helpers.
+- `features` — date processing, category encoding, automated features, inference preparation and LTR data processing.
+- `noisemaker` — controlled data splits and robustness/noise transformations.
+- `prepare` — schema discovery, JSON/dict handling and filesystem/archive support.
+- `qrates` — pseudo-ratings, composite scores and feature-space retrieval.
+- `models` — recommendation algorithms and their model-specific native/reporting/visualization code.
 
 ## Native extension directories
 
-`CLproximity/` and `CLtowers/` are special cases. They contain Cython sources and generated native binaries. When distributing through PyPI, prefer built wheels so end users receive a tested artifact rather than compiling those modules ad hoc.
+`CLproximity/` and `CLtowers/` contain Cython sources and the generated platform-specific extension modules. They are not interchangeable with pure Python modules and must be built for the target CPython/OS combination.
+
+## Repository path vs Python namespace
+
+The source checkout may use:
+
+```text
+src/cooprecsys/...
+```
+
+but application code should use:
+
+```python
+import cooprecsys
+```
+
+This distinction is essential when moving from local development to a wheel installed by GitHub Actions/PyPI.

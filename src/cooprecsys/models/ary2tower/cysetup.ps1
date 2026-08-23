@@ -1,60 +1,58 @@
 #!/usr/bin/env pwsh
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = 'Stop'
 
+# 1. Penentuan direktori skrip dan root repositori
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$repoRoot  = (Resolve-Path (Join-Path $scriptDir '..\..\..')).Path
 
-$env:PYTHONUTF8 = "1"
-$env:PYTHONIOENCODING = "utf-8"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-Write-Host "========================================="
-Write-Host "BUILDING CYTHON MODULES (Windows)"
-Write-Host "========================================="
-Write-Host ""
-
-python --version
-Write-Host ""
-
-Write-Host "--- Diagnostics ---"
-Write-Host "CWD: $(Get-Location)"
-python -c "import sys; print('Python exe:', sys.executable)"
-python -c "import setuptools; print('setuptools:', setuptools.__version__)"
-python -c "import Cython; print('Cython:', Cython.__version__)"
-python -c "import numpy; print('numpy:', numpy.__version__)"
-$clPath = Get-Command cl.exe -ErrorAction SilentlyContinue
-if ($clPath) {
-    Write-Host "cl.exe found: $($clPath.Source)"
-} else {
-    Write-Host "::warning::cl.exe not found on PATH. If build_ext fails with 'Microsoft Visual C++ ... is required' or 'cl.exe failed', add the 'ilammy/msvc-dev-cmd@v1' action step before this one in the workflow."
+# 2. Deteksi lokasi struktur kode sumber (source tree)
+if (Test-Path (Join-Path $repoRoot 'src\cooprecsys')) {
+    $sourceRoot = Join-Path $repoRoot 'src'
 }
-Write-Host ""
-
-if (-not (Test-Path "cysetup.py")) {
-    Write-Error "cysetup.py not found in $(Get-Location). Check the 'working-directory' setting in the workflow step."
-    exit 1
+elseif (Test-Path (Join-Path $repoRoot 'cooprecsys')) {
+    $sourceRoot = $repoRoot
+}
+else {
+    throw 'ERROR: cooprecsys source tree not found'
 }
 
-if (Test-Path "build") {
-    Remove-Item -Recurse -Force "build"
-}
+# 3. Pindah direktori dan atur PYTHONPATH
+Set-Location $repoRoot
+$env:PYTHONPATH = "$sourceRoot;$env:PYTHONPATH"
 
-# Recursively clean previously-compiled artifacts anywhere under this
-# directory (not just the top-level CLtowers folder), so stale
-# .pyd/.c files from a prior run can't mask a build failure.
-Get-ChildItem -Recurse -Filter "*.c"   -ErrorAction SilentlyContinue | Where-Object { $_.FullName -notmatch '\\build\\' } | Remove-Item -Force
-Get-ChildItem -Recurse -Filter "*.pyd" -ErrorAction SilentlyContinue | Remove-Item -Force
+# 4. Kompilasi ekstensi Cython
+$setupScript = Join-Path $scriptDir 'a2tcysetup.py'
+& python $setupScript build_ext --inplace
 
-Write-Host ""
-Write-Host "Running: python .\cysetup.py build_ext --inplace"
-python .\cysetup.py build_ext --inplace
 if ($LASTEXITCODE -ne 0) {
-    Write-Error "cysetup.py build_ext failed with exit code $LASTEXITCODE"
-    exit $LASTEXITCODE
+    throw "a2tcysetup.py build_ext failed with exit code: $LASTEXITCODE"
 }
 
-Write-Host ""
-Write-Host "--- Build output (.pyd files produced) ---"
-Get-ChildItem -Recurse -Filter "*.pyd" | ForEach-Object { Write-Host $_.FullName }
+# 5. Verifikasi modul Cython dan backend info
+$verifyScript = @"
+import importlib
+from cooprecsys.models.ary2tower.towers import backend_info
 
-Write-Host "========================================="
-Write-Host "BUILD FINISHED"
-Write-Host "========================================="
+CYTHON_MODULES = [
+    '_cy_types',
+    '_cy_forward',
+    '_cy_predict',
+    '_cy_similarity',
+    '_cy_train',
+]
+BASE_PATH = 'cooprecsys.models.ary2tower.CLtowers.'
+
+for mod_name in CYTHON_MODULES:
+    full_module_path = BASE_PATH + mod_name
+    module = importlib.import_module(full_module_path)
+    print(f'[OK] {full_module_path} -> {module.__file__}')
+
+info = backend_info()
+assert info['compiled'], info
+print(f'[OK] backend -> {info}')
+"@
+
+& python -c $verifyScript
+if ($LASTEXITCODE -ne 0) {
+    throw 'Cython backend verification failed'
+}

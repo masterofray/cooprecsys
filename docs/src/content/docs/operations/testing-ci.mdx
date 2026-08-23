@@ -1,70 +1,90 @@
 ---
 title: "Testing, CI/CD, and Native Build Validation"
-description: "How the CoopRecSys project validates Python, Cython, manylinux, Windows, release artifacts, and PyPI publication."
+description: "How CoopRecSys validates Python code, Cython extensions, Ary2Tower backend selection, wheel contents, and release artifacts."
 category: "Operations"
 order: 100
-tags: ["testing", "ci-cd", "github-actions", "manylinux", "pypi"]
+tags: ["testing", "ci-cd", "github-actions", "manylinux", "pypi", "cython"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ## Test layers
 
-The repository README documents several validation layers:
+Model-specific tests should be supplemented with package import and backend checks:
 
 ```bash
-python -m test.ltrlgbm_test.ltrlgbm_example
-pytest test/arycolbring_tests/ -v
 pytest test/ary2tower_tests/ -v
-pytest test/ --cov=src --cov-report=html
-black --check src test
-flake8 src test
-isort --check-only src test
+pytest test/arycolbring_tests/ -v
+python -m test.ltrlgbm_test.ltrlgbm_example
 ```
 
-## Native extension build
+A broader source-tree run can include coverage and static checks appropriate to the repository checkout.
 
-The release process compiles the Cython extensions for each supported CPython version. Linux builds are produced in a controlled manylinux environment; Windows builds use the native MSVC toolchain.
+## Ary2Tower native validation
 
-This matters because a Cython extension is an ELF/PE binary, not pure Python. A wheel can pass package metadata validation while still failing at import time if it was compiled against an incompatible runtime ABI.
+A native build is not considered valid merely because `build_ext` exits successfully. The CI verification should prove that Python imports the generated modules and that the model actually routes work through them.
+
+The source build is:
+
+```bash
+python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
+```
+
+Then verify:
+
+```python
+from cooprecsys.models.ary2tower.towers import backend_info
+print(backend_info())
+```
+
+The runtime should identify the Cython/OpenMP backend when the compiled extensions are present.
+
+## Inference contract tests
+
+Ary2Tower recommendation tests should cover more than score generation. In particular:
+
+- `predict()` returns paired user-item scores;
+- `recommend(n_items=N)` returns N unique rows whenever N eligible items exist;
+- `exclude_purchased=True` never returns purchased items;
+- explicit exclusions are respected;
+- the residual fallback fills shortfalls rather than returning a smaller list;
+- the fallback does not use item-item similarity;
+- both Cython and NumPy execution paths preserve the same public contract.
+
+The only legitimate short result is when the eligible catalogue itself contains fewer unique items than requested.
 
 ## Wheel validation
 
-The publishing pipeline validates:
+The wheel stage should validate:
 
-- wheel and sdist presence,
-- package name consistency,
-- version consistency,
-- Linux manylinux tags,
-- `twine check`,
-- artifact SHA-256 hashes,
-- installed-wheel import tests in isolated environments.
+- wheel and sdist presence;
+- package version consistency;
+- extension-module presence for each CPython target;
+- isolated installation;
+- package import;
+- Ary2Tower backend import when a native wheel is expected;
+- `twine check` and release metadata.
 
 ## Release pipeline
 
-The practical release flow is:
-
 ```text
-version in pyproject.toml
-        ↓
-Git tag
-        ↓
-Cython/native build matrix
-        ↓
+version metadata
+       ↓
+Cython/OpenMP build matrix
+       ↓
 wheel + sdist
-        ↓
-isolated installation tests
-        ↓
+       ↓
+isolated installation
+       ↓
+import + backend + inference smoke tests
+       ↓
 GitHub Release
-        ↓
+       ↓
 PyPI publisher
 ```
 
-## PyPI metadata compliance
+Do not attempt to repair or replace native binaries during the publication job. The publish job should consume artifacts that have already passed compatibility tests.
 
-The v0.0.3 release hardened package metadata after PyPI rejected an invalid classifier. The supported classifier for the beta stage is:
+## Why backend tests matter
 
-```text
-Development Status :: 4 - Beta
-```
-
-This illustrates an important release-engineering rule: local checks such as `twine check` should be supplemented with server-side publication diagnostics.
+A common failure mode in Cython projects is: source compiles, package imports, but a different Python implementation is used at runtime. Checking `backend_info()` and exercising a real training/inference call catches that class of regression.

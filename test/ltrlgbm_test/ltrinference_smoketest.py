@@ -13,12 +13,12 @@ __created__    = "2026-05-13"
 #import sys
 from pathlib  import Path
 
-LocDir = Path(__file__).resolve().parents[2] / 'src'
+LocDir = Path(__file__).resolve().parents[2] / 'src' / 'cooprecsys'
 #sys.path.append(str(LocDir))
-from src.models import InferenceTest
+from src.cooprecsys.models.ltr_lgbm import InferenceTest
 
 def inference_test():
-    Args      = {'Datapath'  : LocDir.parents[0]/'data'/'sampledata.parquet',
+    Args      = {'Datapath'  : LocDir.parents[1]/'data'/'sampledata.parquet',
                  'configpath': LocDir/'configs'/'configuration.ini',
                  'QueryID'   : 'CustomerID',
                  'LabelID'   : 'CategoryID',
@@ -26,7 +26,7 @@ def inference_test():
                                 'Resistant', 'IsAllergic', 'ProductPrice', 
                                 'Quantity', 'Discount','TotalPrice', 
                                 'relevance_score', 'rank', 'is_fallback'],
-                 'odir'      : LocDir.parent/'artifacts'}
+                 'odir'      : LocDir.parents[1]/'artifacts'}
     TheResult = InferenceTest(**Args)
     print(TheResult.head())
     return TheResult

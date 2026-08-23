@@ -44,8 +44,8 @@ from ....prepare import latest_found, FileCopier
 
 rpath        = _cfg.get('PATHS', 'html_report_path')
 STATIC_DIR   = LocDir.parent / "static"
-IMG_DIR      = LocDir.parents[4] / 'img'
-OUTPUT_DIR   = (LocDir.parents[4] / rpath).parents[0]
+IMG_DIR      = LocDir.parents[3] / 'assets' / 'icon'
+OUTPUT_DIR   = (LocDir.parents[5] / rpath).parents[0]
 DEFAULT_CONTEXT_PATH = OUTPUT_DIR / "contextRecsys.json"
 
 
@@ -219,7 +219,7 @@ def repot(ContPath : Path = './') -> str:
 
         runcopy()
         logger.info("Dashboard generated successfully.")
-        logger.info("Dashboard path   = %s", output_path)
+        logger.warning("Dashboard path   = %s", output_path)
         logger.info("Total rankings   = %d", context.get("total_rankings", 0))
         logger.info("Total scorecards = %d", len(context.get("scorecards", [])))
         logger.info("Total charts     = %d", len(context.get("charts", [])))

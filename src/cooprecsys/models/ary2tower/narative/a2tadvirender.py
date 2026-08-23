@@ -31,7 +31,7 @@ try:
     from ....assets import (generate_scorecards as _gen_scorecards,
                             generate_gauges, normalize_charts, overall_score_percent)
 except ImportError:  # pragma: no cover - fallback for standalone/test use
-    from src.assets import (generate_scorecards as _gen_scorecards,
+    from ....assets import (generate_scorecards as _gen_scorecards,
                             generate_gauges, normalize_charts, overall_score_percent)
 
 

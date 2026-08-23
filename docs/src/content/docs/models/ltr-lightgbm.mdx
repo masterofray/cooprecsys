@@ -5,62 +5,52 @@ category: "Models"
 order: 60
 tags: ["lightgbm", "learning-to-rank", "mlflow", "ranking"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ## Purpose
 
-LTR-LightGBM is the tabular, feature-rich ranking path in CoopRecSys. It is appropriate when recommendation quality depends on engineered features, query groups, and ranking-oriented objectives.
+LTR-LightGBM is the tabular, feature-rich ranking path in CoopRecSys. Use it when recommendation quality depends heavily on engineered transaction/customer/product features and query-group ranking.
 
 ## Group-aware splitting
 
-The project README demonstrates splitting by customer identity so that a user's rows stay within the intended train/test partition:
+Keep rows belonging to the same customer/query group together to avoid leakage:
 
 ```python
 from sklearn.model_selection import GroupShuffleSplit
 
-gss = GroupShuffleSplit(n_splits=1, test_size=0.2)
+gss = GroupShuffleSplit(n_splits=1, test_size=0.2, random_state=42)
 train_idx, test_idx = next(gss.split(data, groups=data['CustomerID']))
 train_df = data.iloc[train_idx]
 test_df = data.iloc[test_idx]
 ```
 
-Group-aware splitting is critical for avoiding leakage when multiple interactions belong to the same customer or query group.
+The important principle is that the grouping key follows the ranking query semantics; `CustomerID` is one common choice for customer-oriented recommendation data.
 
 ## Configuration
 
-The model configuration is represented through `src/cooprecsys/configs/configuration.ini` and the LTR configuration modules under `configs/`.
+LTR is driven by `configs/lgbm_config.py` and the shared `configuration.ini`. Relevant sections include `[FEATURES]`, `[MODEL_LGBM]`, `[TRAINING]`, `[TUNING]`, `[INFERENCE]`, `[PATHS]`, and `[RATING]`.
 
-A representative configuration from the project README includes:
+The current defaults include LambdaRank with NDCG-oriented evaluation, configurable `ndcg_eval_at`, learning rate, leaves/depth, feature/bagging fractions, regularization, early stopping, and Optuna-style tuning settings.
 
-```ini
-[model]
-loss = warp
-num_components = 32
-learning_rate = 0.05
-epochs = 10
+## Rating/score preparation
 
-[data]
-test_size = 0.2
-random_state = 42
-
-[mlflow]
-experiment_name = cooprecsys_prod
-```
+The `qrates` package can generate a pseudo-rating or composite transaction score before LTR training. `RATING.ColumnName` controls the pseudo-rating output name, while frequency/quantity/spend/recency/loyalty weights support interpretable score construction.
 
 ## Ranking metrics
 
-The original project documentation identifies NDCG, MAP, and AUC as ranking/evaluation metrics. Use the metric set that matches the production objective and the structure of the query groups.
+The documented ranking workflow includes NDCG, MAP, and AUC. Choose metrics that match the actual query structure and business objective rather than optimizing a generic single metric.
 
 ## Experiment tracking
 
-MLflow integration is part of the documented LTR workflow. Configure `MLFLOW_TRACKING_URI` for local or remote tracking before running experiments.
+MLflow support is configured through the typed LTR configuration/path settings. Keep run parameters, feature versions, data windows, and generated reports tied to the same experiment identifier.
 
 ## Production workflow
 
 ```text
 transaction rows
       ↓
-feature engineering
+prepare + features + optional qrates
       ↓
 query/customer grouping
       ↓
@@ -68,7 +58,7 @@ train / validation split
       ↓
 LightGBM ranking model
       ↓
-metrics + MLflow
+metrics + optional MLflow
       ↓
 ranking inference
       ↓

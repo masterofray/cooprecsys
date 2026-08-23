@@ -1,15 +1,16 @@
 ---
 title: "Configuration & Runtime Operations"
-description: "Configure model defaults, MLflow tracking, logging, and runtime behavior using the current CoopRecSys configuration layout."
+description: "Detailed guide to configuration.ini, typed configuration classes, fallback settings, LightGBM settings, and logging in CoopRecSys."
 category: "Operations"
 order: 90
-tags: ["configuration", "mlflow", "logging", "runtime"]
+tags: ["configuration", "ini", "fallback", "lightgbm", "logging"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
 ## Configuration locations
 
-The current package contains:
+The shared configuration directory is:
 
 ```text
 src/cooprecsys/configs/
@@ -19,38 +20,96 @@ src/cooprecsys/configs/
 └── logged.py
 ```
 
-The model-specific packages also contain their own `config.py` modules where appropriate.
+Model packages may also have model-local configuration classes, such as `models/ary2tower/config.py`.
 
-## MLflow
+The project should be treated as **configuration-driven but code-validated**: the INI file supplies operational defaults, while typed dataclasses validate model/fallback settings before use.
 
-For local tracking:
+## `configuration.ini`: what each section controls
 
-```bash
-export MLFLOW_TRACKING_URI=file:./mlruns
+### `[DEFAULT]`
+
+General repository/runtime metadata. Treat encrypted credentials or tokens in configuration files as secrets that should not be committed in a real deployment; environment/secret-manager injection is safer for production.
+
+### `[tqdm]`
+
+Controls progress bar presentation (`colour`, `ncols`, `BarFormats`). It affects CLI observability, not model mathematics.
+
+### `[SHAP]`
+
+Controls subject/row sampling and feature-display settings used by explainability/reporting workflows, including the subject identifier and the maximum number of displayed features.
+
+### `[model]`
+
+Contains shared native-model defaults:
+
+```ini
+[model]
+dtype = float32
+no_components = 10
+loss = warp
+learning_schedule = adagrad
+epochs = 500
+num_threads = 4
 ```
 
-For a remote server:
+These are primarily shared defaults for the collaborative-filtering/native stack. Ary2Tower has its own typed `TwoTowerConfig` because its hyperparameters are different (`embedding_dim`, `hidden_dim`, `output_dim`, `learning_rate`, `momentum`, `n_epochs`, `num_threads`, `random_state`).
 
-```bash
-export MLFLOW_TRACKING_URI=http://localhost:5000
+### `[duckdb]`
+
+Sets in-process analytical parallelism, currently via the DuckDB thread count.
+
+### `[logging]`
+
+Sets the root logging verbosity. `DEBUG` is useful when tracing data preparation or native backend selection; `WARNING` is safer for normal production operation.
+
+### `[FEATURES]`, `[MODEL_LGBM]`, `[TRAINING]`, `[TUNING]`, `[RATING]`, `[INFERENCE]`, `[PATHS]`
+
+These sections form the LTR-LightGBM configuration family. They cover feature labels/query IDs, ranker hyperparameters, boosting/early-stopping controls, Bayesian tuning, rating/scoring parameters, inference `top_k`, artifact paths, and experiment outputs.
+
+### `[FALLBACK]`
+
+This section belongs to the broader fallback/ranking configuration surface. The typed `FallbackConfig` validates strategy, score mode, ANN parameters, cold-start behavior, caching, and execution settings.
+
+```python
+from configparser import ConfigParser
+from cooprecsys.configs.fallback_config import FallbackConfig
+
+cfg = ConfigParser()
+cfg.read('src/cooprecsys/configs/configuration.ini')
+fallback = FallbackConfig.from_configparser(cfg)
+fallback.validate()
 ```
 
-## Logging
+Do not interpret every `[FALLBACK]` option as an Ary2Tower inference requirement. Ary2Tower's current residual fallback implementation is a dedicated `TwoTowerFallBack` that uses a Bayesian-smoothed popularity prior and optional recency decay.
 
-The project README identifies `LOG_LEVEL` as an environment-level control:
+## Model-local Ary2Tower configuration
 
-```bash
-export LOG_LEVEL=DEBUG
+```python
+from cooprecsys.models.ary2tower import TwoTowerConfig
+
+config = TwoTowerConfig(
+    embedding_dim=32,
+    hidden_dim=64,
+    output_dim=16,
+    learning_rate=0.01,
+    momentum=0.9,
+    n_epochs=10,
+    num_threads=4,
+    random_state=42,
+)
 ```
 
-Use a less verbose level for routine production execution and raise verbosity only when investigating pipeline behavior.
+Construction validates hyperparameters eagerly. `num_threads` controls the OpenMP path when Cython extensions are available.
 
 ## Configuration discipline
 
-Keep model configuration versioned with the experiment or release that generated the model. In production, record the effective configuration alongside:
+Record the effective configuration together with:
 
-- model version,
-- feature engineering version,
-- data window,
-- execution timestamp,
-- experiment/run identifier.
+- model artifact/version;
+- feature/encoder version;
+- training data window;
+- runtime/backend (`cython-openmp` or NumPy fallback);
+- inference candidate/exclusion policy;
+- report or experiment identifier.
+
+That metadata is often more valuable for debugging a recommendation regression than the model file alone.

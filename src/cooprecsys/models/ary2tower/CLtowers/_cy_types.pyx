@@ -74,6 +74,22 @@ cdef class TwoTowerModel:
             raise ValueError("user_embeddings_momentum shape does not match user_embeddings")
         if item_embeddings_momentum.shape[0] != item_embeddings.shape[0] or item_embeddings_momentum.shape[1] != emb_dim:
             raise ValueError("item_embeddings_momentum shape does not match item_embeddings")
+        if user_w1_momentum.shape[0] != user_w1.shape[0] or user_w1_momentum.shape[1] != user_w1.shape[1]:
+            raise ValueError("user_w1_momentum shape does not match user_w1")
+        if user_b1_momentum.shape[0] != user_b1.shape[0]:
+            raise ValueError("user_b1_momentum shape does not match user_b1")
+        if user_w2_momentum.shape[0] != user_w2.shape[0] or user_w2_momentum.shape[1] != user_w2.shape[1]:
+            raise ValueError("user_w2_momentum shape does not match user_w2")
+        if user_b2_momentum.shape[0] != user_b2.shape[0]:
+            raise ValueError("user_b2_momentum shape does not match user_b2")
+        if item_w1_momentum.shape[0] != item_w1.shape[0] or item_w1_momentum.shape[1] != item_w1.shape[1]:
+            raise ValueError("item_w1_momentum shape does not match item_w1")
+        if item_b1_momentum.shape[0] != item_b1.shape[0]:
+            raise ValueError("item_b1_momentum shape does not match item_b1")
+        if item_w2_momentum.shape[0] != item_w2.shape[0] or item_w2_momentum.shape[1] != item_w2.shape[1]:
+            raise ValueError("item_w2_momentum shape does not match item_w2")
+        if item_b2_momentum.shape[0] != item_b2.shape[0]:
+            raise ValueError("item_b2_momentum shape does not match item_b2")
 
         # ------------------------------------------------------------------
         # 3. Assignment

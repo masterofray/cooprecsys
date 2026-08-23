@@ -1,52 +1,127 @@
 ---
 title: "Data Preparation & Feature Engineering"
-description: "Responsibilities of the prepare, db, features, and configuration layers in the current CoopRecSys source tree."
+description: "Detailed guidance for prepare, db, features, encoders, DuckDB, and reusable feature pipelines in CoopRecSys."
 category: "Data & Features"
 order: 70
-tags: ["data", "features", "duckdb", "encoding"]
+tags: ["data", "features", "duckdb", "encoding", "prepare"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
 
-## Data and preparation layers
+## The data layer at a glance
 
-The current source tree exposes dedicated packages for data preparation and feature engineering:
+CoopRecSys accepts pandas DataFrames and can push analytical work into DuckDB. The surrounding packages are intentionally small and composable:
 
-```text
-prepare/
-db/
-features/
-configs/
+| Package | Responsibility |
+| --- | --- |
+| `prepare` | Identify columns, serialize small structures, locate files, unzip archives, track missing/failed artifacts |
+| `db` | Execute SQL against in-process DuckDB and move pandas data into registered tables |
+| `features` | Date/time features, encoders, automatic aggregation, inference preparation, LTR preparation, loading |
+| `qrates` | Derive pseudo-ratings and composite/quasi similarity scores from transaction signals |
+
+## `prepare/`: discover structure before modeling
+
+### `columns_identifier.py`
+
+`DetectReco_Identifier()` is the useful first stop for semi-structured recommendation tables. It can infer the user, item, quantity and related transaction columns instead of hard-coding every dataset schema.
+
+```python
+from cooprecsys.prepare.columns_identifier import DetectReco_Identifier
+
+ids = DetectReco_Identifier(df)
+print(ids)
 ```
 
-### `prepare/`
+`validate_cardinality()` is useful before creating a large sparse interaction matrix: it lets you catch unexpectedly high-cardinality columns before the model stage becomes expensive.
 
-Contains helpers for columns identification, dictionary/JSON handling, missing/failed-item processing, and archive/unzip operations.
+### `dictjson.py`, `lostfound.py`, `unzips.py`
 
-### `db/`
+These modules are support utilities rather than model algorithms. Typical uses include converting dictionaries/JSON metadata, copying or finding the latest artifact, and unpacking supplied archives during data preparation or test fixtures.
 
-The current tree contains `callduckdb.py`, indicating a focused DuckDB access layer for analytical ingestion and processing.
+## `db/`: DuckDB as the analytical boundary
 
-### `features/`
+`DuckDBManager` wraps an in-process DuckDB connection. It supports:
 
-The feature layer includes date processing, encoding/decoding, feature-engineering orchestration, feature utilities, LightGBM-specific processing, and loading helpers.
+- SQL queries returning pandas-like results;
+- Arrow results through `query_arrow()`;
+- registering a DataFrame as a DuckDB relation;
+- checking tables and schemas;
+- explicit execution and lifecycle management.
 
-## Feature engineering principles
+```python
+from cooprecsys.db import DuckDBManager
 
-For recommendation workloads, treat feature engineering as a reproducible transformation layer rather than embedding transformations directly into model training code.
+with DuckDBManager(':memory:') as db:
+    db.register_dataframe('events', df)
+    top = db.query('''
+        SELECT item_id, COUNT(*) AS interactions
+        FROM events
+        GROUP BY item_id
+        ORDER BY interactions DESC
+        LIMIT 20
+    ''')
+```
 
-A production pipeline should preserve:
+This is particularly useful when aggregation would otherwise create large intermediate pandas objects.
 
-- feature names and types,
-- category/value mappings,
-- temporal windows,
-- train/test boundaries,
-- transformation assumptions,
-- model/version metadata.
+## `features/`: deterministic transformations
 
-## DuckDB integration
+### `date_processor.py`
 
-DuckDB is used as an analytical data-access component in the package. This is especially useful when feature preparation requires columnar scans, aggregation, or intermediate SQL-based transformations without introducing a separate database service.
+`DateProcessor` detects date-like and Unix timestamp columns and derives calendar, time, duration, and weekend-style features. The important production rule is to derive transformations on training data and apply the same column semantics to inference data.
 
-## Encodings
+### `encdec.py`
 
-The `encdec.py` module indicates a dedicated location for encoding/decoding concerns. Ensure the same fitted mappings or deterministic encoding rules are used at inference time.
+`LabelEncoderManager` centralizes category-to-index mappings. It can save/load fitted mappings and expose class maps for readable inference output.
+
+```python
+manager = LabelEncoderManager(data=df, Column=['user_id', 'item_id'])
+manager.fit_transform()
+manager.save('artifacts/models/labelcoder')
+```
+
+At inference time, load the same encoder rather than fitting a new encoder on only the serving batch.
+
+### `feat_engine.py`
+
+`AutoFeatureEngineer` provides DataFrame-oriented feature construction with DuckDB-backed aggregation, profiling, drift checks, custom-feature registration, and persistence.
+
+```python
+engine = AutoFeatureEngineer()
+train_features = engine.fit_transform(train_df)
+valid_features = engine.transform(valid_df)
+```
+
+`register_custom_feature()` is useful for domain features that should remain part of the reproducible feature pipeline instead of being embedded inside a model script.
+
+### `feat_utils.py`
+
+Utilities cover top-N filtering, train/inference splitting, encoder loading, feature-column loading, group-size loading, and inference-data preparation. These helpers are the bridge between raw tabular data and model-ready representations.
+
+### `lgbm_processor.py`
+
+`DataProcessor` is the LTR-specific preparation path. It validates configured feature/label/query columns and uses DuckDB/parallel preparation when the data volume warrants it.
+
+### `load.py`
+
+`load_data()` handles common CSV, Parquet, and DuckDB ingestion. Use it when a pipeline should accept the storage format as a parameter rather than wiring storage-specific logic into training code.
+
+## A reproducible feature pipeline
+
+```text
+raw pandas / DuckDB
+      ↓
+column identification
+      ↓
+date + categorical normalization
+      ↓
+encoder fit on train only
+      ↓
+feature engineering
+      ↓
+train/validation split by user/query boundary
+      ↓
+model-specific representation
+```
+
+Preserve the feature names, encoder mappings, temporal boundary, and configuration used to generate the final artifact. Those are part of the model contract.

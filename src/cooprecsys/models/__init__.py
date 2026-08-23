@@ -18,6 +18,15 @@ Exposes core interfaces for AryColBring and Learning to Rank (LTR) LightGBM pipe
 
 from .            import arycolbring
 from .            import ltr_lgbm
+from .            import ary2tower
+from .ary2tower   import (TwoTowerConfig,
+                          TwoTowerWeights,
+                          UserTower,
+                          ItemTower,
+                          TwoTowerTrainer,
+                          TwoTowerInference,
+                          generate_two_tower_report, )
+
 from .arycolbring import (AryColBringModelTrainer,
                           RunTrainer,
                           AryColBringInference,
@@ -38,6 +47,16 @@ from .ltr_lgbm    import (BayesianTuner,
 
 __all__ = ["arycolbring",
            "ltr_lgbm",
+           "ary2tower",
+
+           # Ary2Tower API
+           "TwoTowerConfig",
+           "TwoTowerWeights",
+           "UserTower",
+           "ItemTower",
+           "TwoTowerTrainer",
+           "TwoTowerInference",
+           "generate_two_tower_report",
 
            # AryColBring API
            "AryColBringModelTrainer",

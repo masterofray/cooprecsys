@@ -35,7 +35,6 @@ Author: Aryanto
 Created: 2026-06-05
 """
 
-import sys
 import pytest
 import numpy as np
 import scipy.sparse as sp
@@ -43,10 +42,10 @@ from pathlib import Path
 import tempfile
 import json
 
-from src.configs import logger, _cfg
-from src.models.arycolbring.trainer import AryColBringModelTrainer
-from src.models.arycolbring.assist  import describe_interactions, validate_sparse_matrix
-from src.models.arycolbring.inout   import TheReasoner, TheAdvisor
+from src.cooprecsys.configs import logger, _cfg
+from src.cooprecsys.models.arycolbring.trainer import AryColBringModelTrainer
+from src.cooprecsys.models.arycolbring.assist  import describe_interactions, validate_sparse_matrix
+from src.cooprecsys.models.arycolbring.inout   import TheReasoner, TheAdvisor
 
 
 # ============================================================================

@@ -8,7 +8,7 @@ build-backend  = "setuptools.build_meta"
 
 [project]
 name           = "cooprecsys"
-version        = "0.0.3"
+version        = "0.1.1"
 description    = """
 CoopRecSys (Koperasi Recommender System) is a \
 high-performance recommendation engine designed \
@@ -25,7 +25,7 @@ requires-python = ">=3.10"
 authors         = [{name = "Aryanto", email = "aryanto.dandan@gmail.com"}]
 license         = "GPL-3.0-only"
 classifiers     = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -71,10 +71,18 @@ inference       = ["faiss-cpu>=1.8.0",
 
 [tool.pytest.ini_options]
 testpaths       = ["test"]
-python_files    = ["ltrlgbm_example.py", "*_test.py", "t03_pytest.py", "t05_dashboard_refactor.py"]
+python_files    = ["ltrtrain_smoketest.py",
+                   "ltrinference_smoketest.py",
+                   "*_test.py",
+                   "t03_pytest.py",
+                   "t05_dashboard_refactor.py",
+                  ]
 addopts         = "-v --tb=short --cov=src --cov-report=xml --cov-report=term-missing"
 log_cli         = true
 log_cli_level   = "INFO"
+
+[tool.black]
+target-version  = ['py312']
 
 [tool.coverage.run]
 branch          = true
@@ -100,4 +108,7 @@ exclude_lines   = ["pragma: no cover",
 where           = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", "*.ini", "*.sql"]
+"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", 
+       "*.ini", "*.sql", "*.jpg", "*.ico", 
+       "*.zip", "*.js", "*.css", "*.j2", 
+       "*.sh", "*.md", "*.html"]

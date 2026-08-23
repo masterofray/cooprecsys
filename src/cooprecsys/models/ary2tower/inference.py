@@ -23,7 +23,7 @@ report generation. Same relationship arycolbring/inference.py's
 AryColBringInference has to TheReasoner (inout/approximator.py).
 
 API shape deliberately mirrors AryColBringInference
-(src/models/arycolbring/inference.py) -- same method names/semantics
+(cooprecsys.models.ary2tower/inference.py) -- same method names/semantics
 (predict, recommend, get_metrics) -- so callers already familiar with
 the arycolbring inference path don't need to learn a second API.
 
@@ -51,7 +51,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from ...configs import logger
 from .config import TwoTowerConfig
-from .towers import TwoTowerWeights, UserTower, ItemTower, dot_product_similarity
+from .towers import (TwoTowerWeights, UserTower, ItemTower, dot_product_similarity,
+                      _HAS_CYTHON, _cy_predict_pairs, _cy_predict_user_items)
 from .inout.approximator import TwoTowerPredictor
 from .inout.fallback_reasoner import TwoTowerFallBack
 
@@ -124,21 +125,13 @@ class TwoTowerInference:
                     model_path, self._trainer.n_users, self._trainer.n_items)
 
     def set_purchase_data(self, purchase_data, user_col: str = "user_id",
-                          item_col: str = "item_id") -> None:
-        """Enable `exclude_purchased=True` on recommend()/batch_recommend()
-        by supplying purchase history. Can be called after construction
-        instead of passing `purchase_data` to __init__ (e.g. once fresh
-        purchase data becomes available in a long-lived serving process).
-
-        Builds the fallback's item-similarity space from the item
-        tower's own OUTPUT embeddings (running the whole catalogue
-        through `item_tower.forward()` once) -- the same space
-        recommend() scores in -- not the raw pre-tower lookup table.
-        """
-        n_items = self.weights.item_embeddings.shape[0]
-        item_tower_outputs = self.item_tower.forward(np.arange(n_items))
-        self._fallback = TwoTowerFallBack(purchase_data, item_tower_outputs,
-                                          user_col=user_col, item_col=item_col)
+                          item_col: str = "item_id", timestamp_col: Optional[str] = None) -> None:
+        """Enable purchase-aware exclusion and residual fallback filling."""
+        from .inout.fallback_reasoner import TwoTowerFallBack
+        self._fallback = TwoTowerFallBack(
+            purchase_data, n_items=self.weights.item_embeddings.shape[0],
+            user_col=user_col, item_col=item_col, timestamp_col=timestamp_col,
+        )
         logger.info("Purchase data set: exclude_purchased=True is now available.")
 
     def _user_output(self, user_id: int) -> np.ndarray:
@@ -171,6 +164,20 @@ class TwoTowerInference:
                 self._item_cache.put(int(iid), out)
         return outputs
 
+    def _compiled_predict_pairs(self, user_ids: np.ndarray, item_ids: np.ndarray) -> np.ndarray:
+        scores = np.empty(user_ids.shape[0], dtype=np.float32)
+        model = self.weights.as_cython_model()
+        _cy_predict_pairs(user_ids, item_ids, scores, model,
+                          max(1, int(self.num_threads)), verbose=False)
+        return scores
+
+    def _compiled_score_user_against_items(self, user_ids: np.ndarray, item_outputs: np.ndarray) -> np.ndarray:
+        scores = np.empty((user_ids.shape[0], item_outputs.shape[0]), dtype=np.float32)
+        model = self.weights.as_cython_model()
+        _cy_predict_user_items(user_ids, item_outputs, scores, model,
+                               max(1, int(self.num_threads)), verbose=False)
+        return scores
+
     def predict(self, user_ids: Union[int, List[int], np.ndarray],
                 item_ids: Union[int, List[int], np.ndarray]) -> np.ndarray:
         """Dot-product similarity score for each (user_id, item_id) pair
@@ -183,9 +190,12 @@ class TwoTowerInference:
             raise ValueError(f"user_ids ({user_ids.shape[0]}) and item_ids "
                              f"({item_ids.shape[0]}) must have equal length")
 
-        user_out = np.stack([self._user_output(int(u)) for u in user_ids])
-        item_out = self._item_outputs(item_ids)
-        scores = dot_product_similarity(user_out, item_out)
+        if _HAS_CYTHON:
+            scores = self._compiled_predict_pairs(user_ids, item_ids)
+        else:
+            user_out = np.stack([self._user_output(int(u)) for u in user_ids])
+            item_out = self._item_outputs(item_ids)
+            scores = dot_product_similarity(user_out, item_out)
 
         latency_ms = (time.perf_counter() - start) * 1000
         self.inference_stats["n_predictions"] += len(user_ids)
@@ -195,65 +205,65 @@ class TwoTowerInference:
     def recommend(self, user_id: int, n_items: int = 10,
                   exclude_items: Optional[List[int]] = None,
                   exclude_purchased: bool = False) -> List[Tuple[int, float]]:
-        """Top-N items for `user_id`, sorted by score descending.
+        """Return exactly ``n_items`` unique recommendations when possible.
 
-        Parameters
-        ----------
-        exclude_purchased : if True, filter out items `user_id` has
-            already purchased (leaving ONLY items never bought before),
-            backfilling any resulting shortfall via item-to-item
-            cosine-similarity fallback seeded by the user's purchase
-            history -- so the result still has `n_items` entries
-            (unless the catalogue itself is smaller than that) instead
-            of silently coming up short for heavy repeat buyers.
-            Requires purchase data -- see set_purchase_data() /
-            the `purchase_data` constructor argument.
+        The primary retrieval path scores the full eligible catalogue with the
+        compiled Cython/OpenMP two-tower kernel. This avoids the historical
+        "top-k then filter" shortfall. When an explicit exclusion leaves a
+        short candidate pool, the residual fallback uses Bayesian-smoothed
+        popularity (with optional recency weighting), not item-to-item
+        similarity.
         """
+        if n_items <= 0:
+            raise ValueError("n_items must be > 0")
         start = time.perf_counter()
-        exclude = set(exclude_items or [])
+        exclude = {int(x) for x in (exclude_items or [])}
         n_catalog_items = self.weights.item_embeddings.shape[0]
-        candidate_ids = np.array([i for i in range(n_catalog_items) if i not in exclude],
-                                 dtype=np.int32)
-        if candidate_ids.size == 0:
-            return []
 
-        user_out = self._user_output(user_id)
-        item_out = self._item_outputs(candidate_ids)
-        scores = item_out @ user_out
-
+        purchased = set()
         if exclude_purchased:
             if self._fallback is None:
                 raise ValueError(
                     "recommend(exclude_purchased=True) requires purchase data -- pass "
-                    "purchase_data=... to TwoTowerInference(...) or call "
-                    "set_purchase_data(...) first.")
-            # Score the WHOLE (exclude_items-filtered) candidate pool,
-            # not just a naive top-N slice, and hand it to
-            # clean_recommendations() to filter-then-truncate (instead
-            # of truncate-then-filter). This is what actually fixes the
-            # "some customers get fewer than n_items" bug: with the old
-            # top-N-first ordering, filtering purchased items out
-            # *afterward* could shrink an already-truncated list. With
-            # the whole pool scored first, filtered[:n_items] already
-            # reaches n_items whenever that many non-purchased items
-            # exist anywhere in the catalogue. The item-to-item fallback
-            # inside clean_recommendations() only matters as a genuine
-            # last resort when a user has purchased so much of the
-            # catalogue that fewer than n_items non-purchased items
-            # exist at all -- at which point nothing (fallback included)
-            # can manufacture more real items to recommend.
-            ranked_idx = np.argsort(scores)[::-1]
-            candidate_pool = [(int(candidate_ids[i]), float(scores[i])) for i in ranked_idx]
-            cleaned = self._fallback.clean_recommendations(user_id, candidate_pool, n_items=n_items)
-            recommendations = list(zip(cleaned["item_id"].tolist(), cleaned["score"].tolist()))
-            if len(recommendations) < n_items:
-                logger.warning("recommend(user_id=%s, exclude_purchased=True): only %d/%d "
-                               "items available after excluding purchases -- catalogue is "
-                               "too small to fill the request even with fallback.",
-                               user_id, len(recommendations), n_items)
+                    "purchase_data=... or call set_purchase_data(...) first."
+                )
+            purchased = self._fallback.purchased_items(user_id)
+            exclude |= purchased
+
+        eligible = np.fromiter(
+            (i for i in range(n_catalog_items) if i not in exclude),
+            dtype=np.int32,
+        )
+        if eligible.size == 0:
+            self.inference_stats["n_users_served"] += 1
+            return []
+
+        item_out = self._item_outputs(eligible)
+        if _HAS_CYTHON:
+            score_matrix = self._compiled_score_user_against_items(
+                np.asarray([user_id], dtype=np.int32), item_out
+            )
+            scores = score_matrix[0]
         else:
-            top_n_idx = np.argsort(scores)[::-1][:n_items]
-            recommendations = [(int(candidate_ids[i]), float(scores[i])) for i in top_n_idx]
+            user_out = self._user_output(user_id)
+            scores = item_out @ user_out
+
+        order = np.argsort(scores)[::-1]
+        candidate_pool = [(int(eligible[i]), float(scores[i])) for i in order]
+
+        if exclude_purchased:
+            cleaned = self._fallback.clean_recommendations(
+                user_id, candidate_pool, n_items=n_items
+            )
+            recommendations = list(zip(cleaned["item_id"].tolist(), cleaned["score"].tolist()))
+        else:
+            recommendations = candidate_pool[:n_items]
+
+        if len(recommendations) < n_items:
+            logger.warning(
+                "recommend(user_id=%s): requested=%d returned=%d; no more unique eligible catalogue items exist",
+                user_id, n_items, len(recommendations),
+            )
 
         latency_ms = (time.perf_counter() - start) * 1000
         self.inference_stats["n_predictions"] += len(recommendations)

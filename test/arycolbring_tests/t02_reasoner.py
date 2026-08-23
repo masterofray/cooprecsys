@@ -30,8 +30,8 @@ from argparse import ArgumentParser
 
 #LocDir = Path(__file__).resolve().parents[2] / 'src'
 #sys.path.append(str(LocDir))
-from src.configs import _cfg, logger
-from src.models  import AryColBringInference
+from src.cooprecsys.configs            import _cfg, logger
+from src.cooprecsys.models.arycolbring import AryColBringInference
 
 
 class AryColBring_Inference_Test:

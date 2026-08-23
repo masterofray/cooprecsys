@@ -1,49 +1,191 @@
 ---
 title: "Ary2Tower: Two-Tower Neural Recommendation"
-description: "Architecture and operating notes for the Ary2Tower dual-encoder recommendation model."
+description: "Production guide to Ary2Tower training, Cython/OpenMP inference, exact top-N behavior, and the modern residual fallback."
 category: "Models"
 order: 50
-tags: ["ary2tower", "two-tower", "neural-recommender", "cython"]
+tags: ["ary2tower", "two-tower", "neural-recommender", "cython", "openmp", "fallback"]
 author: "Aryanto"
+lastUpdated: "2026-08-22"
 ---
+
+## Purpose
+
+Ary2Tower learns separate user and item representations and compares the resulting tower outputs in a shared vector space. It is useful when a learned continuous representation can capture interaction structure better than a pure sparse-CF model.
+
+The Python-facing package is:
+
+```text
+src/cooprecsys/models/ary2tower/
+├── CLtowers/       # compiled Cython/OpenMP kernels
+├── inout/          # lower-level architect, predictor, fallback logic
+├── narative/       # training/inference report rendering
+├── viztower/       # embedding/metric visualizations
+├── a2tcysetup.py   # native extension build entry point
+├── config.py
+├── towers.py
+├── inference.py
+├── report.py
+└── trainer.py
+```
 
 ## Architecture
 
-Ary2Tower follows a two-tower representation-learning pattern. Each tower transforms its input embedding through dense layers and ReLU activations before producing a comparable representation.
-
-The repository README describes the conceptual stack as:
+The tower shape is intentionally simple:
 
 ```text
-Embedding → Dense → ReLU → Dense
+entity id
+   ↓
+embedding lookup
+   ↓
+dense layer + ReLU
+   ↓
+final dense layer
+   ↓
+user/item representation
+   ↓
+dot-product score
 ```
 
-Similarity is computed using dot-product or cosine-style comparison depending on the implementation path.
+`TwoTowerConfig` controls `embedding_dim`, `hidden_dim`, `output_dim`, learning rate, momentum, epoch count, native thread count, verbosity, and random seed.
 
 ## Training
 
-The project documentation describes BPR-style pairwise training with SGD and momentum. The orchestration layer is located in `trainer.py`, while native kernels live in `CLtowers/`.
+`TwoTowerTrainer.fit()` accepts a sparse interaction matrix. The DataFrame adapter `fit_dataframe()` is useful when the input starts as pandas-style transaction rows with configurable user/item columns.
+
+```python
+from cooprecsys.models.ary2tower import TwoTowerTrainer, TwoTowerConfig
+
+trainer = TwoTowerTrainer(
+    n_users=n_users,
+    n_items=n_items,
+    config=TwoTowerConfig(
+        embedding_dim=32,
+        hidden_dim=64,
+        output_dim=16,
+        learning_rate=0.01,
+        momentum=0.9,
+        n_epochs=10,
+        num_threads=4,
+        random_state=42,
+    ),
+)
+trainer.fit(interactions)
+trainer.save_model('artifacts/models/ary2tower.npz')
+```
+
+When the compiled extensions are present, the training path calls the native `fit_two_tower` kernel. The NumPy path remains available as a portability fallback.
 
 ## Native kernels
 
+`CLtowers/` contains the compiled components used by the Python layer:
+
 ```text
-src/cooprecsys/models/ary2tower/CLtowers/
+_cy_types
+_cy_forward
+_cy_predict
+_cy_similarity
+_cy_train
 ```
 
-The directory contains Cython `.pyx` sources, `.pxd` declarations, generated C sources, and compiled extension modules.
+The development build entry point is:
 
-## Fallback behavior
+```bash
+python ./src/cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace
+```
 
-The existing package design includes a pure-NumPy fallback when the compiled extension is unavailable. This makes the model more portable for environments where a native build is not available, at the cost of native-kernel performance.
+On Windows PowerShell or Unix, the helper scripts in the same directory wrap this operation. The important detail is that the build occurs **inside `models/ary2tower`'s Cython package**, so Python later imports the extension modules from `CLtowers` rather than from an unrelated build directory.
 
-## Visualization
+For a published wheel, consumers should not run the Cython setup script; install the wheel instead.
 
-`viztower/` contains visualization modules for:
+## Inference and the top-N contract
 
-- embedding inspection,
-- model metrics,
-- performance plots,
-- dashboard components.
+`TwoTowerInference.predict()` scores explicit `(user_id, item_id)` pairs. `recommend()` is the serving-oriented top-N API.
 
-## When to choose Ary2Tower
+```python
+from cooprecsys.models.ary2tower import TwoTowerInference
 
-Use Ary2Tower when the recommendation problem benefits from learned continuous representations and separate user/item tower transformations rather than a purely tabular ranking formulation.
+inference = TwoTowerInference(
+    'artifacts/models/ary2tower.npz',
+    num_threads=4,
+    purchase_data=purchases,
+)
+
+recommendations = inference.recommend(
+    user_id=7,
+    n_items=10,
+    exclude_purchased=True,
+)
+```
+
+The current recommendation path is designed to avoid the old shortfall pattern:
+
+```text
+old: score a tiny top-k → exclude purchased → return too few items
+```
+
+The current path is:
+
+```text
+score the eligible catalogue → rank → exclude/validate → fill residual slots
+```
+
+As a result, the API returns exactly the requested number of unique, unseen items whenever that many eligible catalogue items exist.
+
+## Modern residual fallback
+
+When the model path still leaves a shortfall, `TwoTowerFallBack` fills the missing slots with a global prior rather than item-item similarity.
+
+The current prior is based on:
+
+- weighted interaction counts;
+- Bayesian-style shrinkage toward the mean positive item interaction level;
+- `log1p` score compression;
+- optional recency decay using a detected `timestamp`, `event_time`, `created_at`, `datetime`, or `date` column.
+
+The effective idea is:
+
+```text
+raw interaction evidence
+        ↓
+optional time decay
+        ↓
+weighted item counts
+        ↓
+prior shrinkage
+        ↓
+log-compressed fallback score
+        ↓
+fill only the remaining recommendation slots
+```
+
+No item-to-item cosine filtering is used in this residual path.
+
+The important contract is that the fallback never duplicates model candidates or purchased items and only returns fewer than `n_items` when fewer than `n_items` eligible unique catalogue items actually exist.
+
+## Cython vs NumPy backend
+
+The same Python API is intentionally available on both paths. The compiled path uses OpenMP-aware Cython kernels; the NumPy path keeps the package functional in environments where native compilation is unavailable.
+
+Use backend diagnostics when troubleshooting a deployment:
+
+```python
+from cooprecsys.models.ary2tower.towers import backend_info
+print(backend_info())
+```
+
+For production latency-sensitive inference, validate that the expected compiled backend is actually loaded rather than assuming that a successful `.pyx` build automatically means the runtime is using it.
+
+## Reporting and visualization
+
+`report.py` generates a self-contained HTML-oriented model report, while `viztower/` provides embedding, metrics, and performance visualizations. The `narative/` tree contains the HTML templates/static assets used by training and inference reports.
+
+## Choosing Ary2Tower
+
+Choose Ary2Tower when:
+
+- you have stable user/item IDs and enough interactions to learn embeddings;
+- dense representations are valuable;
+- you want compiled scoring/training hot paths;
+- you need a serving API that can enforce a strict top-N contract with a residual fallback.
+
+Use AryColBring when the problem is better expressed as sparse collaborative filtering, and use LTR-LightGBM when tabular feature richness and query-group ranking dominate.

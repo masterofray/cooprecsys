@@ -34,13 +34,13 @@ from argparse import ArgumentParser
 
 #LocDir = Path(__file__).resolve().parents[2] / 'src'
 #sys.path.append(str(LocDir))
-from src.configs  import _cfg, logger
-from src.db       import duckdb_connection
-from src.features import load_data
-from src.prepare  import DetectReco_Identifier
-from src.qrates   import GenQuasi_Lazy, DMD
-from src.models   import norm_exchange
-from src.models   import AryColBringModelTrainer as ACBmodel
+from src.cooprecsys.configs  import _cfg, logger
+from src.cooprecsys.db       import duckdb_connection
+from src.cooprecsys.features import load_data
+from src.cooprecsys.prepare  import DetectReco_Identifier
+from src.cooprecsys.qrates   import GenQuasi_Lazy, DMD
+from src.cooprecsys.models.arycolbring import norm_exchange
+from src.cooprecsys.models.arycolbring import AryColBringModelTrainer as ACBmodel
 
 
 class AryColBring_Train_Test:

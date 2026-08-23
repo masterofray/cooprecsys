@@ -43,7 +43,7 @@ def _default_output_dir() -> Path:
             base = _cfg.get("PATHS", "output_dir", fallback="artifacts")
         except Exception:
             pass
-    return (LocDir.parents[3] / base / "ary2tower_reports").resolve()
+    return (LocDir.parents[4] / base / "ary2tower_reports").resolve()
 
 
 OUTPUT_DIR = _default_output_dir()

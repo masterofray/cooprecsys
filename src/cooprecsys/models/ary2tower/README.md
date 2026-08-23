@@ -8,7 +8,7 @@ pairwise loss (SGD + momentum) over implicit-feedback interactions.
 
 Performance-critical code (the forward pass and the training update)
 is implemented in Cython with OpenMP parallelism, following the same
-build conventions already established by `src/models/arycolbring/`
+build conventions already established by the CoopRecSys model packages
 (`cysetup.py`'s platform-conditional OpenMP flags, `fprintf(stderr,
 ...)`-based verbose diagnostics instead of a Python logger callback
 inside `nogil` code, and the same Hogwild!-style unlocked parallel
@@ -33,7 +33,7 @@ recommendations = infer.recommend(user_id=0, n_items=10, exclude_items=[3, 7])
 ## Building the Cython extension
 
 ```bash
-cd src/models/ary2tower
+cd cooprecsys/models/ary2tower
 bash cysetup.sh          # Linux/macOS
 # or: pwsh cysetup.ps1    # Windows
 ```
@@ -49,7 +49,7 @@ back.
 ## Module layout
 
 ```
-src/models/ary2tower/
+cooprecsys/models/ary2tower/
 ├── __init__.py            # public API: TwoTowerConfig, TwoTowerTrainer, TwoTowerInference, viztower, inout, narative
 ├── config.py               # TwoTowerConfig -- validated at construction (see config.py docstring)
 ├── towers.py                # TwoTowerWeights / UserTower / ItemTower + Cython-or-NumPy dispatch
@@ -63,7 +63,7 @@ src/models/ary2tower/
 │   └── fallback_reasoner.py      # TwoTowerFallBack -- purchase-aware filtering + item-to-item cold start
 ├── viztower/                  # CPU-only static plots (matplotlib)
 │   ├── metrics_visualizer.py     # loss curves, metric bar charts
-│   ├── embedding_visualizer.py   # PCA scatter, similarity heatmap (reuses src/assets/vizdata.py math)
+│   ├── embedding_visualizer.py   # PCA scatter and embedding diagnostics
 │   ├── performance_plots.py      # score distribution, Precision@K / Recall@K
 │   └── dashboard_components.py   # fig -> base64 PNG / data URI / minimal HTML gallery
 ├── narative/                  # ary2tower's own dashboard (see below)
@@ -84,6 +84,12 @@ src/models/ary2tower/
 
 `trainer.py`/`inference.py` are now thin orchestration wrappers: `TwoTowerTrainer` delegates the actual training loop to `inout.model_architect.TwoTowerArchitect`, and `TwoTowerInference` delegates scoring to `inout.approximator.TwoTowerPredictor`, adding the serving-layer concerns (LRU caching, latency stats, `recommend()`) on top. This mirrors the exact relationship `arycolbring/trainer.py`'s `AryColBringModelTrainer` and `arycolbring/inference.py`'s `AryColBringInference` have to their own `inout/` classes. Every public method/attribute that existed before this reorganization is preserved with identical behavior -- verified by re-running the full pre-existing test suite (`t01_towers.py`, `t03_report.py`) unmodified against the refactored code.
 
+## Inference fallback policy
+
+`recommend(..., exclude_purchased=True)` scores the full eligible catalogue through the Cython/OpenMP two-tower kernel before filtering, so the historical top-N-after-filter shortfall is removed. If the requested N still cannot be filled, `inout/fallback_reasoner.py` uses a Bayesian-smoothed popularity prior, optionally time-decayed from event timestamps. It does **not** use item-to-item filtering or item-item cosine similarity. Exact N is guaranteed whenever enough unique catalogue items remain eligible.
+
+The same API is available on the NumPy fallback backend when Cython extensions are unavailable.
+
 ## The dashboard: ary2tower's own, not arycolbring's
 
 `narative/` is ary2tower's own dashboard -- a light + orange theme
@@ -92,8 +98,8 @@ src/models/ary2tower/
 `a2t_training.html`, no tab-switching SPA, one consolidated CSS/JS pair
 per mode) rather than arycolbring's tabbed multi-template system. It
 reuses the same underlying data helpers arycolbring's own dashboard
-uses -- `src/assets/dashboard_utils.py` (scorecards/gauges) and
-`src/assets/vizdata.py` (score histogram, PCA projection, similarity
+uses -- `cooprecsys/assets/dashboard_utils.py` (scorecards/gauges) and
+`cooprecsys/assets/vizdata.py` (score histogram, PCA projection, similarity
 heatmap) -- so the numbers are computed by the exact same code, just
 rendered into ary2tower's own templates. Same separation of concerns
 as the Task 1 dashboard fix this mirrors: `a2trearender.py` (inference
@@ -106,14 +112,14 @@ precision/recall/ndcg/auc/mrr correctly belong.
 instead of building a second dashboard tree, specifically to avoid
 duplicating Task 1's DRY work. That trade-off was reconsidered on
 explicit request for this lighter-weight, ary2tower-owned design --
-see `CHANGELOG.md`. The `src/assets/` reuse above is what keeps this
+see `CHANGELOG.md`. The `cooprecsys/assets/` reuse above is what keeps this
 new tree from re-duplicating the *data* layer, even though it has its
 own templates/CSS/JS.)
 
 `viztower/` covers the complementary *static* case (a saved PNG, a
 notebook cell, a lightweight standalone HTML snippet) where pulling in
 the full Jinja2/CSS/JS stack is overkill. Its embedding/similarity/
-score-distribution math is the same `src/assets/vizdata.py` code the
+score-distribution math is the same `cooprecsys/assets/vizdata.py` code the
 interactive dashboard uses -- there is exactly one implementation of
 that math in this repo, so a static PNG and the interactive Insights
 section always agree.
@@ -215,3 +221,13 @@ for real, in that environment:
 against the compiled backend (`towers._HAS_CYTHON` should read `True`)
 to confirm the Cython path itself compiles and matches the NumPy
 path's behavior — that step could not be completed here.
+
+## Residual Fallback Policy
+The serving path follows this order:
+1. Score the full eligible catalogue with the learned two-tower model.
+2. Remove explicitly excluded and already-purchased items.
+3. Take the first `n_items` remaining model-ranked items.
+4. If the result is still short, fill only the missing slots with a Bayesian-smoothed global popularity prior. When an event-time column is available (`timestamp`, `event_time`, `created_at`, `datetime`, or `date`), the prior is time-decayed so recent demand receives more weight.
+
+This fallback intentionally does **not** use item-to-item cosine similarity, user-user similarity, or a truncate-then-filter heuristic. It is a residual candidate generator: the personalized two-tower model remains the primary ranker, while the prior supplies robust candidates for the missing tail. The contract is exact-N whenever at least `n_items` unique catalogue items remain eligible after exclusions. When fewer unique eligible items physically exist, returning fewer is unavoidable and is logged explicitly.
+

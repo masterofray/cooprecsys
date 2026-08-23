@@ -38,23 +38,24 @@ from typing import Optional, Tuple
 import numpy as np
 from ...configs import logger
 
-try:
-    from .CLtowers import TwoTowerModel as _CyTwoTowerModel
-    from .CLtowers import tower_forward as _cy_tower_forward
-    from .CLtowers import fit_two_tower as _cy_fit_two_tower
-    _HAS_CYTHON = True
-except ImportError:
-    _HAS_CYTHON = False
-    logger.warning(
-        "ary2tower: compiled CLtowers extension not found (run "
-        "`python cysetup.py build_ext --inplace` in src/models/ary2tower/ "
-        "to build it). Falling back to a pure-NumPy implementation -- "
-        "correct, but without the OpenMP-parallel speedup.")
+_cy_predict_pairs       = None
+_cy_predict_user_items  = None
 
+try:
+    from .CLtowers import (TwoTowerModel      as _CyTwoTowerModel,
+                           tower_forward      as _cy_tower_forward,
+                           predict_pairs      as _cy_predict_pairs,
+                           predict_user_items as _cy_predict_user_items,
+                           fit_two_tower      as _cy_fit_two_tower, )
+    _HAS_CYTHON         = True
+    _CYTHON_BACKEND     = "cython-openmp"
+except (ImportError, OSError) as exc:
+    _HAS_CYTHON         = False
+    _CYTHON_BACKEND     = "numpy"
+    logger.warning("ary2tower: compiled CLtowers extension unavailable (%s). ", exc)
 
 def relu(x: np.ndarray) -> np.ndarray:
     return np.maximum(x, 0.0)
-
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
     return np.where(x > 0, 1.0 / (1.0 + np.exp(-x)), np.exp(x) / (1.0 + np.exp(x)))
@@ -141,7 +142,7 @@ class _Tower:
                 getattr(w, f"{self._prefix}_w1"), getattr(w, f"{self._prefix}_b1"),
                 getattr(w, f"{self._prefix}_w2"), getattr(w, f"{self._prefix}_b2"))
 
-    def forward(self, ids: np.ndarray) -> np.ndarray:
+    def forward(self, ids: np.ndarray, num_threads: int = 4) -> np.ndarray:
         """Batch forward pass: ids -> tower output representation.
         Uses the compiled Cython kernel when available, else NumPy."""
         ids = np.asarray(ids, dtype=np.int32).reshape(-1)
@@ -153,7 +154,7 @@ class _Tower:
             tower_out = np.zeros((n, w2.shape[1]), dtype=np.float32)
             _cy_tower_forward(ids, embeddings, w1, b1, w2, b2,
                               hidden_out, tower_out,
-                              num_threads=4, verbose=False)
+                              num_threads=max(1, int(num_threads)), verbose=False)
             return tower_out
 
         # --- NumPy fallback (identical formula) ---
@@ -181,9 +182,19 @@ def dot_product_similarity(user_out: np.ndarray, item_out: np.ndarray) -> np.nda
     return np.sum(user_out * item_out, axis=-1)
 
 
+def backend_info() -> dict:
+    return {
+        "backend": _CYTHON_BACKEND,
+        "compiled": _HAS_CYTHON,
+    }
+
+
 def cosine_similarity(user_out: np.ndarray, item_out: np.ndarray, eps: float = 1e-8) -> np.ndarray:
     """Row-wise cosine similarity between paired user/item tower outputs."""
     dot = np.sum(user_out * item_out, axis=-1)
     norm_u = np.linalg.norm(user_out, axis=-1)
     norm_i = np.linalg.norm(item_out, axis=-1)
     return dot / (norm_u * norm_i + eps)
+
+if __name__ == '__main__':
+    pass

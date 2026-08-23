@@ -714,8 +714,9 @@ class Visualizer:
         # =====================================================
         try:
             logger.debug("Rendering report HTML.")
-            Dict2Json(contextRecsys, str(output_path.parent / 'contextRecsys.json'))
-            htmlpath = repot()
+            fpath = output_path.parent / 'contextRecsys.json'
+            Dict2Json(contextRecsys, str(fpath))
+            htmlpath = repot(ContPath = fpath)
             if not htmlpath.exists():
                 raise ValueError("Rendered HTML is empty.")
             logger.debug("HTML rendered successfully ""(%s).",str(htmlpath))
