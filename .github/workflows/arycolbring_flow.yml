@@ -346,21 +346,12 @@ jobs:
           fi
           echo "OK: no __*_finite symbol references in generated extensions."
 
-      # ------------------------------------------------------
-      # Remove temporary the Ary2Tower models
-      # ------------------------------------------------------
-      - name: Remove Ary2Tower models
-        run: |
-          echo "Just remove temporary the ary2tower script!!!"
-          rm -rf ./src/cooprecsys/models/ary2tower
-          echo ""
-          echo "===== Check Models dir ====="
-          ls -lAh --group-directories-first ./src/cooprecsys/models
-
       # Make sure the freshly compiled module can actually be imported.
       - name: Verify AryColBring Import
         run: |
           export PYTHONPATH="${{ github.workspace }}"
+          echo "Just remove temporary the ary2tower script!!!"
+          rm -rf ./src/cooprecsys/models/ary2tower
           python -c "
           from src.cooprecsys.models.arycolbring import inference
           print('SUCCESS: AryColBring import works on Python ${{ matrix.python-version }}')
@@ -375,6 +366,7 @@ jobs:
           echo "Python version: ${{ matrix.python-version }}"
           echo "=========================================================================="
           export PYTHONPATH="${{ github.workspace }}"
+          rm -rf ./src/cooprecsys/models/ary2tower
           python test/arycolbring_tests/t01_advisor.py \
             -d ./data/sampledata.parquet \
             -t 0.25 \
@@ -391,6 +383,7 @@ jobs:
           echo "Launching AryColBring inference smoke test."
           echo "=========================================================================="
           export PYTHONPATH="${{ github.workspace }}"
+          rm -rf ./src/cooprecsys/models/ary2tower
           # The training script creates timestamp-based model filenames.
           # Grab the newest one instead of hardcoding a date.
           MODEL_PATH=$(find ./artifacts/ACBmodel \

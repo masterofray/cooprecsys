@@ -61,17 +61,6 @@ jobs:
           echo "===== PYTHON PATH ====="
           python -c "import sys; print(sys.path)"
       # ------------------------------------------------------
-      # Remove temporary the Ary2Tower and AryColbring models
-      # ------------------------------------------------------
-      - name: Remove Ary2Tower and AryColbring models
-        run: |
-          echo "Just remove temporary for the avoid to compile the cython files."
-          rm -rf ./src/cooprecsys/models/arycolbring
-          rm -rf ./src/cooprecsys/models/ary2tower
-          echo ""
-          echo "===== Check Models dir ====="
-          ls -lAh --group-directories-first ./src/cooprecsys/models
-      # ------------------------------------------------------
       # Run LTR Smoke Test
       # ------------------------------------------------------
       - name: Run ltrlgbm_test
@@ -82,6 +71,8 @@ jobs:
           MLFLOW_TRACKING_URI: "file:./mlruns"
           MLFLOW_ALLOW_FILE_STORE: "true"
         run: |
+          rm -rf ./src/cooprecsys/models/arycolbring
+          rm -rf ./src/cooprecsys/models/ary2tower
           echo "===== STARTING LTR LIGHTGBM TEST ====="
           python -m test.ltrlgbm_test.ltrtrain_smoketest
           echo "===== TEST FINISHED ====="
@@ -241,6 +232,8 @@ jobs:
 
       - name: Run Inference Fallback Test
         run: |
+          rm -rf ./src/cooprecsys/models/arycolbring
+          rm -rf ./src/cooprecsys/models/ary2tower
           echo "===== STARTING INFERENCE FALLBACK TEST ====="
           python -m test.ltrlgbm_test.ltrinference_smoketest
           echo "===== INFERENCE FALLBACK TEST FINISHED ====="
