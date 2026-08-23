@@ -1,18 +1,18 @@
-[![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=dev)](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml)
+[![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=dev)](https://github.com/masterofray/cooprecsys/actions/workflows/arycolbring_flow.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: Python](https://img.shields.io/badge/code%20style-python-blue)](https://www.python.org/)
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/masterofray/cooprecsys/blob/dev/notebook/AryColBring_Training_Pipeline.ipynb)
 
-# CoopRecSys v0.0.3
+# CoopRecSys v0.1.1
 <p align="center">
-  <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_banner.jpg" alt="CoopRecSys v0.0.3 Banner" width="100%">
+  <img src="https://ik.imagekit.io/arydatalabs/cooprecsys/cooprecsys_banner.jpg" alt="CoopRecSys v0.1.1 Banner" width="100%">
 </p>
 
-**Cooperative Recommender System ML/AI Module Release 0.0.3**
+**Cooperative Recommender System ML/AI Module Release 0.1.1**
 A production-grade machine learning and AI module for building intelligent recommendation systems tailored for cooperative (koperasi) product recommendations. This system combines collaborative filtering, learning-to-rank techniques, and explainable AI dashboards.
 
-> **Current release is v0.0.3**: a packaging, native-extension compatibility, build-system, and PyPI distribution hardening release. The release preserves the core Cython implementations while improving reproducible Linux wheel builds, cross-platform packaging, artifact validation, and PyPI metadata compliance.
+> **Current release is v0.1.1**: a packaging, native-extension compatibility, build-system, and PyPI distribution hardening release. The release preserves the core Cython implementations while improving reproducible Linux wheel builds, cross-platform packaging, artifact validation, and PyPI metadata compliance.
 
 ### Release Highlights
 
@@ -25,14 +25,14 @@ A production-grade machine learning and AI module for building intelligent recom
 
 ---
 
-## Release 0.0.3
+## Release 0.1.1
 
-CoopRecSys v0.0.3 is the current released package version. This release focuses on packaging reliability, native-extension compatibility, reproducible wheel generation, cross-platform distribution, and PyPI metadata compliance while preserving the core recommendation-model implementations.
+CoopRecSys v0.1.1 is the current released package version. This release focuses on packaging reliability, native-extension compatibility, reproducible wheel generation, cross-platform distribution, and PyPI metadata compliance while preserving the core recommendation-model implementations.
 
 For installation, use the published release directly from PyPI:
 
 ```bash
-pip install cooprecsys==0.0.3
+pip install cooprecsys==0.1.1
 ```
 
 
@@ -52,6 +52,7 @@ pip install cooprecsys==0.0.3
 - [Contributing](#contributing)
 - [Author](#author)
 - [License](#license)
+- [Changelog](CHANGELOG.md)
 
 ---
 
@@ -73,7 +74,7 @@ pip install cooprecsys==0.0.3
   - `Embedding -> Dense -> ReLU -> Dense` per tower, dot-product/cosine similarity
   - BPR-style pairwise training with SGD + momentum
   - Automatic pure-NumPy fallback when the compiled extension isn't built
-    (see `src/models/ary2tower/README.md`)
+    (see `src/cooprecsys/models/ary2tower/README.md`)
 
 ### **Explainable AI Dashboard**
 
@@ -123,7 +124,7 @@ pip install cooprecsys==0.0.3
 ### Recommended: Install from PyPI
 
 ```bash
-pip install cooprecsys==0.0.3
+pip install cooprecsys==0.1.1
 ```
 
 Or upgrade an existing installation:
@@ -163,7 +164,7 @@ brew install gcc llvm libomp
    ```
 
 4. **Compile native Cython extensions (repository development only)**
-   The published v0.0.3 wheels contain the compiled native extensions for supported platforms. Manual Cython compilation is primarily required when developing directly from source.
+   The published v0.1.1 wheels contain the compiled native extensions for supported platforms. Manual Cython compilation is primarily required when developing directly from source.
 
 ---
 
@@ -206,6 +207,17 @@ pytest test/arycolbring_tests/test_evaluation.py -v
 pytest test/arycolbring_tests/test_data_utils.py -v
 ```
 
+#### Ary2Tower Smoke and Unit Tests
+
+```bash
+python test/ary2tower_tests/ary2tower_train_smoketest.py
+python test/ary2tower_tests/ary2tower_inference_smoketest.py
+pytest test/ary2tower_tests/t03_pytest.py -v --tb=short
+```
+
+The Ary2Tower test suite uses the production `data/sampledata.parquet` path and directly exercises the model modules under `src/cooprecsys/models/ary2tower/`.
+
+
 **Test locations**:
 - `test/arycolbring_tests/test_model.py` - Model initialization and fitting
 - `test/arycolbring_tests/test_evaluation.py` - Evaluation metrics (Precision@k, Recall@k, AUC)
@@ -219,8 +231,8 @@ pytest test/arycolbring_tests/test_data_utils.py -v
 ### Example 1: LTR LightGBM Pipeline
 
 ```python
-from src.configs import LTRConfig
-from src.models.ltr_lgbm import lgbm_fit_transform
+from cooprecsys.configs import LTRConfig
+from cooprecsys.models.ltr_lgbm import lgbm_fit_transform
 import pandas as pd
 
 # Load your data
@@ -234,7 +246,7 @@ train_df = data.iloc[train_idx]
 test_df = data.iloc[test_idx]
 
 # Configure model
-config = LTRConfig.from_ini('src/configs/configuration.ini', 
+config = LTRConfig.from_ini('src/cooprecsys/configs/configuration.ini', 
                              features=['ProductName', 'ProductPrice', ...])
 config.feature.label = 'CategoryID'
 config.feature.query_id = 'CustomerID'
@@ -256,7 +268,7 @@ print(f"Runtime: {trainer.runtime_minutes} minutes")
 ### Example 2: Collaborative Filtering with AryColBring
 
 ```python
-from src.models.arycolbring import AryColBring
+from cooprecsys.models.arycolbring import AryColBring
 import scipy.sparse as sp
 import numpy as np
 
@@ -284,6 +296,32 @@ item_scores = model.predict([user_id] * 50, np.arange(50))
 top_items = np.argsort(item_scores)[::-1][:10]
 ```
 
+
+### Example 3: Two-Tower Recommendation with Ary2Tower
+
+```python
+from cooprecsys.models.ary2tower import TwoTowerConfig, TwoTowerTrainer, TwoTowerInference
+
+config = TwoTowerConfig(
+    embedding_dim=32,
+    hidden_dims=(64, 32),
+    learning_rate=0.01,
+    epochs=5,
+    random_state=42,
+)
+
+trainer = TwoTowerTrainer(config)
+trainer.fit(...)
+
+trainer.save_model("artifacts/ary2tower/model.npz")
+
+inference = TwoTowerInference.load_model("artifacts/ary2tower/model.npz")
+scores = inference.predict(...)
+recommendations = inference.recommend(...)
+```
+
+For production data preparation, use the loaders and preparation utilities under `cooprecsys.features`, `cooprecsys.prepare`, and `cooprecsys.noisemaker` rather than constructing an ad-hoc interaction matrix.
+
 ---
 
 ## Notebooks
@@ -309,7 +347,7 @@ Step-by-step walkthroughs live in `notebook/`:
 > Cython kernels live in `CLproximity/`, and the dashboard renderers are
 > `narative/advirender.py` / `narative/rearender.py` under a light-theme,
 > orange-accent (`#FF6B35`) design system, not `dashboard/index.html`).
-> New since the last update: `src/models/ary2tower/` (two-tower neural
+> New since the last update: `src/cooprecsys/models/ary2tower/` (two-tower neural
 > recommender) and `notebook/` (usage walkthroughs) -- both shown below.
 
 ```text
@@ -318,32 +356,40 @@ cooprecsys/
 │   └── cooprecsys/
 │       ├── assets/                    # Dashboard/static asset utilities
 │       ├── configs/                   # Model and runtime configuration
-│       ├── db/                       # DuckDB integration
-│       ├── features/                 # Feature engineering and preprocessing
+│       ├── db/                        # DuckDB integration
+│       ├── features/                  # Feature engineering and preprocessing
 │       ├── models/
-│       │   ├── arycolbring/          # Cython collaborative filtering
-│       │   │   ├── CLproximity/      # Native numerical kernels
-│       │   │   ├── inout/            # Training/inference adapters
-│       │   │   ├── narative/         # Reports and explainability rendering
-│       │   │   ├── eval/             # Evaluation and ranking metrics
-│       │   │   ├── assist/           # Supporting utilities
+│       │   ├── arycolbring/           # Cython collaborative filtering
+│       │   │   ├── CLproximity/       # Native numerical kernels
+│       │   │   ├── inout/             # Training/inference adapters
+│       │   │   ├── narative/          # Reports and explainability rendering
+│       │   │   ├── eval/              # Evaluation and ranking metrics
+│       │   │   ├── assist/            # Supporting utilities
 │       │   │   └── inference.py / trainer.py
-│       │   ├── ary2tower/             # Two-tower neural recommender
-│       │   │   ├── CLtowers/         # Cython + OpenMP kernels
-│       │   │   ├── inout/            # Model I/O and fallback logic
-│       │   │   ├── narative/         # Training/inference reports
-│       │   │   ├── viztower/         # Embedding and performance visualizations
+│       │   ├── ary2tower/              # Two-tower neural recommender
+│       │   │   ├── CLtowers/           # Cython + OpenMP kernels
+│       │   │   ├── inout/              # Model I/O and fallback logic
+│       │   │   ├── narative/           # Training/inference reports
+│       │   │   ├── viztower/           # Embedding and performance visualizations
 │       │   │   └── config.py / towers.py / trainer.py / inference.py
 │       │   └── ltr_lgbm/              # Learning-to-Rank with LightGBM
-│       ├── noisemaker/               # Data/noise utilities
-│       ├── prepare/                  # Dataset preparation utilities
-│       ├── qrates/                   # Ranking/quality-rate utilities and SQL
+│       │       ├── ftcore
+│       │       ├── inout
+│       │       ├── report
+│       │       ├── __init__.py
+│       │       ├── dataprepared.py
+│       │       ├── ltr_call.py
+│       │       ├── ltr_predict.py
+│       │       └── readme.md
+│       ├── noisemaker/                # Data/noise utilities
+│       ├── prepare/                   # Dataset preparation utilities
+│       ├── qrates/                    # Ranking/quality-rate utilities and SQL
 │       └── __init__.py
-├── notebook/                         # Usage and training walkthroughs
-├── test/                             # Unit and integration tests
-├── .github/workflows/                # CI/CD automation
-├── docs/                             # Astro documentation site
-├── pyproject.toml                    # Package/build metadata
+├── notebook/                          # Usage and training walkthroughs
+├── test/                              # Unit and integration tests
+├── .github/workflows/                 # CI/CD automation
+├── docs/                              # Astro documentation site
+├── pyproject.toml                     # Package/build metadata
 └── README.md
 ```
 
@@ -529,7 +575,7 @@ export LOG_LEVEL=DEBUG
 
 ### Configuration File
 
-Edit `src/configs/configuration.ini`:
+Edit `src/cooprecsys/configs/configuration.ini`:
 
 ```ini
 [model]
@@ -560,11 +606,10 @@ python -m test.ltrlgbm_test.ltrlgbm_example
 pytest test/arycolbring_tests/t03_pytest.py test/arycolbring_tests/t05_dashboard_refactor.py -v --tb=short
 
 # Unit tests (ary2tower)
-pytest test/ary2tower_tests/t01_towers.py -v --tb=short
+pytest test/ary2tower_tests/t03_pytest.py -v --tb=short
 
-# With coverage (fixed: was previously pointed at a non-importable
-# module name, "cooprecsys" -- now measures the real "src" package)
-pytest test/ --cov=src --cov-report=html
+# Full test suite with coverage
+pytest test/ --cov=cooprecsys --cov-report=html
 
 # Lint
 black --check src test && flake8 src test && isort --check-only src test
@@ -652,12 +697,18 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 
 ## References
 
-- [AryColBring Model Documentation](src/models/README.md)
+- [AryColBring Model Documentation](src/cooprecsys/models/README.md)
 - [Collaborative Filtering - ACM](https://en.wikipedia.org/wiki/Collaborative_filtering)
 - [Learning-to-Rank Overview](https://en.wikipedia.org/wiki/Learning_to_rank)
 - [LightGBM Documentation](https://lightgbm.readthedocs.io/)
 - [MLflow Documentation](https://mlflow.org/)
 - [Cython Documentation](https://cython.readthedocs.io/)
+
+---
+
+## Changelog
+
+Release history is maintained separately in [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
@@ -671,9 +722,6 @@ This project is licensed under the **GNU General Public License v3.0** - see the
 ---
 
 <div align="center">
-
 **Built HARD for better product recommendations in cooperative systems**
-
 **If you find this useful, please star the repository and buy me coffee!**
-
 </div>
