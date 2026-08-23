@@ -349,7 +349,7 @@ jobs:
       # Make sure the freshly compiled module can actually be imported.
       - name: Verify AryColBring Import
         run: |
-          export PYTHONPATH="$PWD"
+          export PYTHONPATH="$PWD:$PWD/src"
           echo "Just remove temporary the ary2tower script!!!"
           rm -rf ./src/cooprecsys/models/ary2tower
           rm -f ./src/cooprecsys/models/__init__.py
@@ -367,7 +367,7 @@ jobs:
           echo "Launching AryColBring model training smoke test."
           echo "Python version: ${{ matrix.python-version }}"
           echo "=========================================================================="
-          export PYTHONPATH="$PWD"
+          export PYTHONPATH="$PWD:$PWD/src"
           rm -rf ./src/cooprecsys/models/ary2tower
           rm -f ./src/cooprecsys/models/__init__.py
           printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
@@ -386,7 +386,7 @@ jobs:
           echo "=========================================================================="
           echo "Launching AryColBring inference smoke test."
           echo "=========================================================================="
-          export PYTHONPATH="$PWD"
+          export PYTHONPATH="$PWD:$PWD/src"
           rm -rf ./src/cooprecsys/models/ary2tower
           rm -f ./src/cooprecsys/models/__init__.py
           printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
