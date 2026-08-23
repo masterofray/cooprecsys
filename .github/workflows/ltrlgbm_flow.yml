@@ -71,7 +71,7 @@ jobs:
           MLFLOW_TRACKING_URI: "file:./mlruns"
           MLFLOW_ALLOW_FILE_STORE: "true"
         run: |
-          export PYTHONPATH="$PWD/src"
+          export PYTHONPATH="$PWD"
           rm -rf ./src/cooprecsys/models/arycolbring
           rm -rf ./src/cooprecsys/models/ary2tower
           rm -f ./src/cooprecsys/models/__init__.py
@@ -235,7 +235,7 @@ jobs:
 
       - name: Run Inference Fallback Test
         run: |
-          export PYTHONPATH="$PWD/src"
+          export PYTHONPATH="$PWD"
           rm -rf ./src/cooprecsys/models/arycolbring
           rm -rf ./src/cooprecsys/models/ary2tower
           rm -f ./src/cooprecsys/models/__init__.py
