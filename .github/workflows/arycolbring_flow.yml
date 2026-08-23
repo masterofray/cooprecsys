@@ -346,6 +346,17 @@ jobs:
           fi
           echo "OK: no __*_finite symbol references in generated extensions."
 
+      # ------------------------------------------------------
+      # Remove temporary the Ary2Tower models
+      # ------------------------------------------------------
+      - name: Remove Ary2Tower models
+        run: |
+          echo "Just remove temporary the ary2tower script!!!"
+          rm -rf ./src/cooprecsys/models/ary2tower
+          echo ""
+          echo "===== Check Models dir ====="
+          ls -lAh --group-directories-first ./src/cooprecsys/models
+
       # Make sure the freshly compiled module can actually be imported.
       - name: Verify AryColBring Import
         run: |

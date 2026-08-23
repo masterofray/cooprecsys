@@ -53,13 +53,24 @@ jobs:
       - name: Debug Repository Structure
         run: |
           echo "===== ROOT DIRECTORY ====="
-          ls -la
+          ls -lAh --group-directories-first
           echo ""
           echo "===== TEST DIRECTORY ====="
-          ls -la test/ || echo "Folder test tidak ditemukan"
+          ls -la test/ || echo "Test Dir is not found."
           echo ""
           echo "===== PYTHON PATH ====="
           python -c "import sys; print(sys.path)"
+      # ------------------------------------------------------
+      # Remove temporary the Ary2Tower and AryColbring models
+      # ------------------------------------------------------
+      - name: Remove Ary2Tower and AryColbring models
+        run: |
+          echo "Just remove temporary for the avoid to compile the cython files."
+          rm -rf ./src/cooprecsys/models/arycolbring
+          rm -rf ./src/cooprecsys/models/ary2tower
+          echo ""
+          echo "===== Check Models dir ====="
+          ls -lAh --group-directories-first ./src/cooprecsys/models
       # ------------------------------------------------------
       # Run LTR Smoke Test
       # ------------------------------------------------------
