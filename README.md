@@ -1,4 +1,4 @@
-[![CoopRecSys CI CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/pipeline.yml/badge.svg?branch=dev)](https://github.com/masterofray/cooprecsys/actions/workflows/arycolbring_flow.yml)
+[![CI/CD Pipeline](https://github.com/masterofray/cooprecsys/actions/workflows/arycolbring_flow.yml/badge.svg?branch=dev)](https://github.com/masterofray/cooprecsys/actions/workflows/arycolbring_flow.yml)
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: Python](https://img.shields.io/badge/code%20style-python-blue)](https://www.python.org/)
