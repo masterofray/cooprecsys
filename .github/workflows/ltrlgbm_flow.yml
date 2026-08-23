@@ -73,6 +73,8 @@ jobs:
         run: |
           rm -rf ./src/cooprecsys/models/arycolbring
           rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
           echo "===== STARTING LTR LIGHTGBM TEST ====="
           python -m test.ltrlgbm_test.ltrtrain_smoketest
           echo "===== TEST FINISHED ====="
@@ -234,6 +236,8 @@ jobs:
         run: |
           rm -rf ./src/cooprecsys/models/arycolbring
           rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
           echo "===== STARTING INFERENCE FALLBACK TEST ====="
           python -m test.ltrlgbm_test.ltrinference_smoketest
           echo "===== INFERENCE FALLBACK TEST FINISHED ====="

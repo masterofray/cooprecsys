@@ -352,6 +352,8 @@ jobs:
           export PYTHONPATH="${{ github.workspace }}"
           echo "Just remove temporary the ary2tower script!!!"
           rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
           python -c "
           from src.cooprecsys.models.arycolbring import inference
           print('SUCCESS: AryColBring import works on Python ${{ matrix.python-version }}')
@@ -367,6 +369,8 @@ jobs:
           echo "=========================================================================="
           export PYTHONPATH="${{ github.workspace }}"
           rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
           python test/arycolbring_tests/t01_advisor.py \
             -d ./data/sampledata.parquet \
             -t 0.25 \
@@ -384,6 +388,8 @@ jobs:
           echo "=========================================================================="
           export PYTHONPATH="${{ github.workspace }}"
           rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import arycolbring\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
           # The training script creates timestamp-based model filenames.
           # Grab the newest one instead of hardcoding a date.
           MODEL_PATH=$(find ./artifacts/ACBmodel \
