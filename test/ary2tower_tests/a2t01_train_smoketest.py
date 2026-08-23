@@ -12,42 +12,30 @@ __created__    = "2026-08-23"
 
 
 """Production-data smoke test for ary2tower training.
-
 Execution path intentionally mirrors the repository's production pipeline:
-
     data/sampledata.parquet
         -> cooprecsys.features.load_data
         -> cooprecsys.prepare.DetectReco_Identifier
         -> cooprecsys.noisemaker.exnorex
         -> cooprecsys.models.ary2tower.TwoTowerTrainer
-
 No synthetic interaction matrix is created here.
 """
 
-from __future__ import annotations
-
-import argparse
-import shutil
 import sys
-from pathlib import Path
-
+import shutil
+import argparse
 import numpy as np
+from pathlib import Path
+from src.cooprecsys.configs                 import logger
+from src.cooprecsys.features                import load_data
+from src.cooprecsys.models.ary2tower        import TwoTowerConfig, TwoTowerTrainer
+from src.cooprecsys.models.ary2tower.towers import backend_info
+from src.cooprecsys.noisemaker              import exnorex
+from src.cooprecsys.prepare                 import DetectReco_Identifier
 
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOT = REPO_ROOT / "src" if (REPO_ROOT / "src" / "cooprecsys").is_dir() else REPO_ROOT
-if str(SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(SOURCE_ROOT))
-
-from cooprecsys.features import load_data
-from cooprecsys.models.ary2tower import TwoTowerConfig, TwoTowerTrainer
-from cooprecsys.models.ary2tower.towers import backend_info
-from cooprecsys.noisemaker import exnorex
-from cooprecsys.prepare import DetectReco_Identifier
-
-
-DEFAULT_DATA = REPO_ROOT / "data" / "sampledata.parquet"
-DEFAULT_MODEL = REPO_ROOT / "test" / "ary2tower_tests" / ".artifacts" / "ary2tower_smoke_model.npz"
+REPO_ROOT     = Path(__file__).resolve().parents[2]
+DEFAULT_DATA  = REPO_ROOT / "data" / "sampledata.parquet"
+DEFAULT_MODEL = REPO_ROOT / "artifacts" / "ary2tower_smoke_model.npz"
 
 
 def build_production_payload(data_path: Path):

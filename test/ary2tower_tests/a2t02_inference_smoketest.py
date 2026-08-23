@@ -19,27 +19,17 @@ keeps the script directly runnable by itself while keeping the actual checks
 focused on inference.
 """
 
-from __future__ import annotations
-
-import argparse
 import sys
-from pathlib import Path
-
+import argparse
 import numpy as np
-
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-SOURCE_ROOT = REPO_ROOT / "src" if (REPO_ROOT / "src" / "cooprecsys").is_dir() else REPO_ROOT
-if str(SOURCE_ROOT) not in sys.path:
-    sys.path.insert(0, str(SOURCE_ROOT))
-
-from cooprecsys.features import load_data
-from cooprecsys.models.ary2tower import TwoTowerInference
-from cooprecsys.models.ary2tower.towers import backend_info
-from cooprecsys.prepare import DetectReco_Identifier
-from cooprecsys.noisemaker import exnorex
-
-from ary2tower_train_smoketest import DEFAULT_DATA, DEFAULT_MODEL, train_smoke
+from pathlib import Path
+from src.cooprecsys.configs import logger
+from src.cooprecsys.features import load_data
+from src.cooprecsys.models.ary2tower import TwoTowerInference
+from src.cooprecsys.models.ary2tower.towers import backend_info
+from src.cooprecsys.prepare import DetectReco_Identifier
+from src.cooprecsys.noisemaker import exnorex
+from test.ary2tower_tests.a2t01_train_smoketest import DEFAULT_DATA, DEFAULT_MODEL, train_smoke
 
 
 def inference_smoke(data_path: Path = DEFAULT_DATA, model_path: Path = DEFAULT_MODEL) -> None:

@@ -16,32 +16,25 @@ This file tests modules under src/cooprecsys/models/ary2tower (or the
 repository's equivalent cooprecsys/models/ary2tower layout). It does NOT
 import either ary2tower smoke-test script.
 """
-from __future__ import annotations
 
-import sys
-from pathlib import Path
-
+import pytest
 import numpy as np
 import pandas as pd
-import pytest
+from pathlib import Path
+from src.cooprecsys.configs                 import logger
+from src.cooprecsys.models.ary2tower.config import TwoTowerConfig
+from src.cooprecsys.models.ary2tower.towers import (ItemTower,
+                                                    TwoTowerWeights,
+                                                    UserTower,
+                                                    backend_info,
+                                                    cosine_similarity,
+                                                    dot_product_similarity,)
+from src.cooprecsys.models.ary2tower.inout.approximator import TwoTowerPredictor
+from src.cooprecsys.models.ary2tower.trainer            import TwoTowerTrainer
+from src.cooprecsys.models.ary2tower.inference          import TwoTowerInference
 
 ROOT = Path(__file__).resolve().parents[2]
-
-from src.cooprecsys.models.ary2tower.config import TwoTowerConfig
-from src.cooprecsys.models.ary2tower.towers import (
-    ItemTower,
-    TwoTowerWeights,
-    UserTower,
-    backend_info,
-    cosine_similarity,
-    dot_product_similarity,
-)
-from src.cooprecsys.models.ary2tower.inout.approximator import TwoTowerPredictor
-from src.cooprecsys.models.ary2tower.trainer import TwoTowerTrainer
-from src.cooprecsys.models.ary2tower.inference import TwoTowerInference
-
 DATA_PATH = ROOT / "data" / "sampledata.parquet"
-
 
 def interaction_frame() -> pd.DataFrame:
     return pd.DataFrame({
