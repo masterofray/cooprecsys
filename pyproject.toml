@@ -108,4 +108,7 @@ exclude_lines   = ["pragma: no cover",
 where           = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", "*.ini", "*.sql"]
+"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", 
+       "*.ini", "*.sql", "*.jpg", "*.ico", 
+       "*.zip", "*.js", "*.css", "*.j2", 
+       "*.sh", "*.md", "*.html"]
