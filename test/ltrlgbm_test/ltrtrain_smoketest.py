@@ -26,8 +26,8 @@ from sklearn.model_selection import GroupShuffleSplit
 #mlflow.set_tracking_uri("sqlite:///mlflow.db")
 LocDir = Path(__file__).resolve().parents[2] / 'src' / 'cooprecsys'
 #sys.path.append(str(LocDir))
-from src.cooprecsys.configs import LTRConfig, logger
-from src.cooprecsys.models  import lgbm_fit_transform
+from src.cooprecsys.configs         import LTRConfig, logger
+from src.cooprecsys.models.ltr_lgbm import lgbm_fit_transform
 
 def maintest():
     logger.info("=" * 60)

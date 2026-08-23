@@ -39,8 +39,8 @@ from src.cooprecsys.db       import duckdb_connection
 from src.cooprecsys.features import load_data
 from src.cooprecsys.prepare  import DetectReco_Identifier
 from src.cooprecsys.qrates   import GenQuasi_Lazy, DMD
-from src.cooprecsys.models   import norm_exchange
-from src.cooprecsys.models   import AryColBringModelTrainer as ACBmodel
+from src.cooprecsys.models.arycolbring import norm_exchange
+from src.cooprecsys.models.arycolbring import AryColBringModelTrainer as ACBmodel
 
 
 class AryColBring_Train_Test:
