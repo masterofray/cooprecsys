@@ -61,10 +61,8 @@ jobs:
       - name: Validate generated site
         run: |
           set -euo pipefail
-
           test -f dist/index.html
           test -d dist/pagefind
-
           echo "Generated site:"
           find dist -maxdepth 2 -type f | sort | head -200
 

@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "GitHub Release tag to publish to PyPI, e.g. v0.0.3"
+        description: "GitHub Release tag to publish to PyPI, e.g. v0.1.1"
         required: true
         type: string
 

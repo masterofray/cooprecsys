@@ -38,31 +38,24 @@ from typing import Optional, Tuple
 import numpy as np
 from ...configs import logger
 
-_cy_predict_pairs = None
-_cy_predict_user_items = None
+_cy_predict_pairs       = None
+_cy_predict_user_items  = None
 
 try:
-    from .CLtowers import (
-        TwoTowerModel as _CyTwoTowerModel,
-        tower_forward as _cy_tower_forward,
-        predict_pairs as _cy_predict_pairs,
-        predict_user_items as _cy_predict_user_items,
-        fit_two_tower as _cy_fit_two_tower,
-    )
-    _HAS_CYTHON = True
-    _CYTHON_BACKEND = "cython-openmp"
+    from .CLtowers import (TwoTowerModel      as _CyTwoTowerModel,
+                           tower_forward      as _cy_tower_forward,
+                           predict_pairs      as _cy_predict_pairs,
+                           predict_user_items as _cy_predict_user_items,
+                           fit_two_tower      as _cy_fit_two_tower, )
+    _HAS_CYTHON         = True
+    _CYTHON_BACKEND     = "cython-openmp"
 except (ImportError, OSError) as exc:
-    _HAS_CYTHON = False
-    _CYTHON_BACKEND = "numpy"
-    logger.warning(
-        "ary2tower: compiled CLtowers extension unavailable (%s). "
-        "Falling back to NumPy; build with "
-        "`python cooprecsys/models/ary2tower/a2tcysetup.py build_ext --inplace`.", exc)
-
+    _HAS_CYTHON         = False
+    _CYTHON_BACKEND     = "numpy"
+    logger.warning("ary2tower: compiled CLtowers extension unavailable (%s). ", exc)
 
 def relu(x: np.ndarray) -> np.ndarray:
     return np.maximum(x, 0.0)
-
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
     return np.where(x > 0, 1.0 / (1.0 + np.exp(-x)), np.exp(x) / (1.0 + np.exp(x)))
@@ -202,3 +195,6 @@ def cosine_similarity(user_out: np.ndarray, item_out: np.ndarray, eps: float = 1
     norm_u = np.linalg.norm(user_out, axis=-1)
     norm_i = np.linalg.norm(item_out, axis=-1)
     return dot / (norm_u * norm_i + eps)
+
+if __name__ == '__main__':
+    pass

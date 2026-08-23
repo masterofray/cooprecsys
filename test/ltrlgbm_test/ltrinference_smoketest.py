@@ -15,7 +15,7 @@ from pathlib  import Path
 
 LocDir = Path(__file__).resolve().parents[2] / 'src' / 'cooprecsys'
 #sys.path.append(str(LocDir))
-from src.cooprecsys.models import InferenceTest
+from src.cooprecsys.models.ltr_lgbm import InferenceTest
 
 def inference_test():
     Args      = {'Datapath'  : LocDir.parents[1]/'data'/'sampledata.parquet',

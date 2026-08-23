@@ -81,6 +81,9 @@ addopts         = "-v --tb=short --cov=src --cov-report=xml --cov-report=term-mi
 log_cli         = true
 log_cli_level   = "INFO"
 
+[tool.black]
+target-version  = ['py312']
+
 [tool.coverage.run]
 branch          = true
 source          = ["src"]
@@ -105,4 +108,7 @@ exclude_lines   = ["pragma: no cover",
 where           = ["src"]
 
 [tool.setuptools.package-data]
-"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", "*.ini", "*.sql"]
+"*" = ["*.so", "*.pyd", "*.pxd", "*.pyx", 
+       "*.ini", "*.sql", "*.jpg", "*.ico", 
+       "*.zip", "*.js", "*.css", "*.j2", 
+       "*.sh", "*.md", "*.html"]

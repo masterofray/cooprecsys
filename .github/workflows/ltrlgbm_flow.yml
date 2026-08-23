@@ -10,15 +10,15 @@ on:
   push:
     branches:
       - dev
-      - master
-  pull_request:
-    branches:
-      - dev
-      - master
+      - staging
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
-  PYTHON_VERSION: "3.10"
+  PYTHON_VERSION: "3.13"
 
 jobs:
   # ==========================================================
@@ -53,10 +53,10 @@ jobs:
       - name: Debug Repository Structure
         run: |
           echo "===== ROOT DIRECTORY ====="
-          ls -la
+          ls -lAh --group-directories-first
           echo ""
           echo "===== TEST DIRECTORY ====="
-          ls -la test/ || echo "Folder test tidak ditemukan"
+          ls -la test/ || echo "Test Dir is not found."
           echo ""
           echo "===== PYTHON PATH ====="
           python -c "import sys; print(sys.path)"
@@ -71,6 +71,11 @@ jobs:
           MLFLOW_TRACKING_URI: "file:./mlruns"
           MLFLOW_ALLOW_FILE_STORE: "true"
         run: |
+          export PYTHONPATH="$PWD:$PWD/src"
+          rm -rf ./src/cooprecsys/models/arycolbring
+          rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
           echo "===== STARTING LTR LIGHTGBM TEST ====="
           python -m test.ltrlgbm_test.ltrtrain_smoketest
           echo "===== TEST FINISHED ====="
@@ -230,6 +235,11 @@ jobs:
 
       - name: Run Inference Fallback Test
         run: |
+          export PYTHONPATH="$PWD:$PWD/src"
+          rm -rf ./src/cooprecsys/models/arycolbring
+          rm -rf ./src/cooprecsys/models/ary2tower
+          rm -f ./src/cooprecsys/models/__init__.py
+          printf '"""Temporary init Package."""\nfrom . import ltr_lgbm\n' > ./src/cooprecsys/models/__init__.py
           echo "===== STARTING INFERENCE FALLBACK TEST ====="
           python -m test.ltrlgbm_test.ltrinference_smoketest
           echo "===== INFERENCE FALLBACK TEST FINISHED ====="

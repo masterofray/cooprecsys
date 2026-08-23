@@ -29,10 +29,10 @@ import pandas as pd
 import pytest
 import scipy.sparse as sp
 
-from src.models.ary2tower import (TwoTowerConfig, TwoTowerTrainer,
-                                  TwoTowerInference, UserTower, ItemTower,
-                                  TwoTowerWeights)
-from src.models.ary2tower.towers import dot_product_similarity, cosine_similarity
+from src.cooprecsys.models.ary2tower        import (TwoTowerConfig, TwoTowerTrainer,
+                                                    TwoTowerInference, UserTower, ItemTower,
+                                                    TwoTowerWeights)
+from src.cooprecsys.models.ary2tower.towers import dot_product_similarity, cosine_similarity
 
 
 # ================================================================
