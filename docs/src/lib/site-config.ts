@@ -9,7 +9,7 @@ export const SITE_CONFIG = {
     home: `${BASE_PATH}/`,
     docsHome: `${BASE_PATH}/docs`,
     github: 'https://github.com/masterofray/cooprecsys',
-    portfolio: 'https://ai.arydatalabs.workers.dev',
+    portfolio: 'https://arydatalabs.pages.dev',
     linkedin: 'https://www.linkedin.com/in/aryanto-ray',
     email: 'mailto:aryanto.dandan@gmail.com',
     issues: 'https://github.com/masterofray/cooprecsys/issues',
