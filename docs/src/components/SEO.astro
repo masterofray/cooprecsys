@@ -18,7 +18,7 @@ interface Props {
 const {
     title,
     description = "Advanced documentation for the CoopRecSys Python machine-learning and AI recommendation system.",
-    image = "https://ik.imagekit.io/arydatalabs/cooprecsys/Cooprecsys.png", // Default image
+    image = "https://res.cloudinary.com/arydatalabs/image/upload/v1790223387/Cooprecsys.png", // Default image
     canonicalURL = new URL(Astro.url.pathname, Astro.site),
     articleData,
 } = Astro.props;
@@ -41,7 +41,7 @@ const organizationSchema = {
     "@type": "Organization",
     name: SITE_CONFIG.organizationName,
     url: Astro.site,
-    logo: "https://ik.imagekit.io/arydatalabs/cooprecsys/Cooprecsys.png",
+    logo: "https://res.cloudinary.com/arydatalabs/image/upload/v1790223387/Cooprecsys.png",
     ...(socialLinks.length > 0 && { sameAs: socialLinks }),
 };
 
@@ -85,7 +85,7 @@ if (articleData) {
 <!-- Global Metadata -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<link rel="icon" href="https://ik.imagekit.io/arydatalabs/cooprecsys/favicon.ico" />
+<link rel="icon" href="https://res.cloudinary.com/arydatalabs/image/upload/v1790223281/favicon.ico" />
 <meta name="generator" content={Astro.generator} />
 
 <!-- Canonical URL -->
